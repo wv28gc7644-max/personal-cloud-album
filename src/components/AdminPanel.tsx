@@ -1205,27 +1205,116 @@ export const AdminPanel = () => {
             </Card>
 
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            {/* BONUS: Lancement automatique au démarrage Windows */}
+            {/* BONUS: Fichier .bat pour lancer en un clic */}
             {/* ═══════════════════════════════════════════════════════════════════ */}
-            <Card className="border-muted">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Zap className="w-5 h-5 text-amber-400" />
-                  💡 Bonus : Lancement automatique au démarrage de Windows
-                </CardTitle>
-                <CardDescription>Pour ne plus avoir à lancer manuellement le serveur</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="text-sm space-y-2">
-                  <p className="text-muted-foreground">1. Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
-                  <p className="text-muted-foreground">2. Tapez <code className="bg-black/30 px-1 rounded">shell:startup</code> et appuyez Entrée</p>
-                  <p className="text-muted-foreground">3. Créez un raccourci vers <code className="bg-black/30 px-1 rounded">C:\MediaVault\server.cjs</code> dans ce dossier</p>
-                  <p className="text-muted-foreground">4. Faites clic droit sur le raccourci → Propriétés</p>
-                  <p className="text-muted-foreground">5. Dans "Cible", mettez : <code className="bg-black/30 px-1 rounded">node C:\MediaVault\server.cjs</code></p>
+            <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/10 to-orange-500/10">
+              <CardHeader className="bg-amber-500/10 border-b border-amber-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center text-white font-bold text-lg">⚡</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="w-5 h-5 text-amber-400" />
+                      🚀 Fichier .bat - Lancer en UN CLIC
+                    </CardTitle>
+                    <CardDescription>Plus besoin de taper des commandes ! Double-cliquez simplement sur ce fichier.</CardDescription>
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground italic">
-                  Le serveur démarrera automatiquement à chaque démarrage de Windows !
-                </p>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Instructions */}
+                <div className="space-y-3">
+                  <div className="pl-4 border-l-2 border-amber-500/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">1</span>
+                      <span className="font-medium">Créez un nouveau fichier</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Dans le dossier <code className="bg-black/30 px-1 rounded">C:\MediaVault</code>, faites clic droit → <strong className="text-foreground">Nouveau</strong> → <strong className="text-foreground">Document texte</strong>
+                    </div>
+                  </div>
+
+                  <div className="pl-4 border-l-2 border-amber-500/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">2</span>
+                      <span className="font-medium">Renommez-le</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Renommez le fichier en <code className="bg-black/30 px-1 rounded font-bold text-amber-400">Lancer MediaVault.bat</code>
+                    </div>
+                    <div className="bg-amber-500/20 border border-amber-500/30 p-2 rounded text-xs text-amber-300">
+                      ⚠️ Si Windows demande de confirmer le changement d'extension, cliquez <strong>Oui</strong>
+                    </div>
+                  </div>
+
+                  <div className="pl-4 border-l-2 border-amber-500/30 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">3</span>
+                      <span className="font-medium">Copiez ce contenu dans le fichier</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mb-2">
+                      Clic droit sur le fichier .bat → <strong className="text-foreground">Modifier</strong> (ou Ouvrir avec Bloc-notes) → Collez le code ci-dessous → Enregistrez
+                    </div>
+                  </div>
+                </div>
+
+                {/* Script .bat */}
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-amber-400">📄 Contenu du fichier .bat :</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        navigator.clipboard.writeText(batScript);
+                        toast.success('Script .bat copié !');
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copier
+                    </Button>
+                  </div>
+                  <pre className="bg-black/70 p-4 rounded-lg font-mono text-sm overflow-x-auto border border-amber-500/30">
+                    <code className="text-amber-300 whitespace-pre">{batScript}</code>
+                  </pre>
+                </div>
+
+                {/* Étape 4 */}
+                <div className="pl-4 border-l-2 border-amber-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">4</span>
+                    <span className="font-medium">Double-cliquez sur le fichier pour lancer !</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Une fenêtre noire s'ouvrira et votre navigateur s'ouvrira automatiquement sur <code className="bg-black/30 px-1 rounded">http://localhost:3001</code>
+                  </div>
+                </div>
+
+                {/* Résultat */}
+                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 p-4 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Check className="w-5 h-5 text-green-500" />
+                    <span className="font-bold text-green-400">C'est tout !</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Désormais, pour lancer votre MediaVault, il vous suffit de <strong className="text-foreground">double-cliquer</strong> sur <code className="bg-black/30 px-1 rounded">Lancer MediaVault.bat</code>
+                  </p>
+                </div>
+
+                {/* Bonus: Démarrage automatique */}
+                <div className="border-t border-amber-500/20 pt-4 mt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span className="font-medium text-amber-400">💡 Bonus : Lancement au démarrage de Windows</span>
+                  </div>
+                  <div className="text-sm space-y-2 text-muted-foreground">
+                    <p>1. Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
+                    <p>2. Tapez <code className="bg-black/30 px-1 rounded">shell:startup</code> et appuyez Entrée</p>
+                    <p>3. Copiez votre fichier <code className="bg-black/30 px-1 rounded">Lancer MediaVault.bat</code> dans ce dossier</p>
+                    <p className="text-xs italic pt-2">→ Le serveur démarrera automatiquement à chaque démarrage de Windows !</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1963,5 +2052,27 @@ const selfHostingScript = [
   "  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');",
   "  console.log('');",
   "  console.log('Ouvrez http://localhost:' + PORT + ' dans votre navigateur');",
-  "});"
+"});"
 ].join('\n');
+
+// Script .bat pour lancer le serveur en un clic
+const batScript = `@echo off
+title MediaVault - Serveur Local
+color 0A
+
+echo.
+echo ================================
+echo    MediaVault - Demarrage
+echo ================================
+echo.
+
+cd /d C:\\MediaVault
+
+echo Lancement du serveur...
+echo.
+
+start http://localhost:3001
+
+node server.cjs
+
+pause`;
