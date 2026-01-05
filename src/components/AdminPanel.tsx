@@ -144,13 +144,22 @@ export const AdminPanel = () => {
       }
 
       const [, owner, repo] = match;
+      const token = localStorage.getItem('mediavault-github-token');
+      
+      // Prepare headers with optional auth token for private repos
+      const headers: HeadersInit = {
+        'Accept': 'application/vnd.github.v3+json'
+      };
+      if (token) {
+        headers['Authorization'] = `token ${token}`;
+      }
       
       // Try the configured branch first, then fallback to master if main fails
-      let response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}`);
+      let response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}`, { headers });
       
       // If main fails, try master
       if (!response.ok && response.status === 404 && branch === 'main') {
-        response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/master`);
+        response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/master`, { headers });
         if (response.ok) {
           localStorage.setItem('mediavault-github-branch', 'master');
         }
@@ -159,11 +168,19 @@ export const AdminPanel = () => {
       if (!response.ok) {
         if (response.status === 404) {
           toast.error("Repository introuvable", {
-            description: "Vérifiez que le repository existe, est public, et que la branche est correcte"
+            description: token 
+              ? "Vérifiez l'URL, la branche, et que le token a accès au repo" 
+              : "Repo privé ? Ajoutez un Personal Access Token ci-dessous"
+          });
+        } else if (response.status === 401) {
+          toast.error("Token invalide", {
+            description: "Vérifiez que votre Personal Access Token est correct"
           });
         } else if (response.status === 403) {
-          toast.error("Limite d'API atteinte", {
-            description: "GitHub limite les requêtes. Réessayez dans quelques minutes"
+          toast.error("Accès refusé", {
+            description: token 
+              ? "Le token n'a pas les permissions nécessaires (besoin de 'repo')"
+              : "Limite d'API atteinte ou repo privé. Ajoutez un token"
           });
         } else {
           toast.error("Erreur GitHub", {
@@ -1532,6 +1549,30 @@ export const AdminPanel = () => {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       La branche par défaut est généralement "main" ou "master" selon votre repo
+                    </p>
+                  </div>
+
+                  {/* Token pour repos privés */}
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label htmlFor="github-token" className="flex items-center gap-2">
+                      Personal Access Token
+                      <span className="text-xs text-muted-foreground font-normal">(optionnel - pour repos privés)</span>
+                    </Label>
+                    <Input
+                      id="github-token"
+                      type="password"
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      defaultValue={localStorage.getItem('mediavault-github-token') || ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          localStorage.setItem('mediavault-github-token', e.target.value);
+                        } else {
+                          localStorage.removeItem('mediavault-github-token');
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token → Cochez "repo"
                     </p>
                   </div>
                 </div>
