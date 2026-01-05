@@ -55,6 +55,7 @@ export const AdminPanel = () => {
     intervalSeconds, 
     lastSyncTime, 
     newFilesCount: autoSyncFilesCount,
+    deletedFilesCount: autoSyncDeletedCount,
     isSyncing,
     enableAutoSync, 
     setIntervalSeconds,
@@ -504,8 +505,14 @@ export const AdminPanel = () => {
                           )}
                           {autoSyncFilesCount > 0 && (
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Nouveaux fichiers:</span>
-                              <span className="text-primary font-medium">+{autoSyncFilesCount}</span>
+                              <span className="text-muted-foreground">Ajoutés:</span>
+                              <span className="text-green-500 font-medium">+{autoSyncFilesCount}</span>
+                            </div>
+                          )}
+                          {autoSyncDeletedCount > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Supprimés:</span>
+                              <span className="text-red-500 font-medium">-{autoSyncDeletedCount}</span>
                             </div>
                           )}
                         </div>
@@ -598,10 +605,10 @@ const fs = require('fs');
 const path = require('path');
 
 // ⚠️ MODIFIEZ CE CHEMIN avec votre dossier de médias
-// ✅ IMPORTANT (Windows) : utilisez des / ou échappez les \\ 
+// ✅ IMPORTANT (Windows) : utilisez des / ou échappez les \\\\ 
 //   Bon:  'C:/Users/jimmy/Pictures'
-//   Bon:  'C:\\Users\\jimmy\\Pictures'
-//   Mauvais: 'C:\Users\jimmy\Pictures'  (les \\ cassent la chaîne)
+//   Bon:  'C:\\\\Users\\\\jimmy\\\\Pictures'
+//   Mauvais: 'C:\\Users\\jimmy\\Pictures'  (les \\\\ cassent la chaîne)
 const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
 
 // Ports à essayer (si le premier est occupé, essaie le suivant)
@@ -629,11 +636,45 @@ const getMimeType = (ext) => {
   return types[ext.toLowerCase()] || 'application/octet-stream';
 };
 
+// Parse multipart form data (simple implementation)
+const parseMultipart = (buffer, boundary) => {
+  const parts = [];
+  const boundaryBuffer = Buffer.from('--' + boundary);
+  let start = buffer.indexOf(boundaryBuffer) + boundaryBuffer.length + 2;
+  
+  while (start < buffer.length) {
+    const end = buffer.indexOf(boundaryBuffer, start);
+    if (end === -1) break;
+    
+    const part = buffer.slice(start, end - 2);
+    const headerEnd = part.indexOf('\\r\\n\\r\\n');
+    if (headerEnd === -1) {
+      start = end + boundaryBuffer.length + 2;
+      continue;
+    }
+    
+    const headers = part.slice(0, headerEnd).toString();
+    const content = part.slice(headerEnd + 4);
+    
+    const filenameMatch = headers.match(/filename="([^"]+)"/);
+    if (filenameMatch) {
+      parts.push({
+        filename: filenameMatch[1],
+        data: content
+      });
+    }
+    
+    start = end + boundaryBuffer.length + 2;
+  }
+  
+  return parts;
+};
+
 const createServer = (port) => {
   const server = http.createServer((req, res) => {
     // CORS Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
     if (req.method === 'OPTIONS') {
@@ -647,10 +688,97 @@ const createServer = (port) => {
       return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
     }
 
+    // Upload file
+    if (req.url === '/api/upload' && req.method === 'POST') {
+      const contentType = req.headers['content-type'] || '';
+      const boundary = contentType.split('boundary=')[1];
+      
+      if (!boundary) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid content-type' }));
+      }
+      
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const parts = parseMultipart(buffer, boundary);
+          
+          if (parts.length === 0) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'No file found' }));
+          }
+          
+          const file = parts[0];
+          const safeName = file.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const filePath = path.join(MEDIA_FOLDER, safeName);
+          
+          fs.writeFileSync(filePath, file.data);
+          
+          const urlPath = encodeURIComponent(safeName);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            fileName: safeName,
+            url: 'http://localhost:' + port + '/media/' + urlPath,
+            thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath
+          }));
+          
+          console.log('✅ Fichier uploadé:', safeName);
+        } catch (err) {
+          console.error('❌ Erreur upload:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // Delete file
+    if (req.url === '/api/delete' && req.method === 'DELETE') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { fileName } = JSON.parse(body);
+          if (!fileName) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'fileName required' }));
+          }
+          
+          const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));
+          
+          // Security: prevent path traversal
+          if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Invalid path' }));
+          }
+          
+          if (!fs.existsSync(filePath)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'File not found' }));
+          }
+          
+          fs.unlinkSync(filePath);
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, fileName }));
+          
+          console.log('🗑️ Fichier supprimé:', fileName);
+        } catch (err) {
+          console.error('❌ Erreur suppression:', err.message);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     // List files (scan récursif: inclut les sous-dossiers)
     if (req.url === '/api/files') {
       try {
-        const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
+        const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
 
         const listMediaFiles = (dir, baseDir) => {
           const out = [];
@@ -765,6 +893,8 @@ const startServer = (portIndex = 0) => {
     console.log('📁 Dossier: ' + MEDIA_FOLDER);
     console.log('🌐 URL: http://localhost:' + port);
     console.log('📡 API: http://localhost:' + port + '/api/files');
+    console.log('📤 Upload: http://localhost:' + port + '/api/upload');
+    console.log('🗑️ Delete: http://localhost:' + port + '/api/delete');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('');
     if (port !== 3001) {

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
+import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
@@ -12,6 +13,7 @@ interface MediaGridProps {
 
 export function MediaGrid({ filterType }: MediaGridProps) {
   const { viewMode, getFilteredMedia, removeMedia, updateMedia, tags } = useMediaStore();
+  const { deleteFromServer } = useBidirectionalSync();
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   
   const filteredMedia = getFilteredMedia();
@@ -29,6 +31,16 @@ export function MediaGrid({ filterType }: MediaGridProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDelete = async (item: MediaItem) => {
+    // If it's a local server file, delete from server too
+    if (item.url.includes('localhost')) {
+      await deleteFromServer(item);
+    } else {
+      // Just remove from local store
+      removeMedia(item.id);
+    }
   };
 
   const handleToggleFavorite = (item: MediaItem) => {
@@ -88,7 +100,7 @@ export function MediaGrid({ filterType }: MediaGridProps) {
             <MediaCardTwitter
               item={item}
               onView={() => setViewerItem(item)}
-              onDelete={() => removeMedia(item.id)}
+              onDelete={() => handleDelete(item)}
               onDownload={() => handleDownload(item)}
               onToggleFavorite={() => handleToggleFavorite(item)}
             />
