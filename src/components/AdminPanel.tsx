@@ -72,6 +72,7 @@ export const AdminPanel = () => {
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'error'>('idle');
   const [latestCommitInfo, setLatestCommitInfo] = useState<{ sha: string; message: string; date: string } | null>(null);
+  const [changelog, setChangelog] = useState<Array<{ sha: string; message: string; date: string; author: string }>>([]);
   const [activeTab, setActiveTab] = useState('tags');
 
   // Listen for open-admin-updates event from startup update check
@@ -225,6 +226,7 @@ export const AdminPanel = () => {
       
       if (localVersion === data.sha) {
         setUpdateCheckState('up-to-date');
+        setChangelog([]);
         toast.success("Vous êtes à jour !", {
           description: `Version: ${commitInfo.sha}`
         });
@@ -233,6 +235,43 @@ export const AdminPanel = () => {
         toast.info("Mise à jour disponible !", {
           description: commitInfo.message
         });
+        
+        // Fetch changelog (commits between local version and latest)
+        if (localVersion) {
+          try {
+            const commitsResponse = await fetch(
+              `https://api.github.com/repos/${owner}/${repo}/commits?sha=${data.sha}&per_page=30`,
+              { headers }
+            );
+            
+            if (commitsResponse.ok) {
+              const commitsData = await commitsResponse.json();
+              const filteredCommits: Array<{ sha: string; message: string; date: string; author: string }> = [];
+              
+              for (const commit of commitsData) {
+                // Stop when we reach the local version
+                if (commit.sha === localVersion) break;
+                
+                filteredCommits.push({
+                  sha: commit.sha.substring(0, 7),
+                  message: commit.commit.message.split('\n')[0],
+                  date: new Date(commit.commit.author.date).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'short'
+                  }),
+                  author: commit.commit.author.name
+                });
+              }
+              
+              setChangelog(filteredCommits);
+            }
+          } catch (changelogErr) {
+            console.debug('Failed to fetch changelog:', changelogErr);
+            setChangelog([]);
+          }
+        } else {
+          setChangelog([]);
+        }
       }
     } catch (err) {
       console.error('Error checking for updates:', err);
@@ -1594,6 +1633,11 @@ export const AdminPanel = () => {
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-amber-400" />
                       <span className="font-medium text-amber-400">Mise à jour disponible !</span>
+                      {changelog.length > 0 && (
+                        <span className="text-xs bg-amber-500/30 px-2 py-0.5 rounded-full">
+                          {changelog.length} commit{changelog.length > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm space-y-1">
                       <p><span className="text-muted-foreground">Dernière version :</span> <code className="bg-black/30 px-1 rounded text-foreground">{latestCommitInfo.sha}</code></p>
@@ -1605,6 +1649,44 @@ export const AdminPanel = () => {
                         <Check className="w-4 h-4 mr-2" />
                         J'ai installé cette version
                       </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Changelog */}
+                {updateCheckState === 'available' && changelog.length > 0 && (
+                  <div className="bg-muted/30 border border-border rounded-lg overflow-hidden">
+                    <div className="bg-muted/50 px-4 py-2 border-b border-border flex items-center gap-2">
+                      <GitBranch className="w-4 h-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">Changelog</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({changelog.length} modification{changelog.length > 1 ? 's' : ''} depuis votre version)
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {changelog.map((commit, index) => (
+                        <div 
+                          key={commit.sha} 
+                          className={cn(
+                            "px-4 py-3 flex gap-3 hover:bg-muted/30 transition-colors",
+                            index !== changelog.length - 1 && "border-b border-border/50"
+                          )}
+                        >
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div className="w-2 h-2 rounded-full bg-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-foreground truncate">{commit.message}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              <code className="bg-black/20 px-1 rounded">{commit.sha}</code>
+                              <span>•</span>
+                              <span>{commit.date}</span>
+                              <span>•</span>
+                              <span>{commit.author}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
