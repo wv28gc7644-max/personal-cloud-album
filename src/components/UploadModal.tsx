@@ -8,6 +8,7 @@ import { TagBadge } from './TagBadge';
 import { Tag, TagColor, MediaItem } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
+import { useNotifications } from '@/hooks/useNotifications';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -30,6 +31,7 @@ const isServerConfigured = (): boolean => {
 export function UploadModal({ open, onClose }: UploadModalProps) {
   const { tags, addMedia, addTag } = useMediaStore();
   const { uploadToServer, isUploading } = useBidirectionalSync();
+  const { addHistoryItem } = useNotifications();
   const [files, setFiles] = useState<File[]>([]);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [newTagName, setNewTagName] = useState('');
@@ -106,6 +108,12 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       };
       
       addMedia(mediaItem);
+      addHistoryItem({
+        type: 'upload',
+        title: 'Fichier ajouté',
+        description: 'Ajouté localement',
+        mediaName: file.name,
+      });
       successCount++;
     }
     

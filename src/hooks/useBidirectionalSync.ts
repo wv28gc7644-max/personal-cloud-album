@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useMediaStore } from './useMediaStore';
+import { useNotifications } from './useNotifications';
 import { MediaItem } from '@/types/media';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ export const useBidirectionalSync = (): UseBidirectionalSyncReturn => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const { addMedia, removeMedia } = useMediaStore();
+  const { addHistoryItem } = useNotifications();
 
   // Upload a file to the local server
   const uploadToServer = useCallback(async (file: File, tags: MediaItem['tags'] = []): Promise<MediaItem | null> => {
@@ -60,6 +62,12 @@ export const useBidirectionalSync = (): UseBidirectionalSyncReturn => {
       };
       
       addMedia(mediaItem);
+      addHistoryItem({
+        type: 'upload',
+        title: 'Fichier uploadé',
+        description: `Ajouté sur le serveur local`,
+        mediaName: file.name,
+      });
       toast.success(`"${file.name}" uploadé sur le serveur local`);
       
       return mediaItem;
@@ -100,6 +108,12 @@ export const useBidirectionalSync = (): UseBidirectionalSyncReturn => {
       
       // Remove from local store
       removeMedia(mediaItem.id);
+      addHistoryItem({
+        type: 'delete',
+        title: 'Fichier supprimé',
+        description: `Supprimé du serveur local`,
+        mediaName: mediaItem.name,
+      });
       toast.success(`"${mediaItem.name}" supprimé du serveur et de l'application`);
       
       return true;

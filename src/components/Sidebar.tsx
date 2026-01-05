@@ -17,6 +17,11 @@ import { useUpdateStatus } from '@/hooks/useUpdateStatus';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 type ViewType = 'home' | 'photos' | 'videos' | 'admin';
 
@@ -28,7 +33,7 @@ interface SidebarProps {
 
 export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: SidebarProps) {
   const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists } = useMediaStore();
-  const hasUpdate = useUpdateStatus();
+  const { hasUpdate, commitsBehind } = useUpdateStatus();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
 
@@ -180,10 +185,17 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: Sidebar
           <Shield className="w-5 h-5" />
           <span className="font-medium">Administration</span>
           {hasUpdate && (
-            <span className="absolute right-3 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="absolute right-3 flex h-2.5 w-2.5 cursor-help">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{commitsBehind > 0 ? `${commitsBehind} commit${commitsBehind > 1 ? 's' : ''} en retard` : 'Mise à jour disponible'}</p>
+              </TooltipContent>
+            </Tooltip>
           )}
         </button>
       </div>
