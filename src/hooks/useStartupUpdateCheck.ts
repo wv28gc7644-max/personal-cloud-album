@@ -10,6 +10,10 @@ interface CommitInfo {
 export const useStartupUpdateCheck = () => {
   useEffect(() => {
     const checkForUpdates = async () => {
+      // Check if auto-check is disabled
+      const autoCheckDisabled = localStorage.getItem('mediavault-disable-auto-update-check') === 'true';
+      if (autoCheckDisabled) return;
+      
       // Only check once per session
       const sessionChecked = sessionStorage.getItem('mediavault-update-checked');
       if (sessionChecked) return;
