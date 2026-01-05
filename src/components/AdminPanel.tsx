@@ -300,7 +300,10 @@ export const AdminPanel = () => {
     if (fullSha) {
       localStorage.setItem('mediavault-local-version', fullSha);
       setUpdateCheckState('up-to-date');
+      setChangelog([]);
       toast.success("Version marquée comme installée");
+      // Notify sidebar to update its badge
+      window.dispatchEvent(new CustomEvent('mediavault-update-status-changed'));
     }
   };
 
