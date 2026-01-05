@@ -1552,6 +1552,118 @@ export const AdminPanel = () => {
               </CardContent>
             </Card>
 
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* Script de mise à jour automatique */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 to-blue-500/5">
+              <CardHeader className="bg-cyan-500/10 border-b border-cyan-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center text-white font-bold">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      🤖 Script de mise à jour automatique
+                    </CardTitle>
+                    <CardDescription>Un fichier .bat qui fait tout automatiquement !</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
+                  <div className="text-green-400 font-medium mb-2">✨ Ce script fait tout pour vous :</div>
+                  <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                    <li>Télécharge automatiquement le nouveau code depuis GitHub</li>
+                    <li>Installe les nouvelles dépendances si nécessaire</li>
+                    <li>Recompile le site</li>
+                    <li>Relance le serveur</li>
+                  </ul>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-sm">
+                  <span className="text-amber-400 font-medium">⚠️ Prérequis :</span>
+                  <span className="text-muted-foreground"> Git doit être installé sur votre PC. Téléchargez-le sur </span>
+                  <a href="https://git-scm.com/downloads" target="_blank" className="text-primary hover:underline">git-scm.com</a>
+                </div>
+
+                {/* Étape 1: Initialiser Git (une seule fois) */}
+                <div className="pl-4 border-l-2 border-cyan-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Étape 1</span>
+                    <span className="font-medium">Configuration initiale (une seule fois)</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Ouvrez l'Invite de commandes dans <code className="bg-black/30 px-1 rounded">C:\MediaVault</code> et exécutez :
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm space-y-1">
+                    <div><span className="text-cyan-400">cd C:\MediaVault</span></div>
+                    <div><span className="text-cyan-400">git init</span></div>
+                    <div><span className="text-cyan-400">git remote add origin https://github.com/VOTRE_NOM/VOTRE_REPO.git</span></div>
+                  </div>
+                  <div className="text-xs text-muted-foreground italic">
+                    Remplacez VOTRE_NOM/VOTRE_REPO par votre URL GitHub (visible sur la page de votre repository)
+                  </div>
+                </div>
+
+                {/* Étape 2: Créer le fichier */}
+                <div className="pl-4 border-l-2 border-cyan-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Étape 2</span>
+                    <span className="font-medium">Créez le fichier de mise à jour</span>
+                  </div>
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                    <li>Ouvrez le <strong className="text-foreground">Bloc-notes</strong></li>
+                    <li>Copiez le code ci-dessous</li>
+                    <li>Enregistrez sous <code className="bg-black/30 px-1 rounded">Mettre a jour MediaVault.bat</code> dans <code className="bg-black/30 px-1 rounded">C:\MediaVault</code></li>
+                  </ol>
+                </div>
+
+                {/* Code du script */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Contenu du fichier :</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(updateScript);
+                        toast.success("Script copié !", { description: "Collez-le dans le Bloc-notes" });
+                      }}
+                    >
+                      <Copy className="w-4 h-4 mr-2" />
+                      Copier le script
+                    </Button>
+                  </div>
+                  <pre className="bg-black/70 p-4 rounded-lg font-mono text-xs overflow-x-auto text-cyan-300 max-h-64 overflow-y-auto">
+                    {updateScript}
+                  </pre>
+                </div>
+
+                {/* Utilisation */}
+                <div className="pl-4 border-l-2 border-cyan-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Étape 3</span>
+                    <span className="font-medium">Utilisation</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    À chaque fois que vous faites des modifications dans Lovable :
+                  </div>
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                    <li><strong className="text-foreground">Double-cliquez</strong> sur <code className="bg-black/30 px-1 rounded">Mettre a jour MediaVault.bat</code></li>
+                    <li>Attendez que le script se termine</li>
+                    <li>C'est tout ! Votre site est à jour 🎉</li>
+                  </ol>
+                </div>
+
+                <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg text-sm">
+                  <span className="text-blue-400 font-medium">💡 Note :</span>
+                  <span className="text-muted-foreground"> Le script préserve automatiquement vos fichiers <code className="bg-black/30 px-1 rounded">media</code>, <code className="bg-black/30 px-1 rounded">data.json</code> et <code className="bg-black/30 px-1 rounded">server.cjs</code>. Vos données ne seront jamais perdues !</span>
+                </div>
+
+              </CardContent>
+            </Card>
+
           </TabsContent>
         </Tabs>
       </div>
@@ -2076,3 +2188,64 @@ start http://localhost:3001
 node server.cjs
 
 pause`;
+
+// Script .bat pour mise à jour automatique
+const updateScript = `@echo off
+title MediaVault - Mise a jour automatique
+color 0B
+
+echo.
+echo ====================================================
+echo    MediaVault - Mise a jour automatique
+echo ====================================================
+echo.
+
+cd /d C:\\MediaVault
+
+echo [1/4] Sauvegarde des fichiers importants...
+echo.
+if exist "data.json" (
+    copy /Y "data.json" "data.json.backup" >nul
+    echo       data.json sauvegarde
+)
+if exist "server.cjs" (
+    copy /Y "server.cjs" "server.cjs.backup" >nul
+    echo       server.cjs sauvegarde
+)
+echo.
+
+echo [2/4] Telechargement du nouveau code depuis GitHub...
+echo.
+git fetch origin
+git reset --hard origin/main
+echo.
+
+echo [3/4] Restauration de vos fichiers...
+echo.
+if exist "data.json.backup" (
+    copy /Y "data.json.backup" "data.json" >nul
+    del "data.json.backup"
+    echo       data.json restaure
+)
+if exist "server.cjs.backup" (
+    copy /Y "server.cjs.backup" "server.cjs" >nul
+    del "server.cjs.backup"
+    echo       server.cjs restaure
+)
+echo.
+
+echo [4/4] Installation et compilation...
+echo.
+call npm install
+call npm run build
+echo.
+
+echo ====================================================
+echo    Mise a jour terminee avec succes !
+echo ====================================================
+echo.
+echo Appuyez sur une touche pour lancer le serveur...
+pause >nul
+
+start http://localhost:3001
+node server.cjs`;
