@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { MediaHeader } from '@/components/MediaHeader';
 import { MediaGrid } from '@/components/MediaGrid';
@@ -12,6 +12,16 @@ const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('home');
+
+  // Listen for open-admin-updates event to switch to admin view
+  useEffect(() => {
+    const handleOpenAdminUpdates = () => {
+      setCurrentView('admin');
+    };
+    
+    window.addEventListener('open-admin-updates', handleOpenAdminUpdates);
+    return () => window.removeEventListener('open-admin-updates', handleOpenAdminUpdates);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-background">

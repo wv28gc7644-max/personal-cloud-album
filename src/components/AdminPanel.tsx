@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useLocalServer } from '@/hooks/useLocalServer';
 import { useAutoSync } from '@/hooks/useAutoSync';
@@ -72,6 +72,17 @@ export const AdminPanel = () => {
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'error'>('idle');
   const [latestCommitInfo, setLatestCommitInfo] = useState<{ sha: string; message: string; date: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('tags');
+
+  // Listen for open-admin-updates event from startup update check
+  useEffect(() => {
+    const handleOpenUpdates = () => {
+      setActiveTab('update');
+    };
+    
+    window.addEventListener('open-admin-updates', handleOpenUpdates);
+    return () => window.removeEventListener('open-admin-updates', handleOpenUpdates);
+  }, []);
   
   const [settings, setSettings] = useState<AdminSettings>(() => {
     const saved = localStorage.getItem('mediavault-admin-settings');
@@ -254,7 +265,7 @@ export const AdminPanel = () => {
           <p className="text-muted-foreground mt-1">Gérez les tags, playlists, et paramètres de votre MediaVault</p>
         </div>
 
-        <Tabs defaultValue="tags" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-6 bg-muted/50">
             <TabsTrigger value="tags" className="gap-2">
               <Tags className="w-4 h-4" />
