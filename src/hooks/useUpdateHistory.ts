@@ -5,6 +5,8 @@ export interface UpdateHistoryItem {
   id: string;
   fromVersion: string;
   toVersion: string;
+  fromVersionFull?: string;
+  toVersionFull?: string;
   date: string;
   commitsBehind: number;
   success: boolean;
@@ -48,6 +50,8 @@ export const recordSuccessfulUpdate = (fromVersion: string, toVersion: string, c
   addUpdate({
     fromVersion: fromVersion.substring(0, 7),
     toVersion: toVersion.substring(0, 7),
+    fromVersionFull: fromVersion,
+    toVersionFull: toVersion,
     commitsBehind,
     success: true,
   });
