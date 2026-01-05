@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useLocalServer } from '@/hooks/useLocalServer';
 import { useAutoSync } from '@/hooks/useAutoSync';
@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TagBadge } from './TagBadge';
+import { UpdateProgressModal, NotificationSoundType, playNotificationSound } from './UpdateProgressModal';
 import { 
   Tags, 
   Palette, 
@@ -38,7 +39,10 @@ import {
   Copy,
   Check,
   AlertCircle,
-  GitBranch
+  GitBranch,
+  Bell,
+  Volume2,
+  Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -77,6 +81,13 @@ export const AdminPanel = () => {
     localStorage.getItem('mediavault-last-update-check')
   );
   const [activeTab, setActiveTab] = useState('tags');
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [notificationSound, setNotificationSound] = useState<NotificationSoundType>(() => 
+    (localStorage.getItem('mediavault-notification-sound') as NotificationSoundType) || 'chime'
+  );
+  const [showSystemNotifications, setShowSystemNotifications] = useState(() => 
+    localStorage.getItem('mediavault-show-system-notifications') !== 'false'
+  );
 
   // Listen for open-admin-updates event from startup update check
   useEffect(() => {
@@ -130,6 +141,36 @@ export const AdminPanel = () => {
   const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
+
+  const getServerUrl = useCallback(() => {
+    return settings.localServerUrl || 'http://localhost:3001';
+  }, [settings.localServerUrl]);
+
+  const triggerUpdateScript = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${getServerUrl()}/api/update`, {
+        method: 'POST',
+      });
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }, [getServerUrl]);
+
+  const handleNotificationSoundChange = (value: NotificationSoundType) => {
+    setNotificationSound(value);
+    localStorage.setItem('mediavault-notification-sound', value);
+  };
+
+  const handleSystemNotificationsChange = (checked: boolean) => {
+    setShowSystemNotifications(checked);
+    localStorage.setItem('mediavault-show-system-notifications', checked.toString());
+  };
+
+  // Get version info
+  const currentVersion = localStorage.getItem('mediavault-local-version') || '';
+  const newVersion = localStorage.getItem('mediavault-latest-full-sha') || '';
+  const hasUpdate = currentVersion && newVersion && currentVersion !== newVersion;
 
   const checkForUpdates = async () => {
     setUpdateCheckState('checking');
@@ -1522,26 +1563,196 @@ export const AdminPanel = () => {
           {/* Update Tab */}
           <TabsContent value="update" className="space-y-4 mt-6">
             
-            {/* Introduction */}
-            <Card className="border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-xl">
-                  <RefreshCw className="w-6 h-6 text-primary" />
-                  🔄 Mettre à jour votre site
-                </CardTitle>
-                <CardDescription className="text-base">
-                  Après avoir fait des modifications dans Lovable, suivez ces étapes simples pour mettre à jour votre site auto-hébergé.
-                  <strong className="text-foreground"> Beaucoup plus court que l'installation initiale !</strong>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
-                  <div className="text-green-400 font-medium mb-2">✅ Bonne nouvelle !</div>
-                  <p className="text-sm text-muted-foreground">
-                    La mise à jour ne prend que <strong className="text-foreground">3 étapes rapides</strong> au lieu de 7. 
-                    Node.js est déjà installé, GitHub est déjà connecté, et votre dossier est déjà prêt.
-                  </p>
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* Status Card - Version actuelle et bouton de mise à jour */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className={cn(
+              "border-2",
+              hasUpdate 
+                ? "border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-orange-500/10" 
+                : currentVersion
+                  ? "border-green-500/50 bg-gradient-to-r from-green-500/10 to-emerald-500/10"
+                  : "border-muted"
+            )}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "w-14 h-14 rounded-full flex items-center justify-center",
+                      hasUpdate 
+                        ? "bg-amber-500/20 text-amber-500" 
+                        : currentVersion
+                          ? "bg-green-500/20 text-green-500"
+                          : "bg-muted text-muted-foreground"
+                    )}>
+                      {hasUpdate ? (
+                        <Download className="w-7 h-7" />
+                      ) : (
+                        <CheckCircle className="w-7 h-7" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">
+                          {hasUpdate ? "Mise à jour disponible" : currentVersion ? "Vous êtes à jour" : "Vérifiez votre version"}
+                        </h3>
+                        {hasUpdate && changelog.length > 0 && (
+                          <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full">
+                            +{changelog.length} commit{changelog.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                        {currentVersion && (
+                          <span className="flex items-center gap-1">
+                            <span>Version:</span>
+                            <code className="bg-black/20 px-1.5 py-0.5 rounded text-foreground font-mono text-xs">
+                              {currentVersion.substring(0, 7)}
+                            </code>
+                          </span>
+                        )}
+                        {hasUpdate && newVersion && (
+                          <>
+                            <span>→</span>
+                            <code className="bg-primary/20 px-1.5 py-0.5 rounded text-primary font-mono text-xs">
+                              {newVersion.substring(0, 7)}
+                            </code>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={checkForUpdates}
+                      disabled={updateCheckState === 'checking'}
+                      className="gap-2"
+                    >
+                      {updateCheckState === 'checking' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Vérifier
+                    </Button>
+                    {hasUpdate && (
+                      <Button 
+                        onClick={() => setShowUpdateModal(true)}
+                        className="gap-2"
+                      >
+                        <Play className="w-4 h-4" />
+                        Mettre à jour
+                      </Button>
+                    )}
+                  </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* Paramètres de notifications */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Paramètres de notifications
+                </CardTitle>
+                <CardDescription>Personnalisez les notifications de mise à jour</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Son de notification */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label className="text-sm font-medium">Son de notification</Label>
+                      <p className="text-xs text-muted-foreground">Son joué à la fin d'une mise à jour</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={notificationSound} onValueChange={(v) => handleNotificationSoundChange(v as NotificationSoundType)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chime">Carillon</SelectItem>
+                        <SelectItem value="bell">Cloche</SelectItem>
+                        <SelectItem value="success">Fanfare</SelectItem>
+                        <SelectItem value="ping">Ping</SelectItem>
+                        <SelectItem value="none">Aucun</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => playNotificationSound(notificationSound)}
+                      disabled={notificationSound === 'none'}
+                    >
+                      <Play className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Notifications système */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="system-notif" className="text-sm font-medium cursor-pointer">Notifications système</Label>
+                      <p className="text-xs text-muted-foreground">Afficher une notification Windows/Mac après mise à jour</p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="system-notif"
+                    checked={showSystemNotifications}
+                    onCheckedChange={handleSystemNotificationsChange}
+                  />
+                </div>
+
+                {/* Vérification automatique */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Zap className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="auto-update-check-2" className="text-sm font-medium cursor-pointer">
+                        Vérification automatique au démarrage
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Affiche une notification si une mise à jour est disponible
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="auto-update-check-2"
+                    defaultChecked={localStorage.getItem('mediavault-disable-auto-update-check') !== 'true'}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        localStorage.removeItem('mediavault-disable-auto-update-check');
+                      } else {
+                        localStorage.setItem('mediavault-disable-auto-update-check', 'true');
+                      }
+                      toast.success(checked ? "Vérification automatique activée" : "Vérification automatique désactivée");
+                    }}
+                  />
+                </div>
+
+                {lastCheckDate && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+                    <Clock className="w-3 h-3" />
+                    <span>
+                      Dernière vérification : {new Date(lastCheckDate).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1744,36 +1955,12 @@ export const AdminPanel = () => {
                   </div>
                 )}
 
-                {/* Option vérification automatique */}
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="auto-update-check" className="text-sm font-medium cursor-pointer">
-                      Vérification automatique au démarrage
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Affiche une notification si une mise à jour est disponible
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto-update-check"
-                    defaultChecked={localStorage.getItem('mediavault-disable-auto-update-check') !== 'true'}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        localStorage.removeItem('mediavault-disable-auto-update-check');
-                      } else {
-                        localStorage.setItem('mediavault-disable-auto-update-check', 'true');
-                      }
-                      toast.success(checked ? "Vérification automatique activée" : "Vérification automatique désactivée");
-                    }}
-                  />
-                </div>
-
                 <div className="bg-muted/50 p-3 rounded-lg text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">💡 Comment ça marche :</span>
                   <ul className="mt-1 list-disc list-inside space-y-1">
                     <li>Ce bouton vérifie la dernière version disponible sur GitHub</li>
-                    <li>Si une mise à jour est disponible, suivez les étapes ci-dessous</li>
-                    <li>Après avoir mis à jour, cliquez sur "J'ai installé cette version"</li>
+                    <li>Si une mise à jour est disponible, cliquez sur "Mettre à jour" en haut</li>
+                    <li>Le script automatique fait le reste !</li>
                   </ul>
                 </div>
 
@@ -2101,6 +2288,17 @@ export const AdminPanel = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Update Progress Modal */}
+      <UpdateProgressModal
+        open={showUpdateModal}
+        onOpenChange={setShowUpdateModal}
+        currentVersion={currentVersion}
+        newVersion={newVersion}
+        commitsBehind={changelog.length}
+        onStartUpdate={triggerUpdateScript}
+        changelog={changelog}
+      />
     </div>
   );
 };
