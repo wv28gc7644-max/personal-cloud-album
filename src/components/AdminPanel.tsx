@@ -565,9 +565,9 @@ export const AdminPanel = () => {
                     <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
                       <li>Installez <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Node.js</a> sur votre PC Windows</li>
                       <li>Créez un dossier pour votre serveur (ex: <code className="bg-muted px-1 rounded">C:\MediaServer</code>)</li>
-                      <li>Copiez le script ci-dessous dans un fichier <code className="bg-muted px-1 rounded">server.js</code></li>
+                      <li>Copiez le script ci-dessous dans un fichier <code className="bg-muted px-1 rounded">server.cjs</code></li>
                       <li>Modifiez <code className="bg-muted px-1 rounded">MEDIA_FOLDER</code> avec le chemin de vos médias</li>
-                      <li>Ouvrez un terminal et exécutez: <code className="bg-muted px-1 rounded">node server.js</code></li>
+                      <li>Ouvrez un terminal et exécutez: <code className="bg-muted px-1 rounded">node server.cjs</code></li>
                       <li>Revenez ici et cliquez sur "Charger les fichiers"</li>
                     </ol>
                   </CardContent>
@@ -576,7 +576,7 @@ export const AdminPanel = () => {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center justify-between">
-                      Script serveur (server.js)
+                      Script serveur (server.cjs)
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -1005,7 +1005,7 @@ export const AdminPanel = () => {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
                         <span className="flex items-center gap-2">
-                          📄 server.js — Script complet
+                          📄 server.cjs — Script complet
                         </span>
                         <Button 
                           variant="default" 
@@ -1069,7 +1069,7 @@ export const AdminPanel = () => {
                   <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
                     <p className="text-muted-foreground">• Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Ctrl + S</kbd></p>
                     <p className="text-muted-foreground">• Naviguez vers <code className="bg-black/30 px-1 rounded">C:\MediaVault</code></p>
-                    <p className="text-muted-foreground">• Nom du fichier : <code className="bg-black/30 px-1 rounded">server.js</code></p>
+                    <p className="text-muted-foreground">• Nom du fichier : <code className="bg-black/30 px-1 rounded font-bold text-amber-400">server.cjs</code> <span className="text-destructive font-bold">(⚠️ pas .js !)</span></p>
                     <p className="text-muted-foreground">• Type : <code className="bg-black/30 px-1 rounded">Tous les fichiers (*.*)</code></p>
                     <p className="text-muted-foreground">• Cliquez "Enregistrer"</p>
                   </div>
@@ -1077,7 +1077,7 @@ export const AdminPanel = () => {
 
                 <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
-                  <span className="text-sm"><strong>Résultat :</strong> Le fichier server.js est prêt !</span>
+                  <span className="text-sm"><strong>Résultat :</strong> Le fichier server.cjs est prêt !</span>
                 </div>
               </CardContent>
             </Card>
@@ -1103,7 +1103,7 @@ export const AdminPanel = () => {
                 <div className="bg-muted/50 p-4 rounded-lg font-mono text-sm">
                   <div className="text-foreground font-semibold mb-2">📁 Structure finale de C:\MediaVault\ :</div>
                   <div className="space-y-1 text-muted-foreground">
-                    <div>├── 📄 server.js <span className="text-primary">(le script que vous venez de créer)</span></div>
+                    <div>├── 📄 server.cjs <span className="text-primary">(le script que vous venez de créer)</span></div>
                     <div>├── 📁 dist\ <span className="text-primary">(créé automatiquement par npm run build)</span></div>
                     <div>│   ├── index.html</div>
                     <div>│   ├── assets\</div>
@@ -1168,7 +1168,7 @@ export const AdminPanel = () => {
                     <span className="font-medium">Lancez le serveur</span>
                   </div>
                   <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
-                    <span className="text-emerald-400">node server.js</span>
+                    <span className="text-emerald-400">node server.cjs</span>
                   </div>
                 </div>
 
@@ -1215,9 +1215,9 @@ export const AdminPanel = () => {
                 <div className="text-sm space-y-2">
                   <p className="text-muted-foreground">1. Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
                   <p className="text-muted-foreground">2. Tapez <code className="bg-black/30 px-1 rounded">shell:startup</code> et appuyez Entrée</p>
-                  <p className="text-muted-foreground">3. Créez un raccourci vers <code className="bg-black/30 px-1 rounded">C:\MediaVault\server.js</code> dans ce dossier</p>
+                  <p className="text-muted-foreground">3. Créez un raccourci vers <code className="bg-black/30 px-1 rounded">C:\MediaVault\server.cjs</code> dans ce dossier</p>
                   <p className="text-muted-foreground">4. Faites clic droit sur le raccourci → Propriétés</p>
-                  <p className="text-muted-foreground">5. Dans "Cible", mettez : <code className="bg-black/30 px-1 rounded">node C:\MediaVault\server.js</code></p>
+                  <p className="text-muted-foreground">5. Dans "Cible", mettez : <code className="bg-black/30 px-1 rounded">node C:\MediaVault\server.cjs</code></p>
                 </div>
                 <p className="text-xs text-muted-foreground italic">
                   Le serveur démarrera automatiquement à chaque démarrage de Windows !
@@ -1250,7 +1250,7 @@ const serverScript = [
   "// Vérification du dossier au démarrage",
   "if (!fs.existsSync(MEDIA_FOLDER)) {",
   "  console.error('❌ MEDIA_FOLDER introuvable:', MEDIA_FOLDER);",
-  "  console.log('➡️ Corrigez MEDIA_FOLDER puis relancez: node server.js');",
+  "  console.log('➡️ Corrigez MEDIA_FOLDER puis relancez: node server.cjs');",
   "  process.exit(1);",
   "}",
   "",
