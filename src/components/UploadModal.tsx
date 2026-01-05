@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Upload, X, Plus, Image, Video } from 'lucide-react';
+import { Upload, X, Plus, Image, Video, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TagBadge } from './TagBadge';
 import { Tag, TagColor, MediaItem } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
+import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface UploadModalProps {
   open: boolean;
@@ -16,13 +18,24 @@ interface UploadModalProps {
 
 const tagColors: TagColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'];
 
+const isServerConfigured = (): boolean => {
+  const saved = localStorage.getItem('mediavault-admin-settings');
+  if (saved) {
+    const settings = JSON.parse(saved);
+    return !!settings.localServerUrl;
+  }
+  return false;
+};
+
 export function UploadModal({ open, onClose }: UploadModalProps) {
   const { tags, addMedia, addTag } = useMediaStore();
+  const { uploadToServer, isUploading } = useBidirectionalSync();
   const [files, setFiles] = useState<File[]>([]);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   const [showTagForm, setShowTagForm] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles((prev) => [...prev, ...acceptedFiles]);
@@ -59,8 +72,25 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
     setShowTagForm(false);
   };
 
-  const handleUpload = () => {
-    files.forEach((file) => {
+  const handleUpload = async () => {
+    const serverConfigured = isServerConfigured();
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadProgress(Math.round(((i + 1) / files.length) * 100));
+      
+      if (serverConfigured) {
+        // Try to upload to server first
+        const result = await uploadToServer(file, selectedTags);
+        if (result) {
+          successCount++;
+          continue;
+        }
+      }
+      
+      // Fallback: add locally only
       const isVideo = file.type.startsWith('video/');
       const url = URL.createObjectURL(file);
       
@@ -76,10 +106,16 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       };
       
       addMedia(mediaItem);
-    });
+      successCount++;
+    }
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} fichier(s) ajouté(s)`);
+    }
     
     setFiles([]);
     setSelectedTags([]);
+    setUploadProgress(0);
     onClose();
   };
 
@@ -202,16 +238,25 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isUploading}>
             Annuler
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={files.length === 0}
+            disabled={files.length === 0 || isUploading}
             className="min-w-32"
           >
-            <Upload className="w-4 h-4 mr-2" />
-            Publier ({files.length})
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {uploadProgress}%
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Publier ({files.length})
+              </>
+            )}
           </Button>
         </div>
       </DialogContent>

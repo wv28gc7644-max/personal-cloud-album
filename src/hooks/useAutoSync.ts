@@ -22,10 +22,11 @@ interface UseAutoSyncReturn {
   intervalSeconds: number;
   lastSyncTime: Date | null;
   newFilesCount: number;
+  deletedFilesCount: number;
   isSyncing: boolean;
   enableAutoSync: (enabled: boolean) => void;
   setIntervalSeconds: (seconds: number) => void;
-  syncNow: () => Promise<number>;
+  syncNow: () => Promise<{ added: number; deleted: number }>;
 }
 
 const getMediaType = (fileName: string): 'image' | 'video' | null => {
@@ -52,12 +53,13 @@ export const useAutoSync = (): UseAutoSyncReturn => {
   
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [newFilesCount, setNewFilesCount] = useState(0);
+  const [deletedFilesCount, setDeletedFilesCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const knownFilesRef = useRef<Set<string>>(new Set());
   
-  const { media, addMedia } = useMediaStore();
+  const { media, addMedia, removeMedia } = useMediaStore();
 
   // Initialize known files from current media
   useEffect(() => {
@@ -65,7 +67,7 @@ export const useAutoSync = (): UseAutoSyncReturn => {
     knownFilesRef.current = urls;
   }, []);
 
-  const syncNow = useCallback(async (): Promise<number> => {
+  const syncNow = useCallback(async (): Promise<{ added: number; deleted: number }> => {
     setIsSyncing(true);
     
     try {
@@ -81,11 +83,23 @@ export const useAutoSync = (): UseAutoSyncReturn => {
       
       const files: LocalFile[] = await response.json();
       let addedCount = 0;
+      let deletedCount = 0;
       
-      // Get current media URLs to avoid duplicates
+      // Get current media
       const currentMedia = useMediaStore.getState().media;
       const existingUrls = new Set(currentMedia.map(m => m.url));
+      const serverUrls = new Set(files.map(f => f.url));
       
+      // Detect deleted files (files in app but not on server)
+      // Only check local files (those with localhost URLs)
+      for (const mediaItem of currentMedia) {
+        if (mediaItem.url.includes('localhost') && !serverUrls.has(mediaItem.url)) {
+          removeMedia(mediaItem.id);
+          deletedCount++;
+        }
+      }
+      
+      // Detect new files (files on server but not in app)
       for (const file of files) {
         const mediaType = getMediaType(file.name);
         if (!mediaType) continue;
@@ -113,20 +127,24 @@ export const useAutoSync = (): UseAutoSyncReturn => {
       
       setLastSyncTime(new Date());
       setNewFilesCount(addedCount);
+      setDeletedFilesCount(deletedCount);
       
-      if (addedCount > 0) {
-        toast.success(`Sync auto: ${addedCount} nouveau(x) fichier(s) détecté(s)`);
+      if (addedCount > 0 || deletedCount > 0) {
+        const messages = [];
+        if (addedCount > 0) messages.push(`+${addedCount} ajouté(s)`);
+        if (deletedCount > 0) messages.push(`-${deletedCount} supprimé(s)`);
+        toast.success(`Sync: ${messages.join(', ')}`);
       }
       
-      return addedCount;
+      return { added: addedCount, deleted: deletedCount };
     } catch (err) {
       // Silently fail for auto-sync to avoid toast spam
       console.warn('Auto-sync failed:', err);
-      return 0;
+      return { added: 0, deleted: 0 };
     } finally {
       setIsSyncing(false);
     }
-  }, [addMedia]);
+  }, [addMedia, removeMedia]);
 
   const enableAutoSync = useCallback((enabled: boolean) => {
     setSettings(prev => {
@@ -179,6 +197,7 @@ export const useAutoSync = (): UseAutoSyncReturn => {
     intervalSeconds: settings.intervalSeconds,
     lastSyncTime,
     newFilesCount,
+    deletedFilesCount,
     isSyncing,
     enableAutoSync,
     setIntervalSeconds,
