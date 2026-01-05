@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Check, Loader2, Download, Archive, RotateCcw, CheckCircle2, Play, GitCommit, Volume2 } from 'lucide-react';
+import { recordSuccessfulUpdate } from '@/hooks/useUpdateHistory';
 import {
   Dialog,
   DialogContent,
@@ -197,9 +198,13 @@ export function UpdateProgressModal({
           showSystemNotification();
         }
         
-        // Update local version to match latest
+        // Update local version to match latest and record history
         const latestVersion = localStorage.getItem('mediavault-latest-full-sha');
+        const previousVersion = localStorage.getItem('mediavault-local-version') || '';
         if (latestVersion) {
+          // Record successful update in history
+          recordSuccessfulUpdate(previousVersion, latestVersion, commitsBehind);
+          
           localStorage.setItem('mediavault-local-version', latestVersion);
           localStorage.removeItem('mediavault-changelog');
           window.dispatchEvent(new CustomEvent('mediavault-update-status-changed'));

@@ -13,6 +13,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TagBadge } from './TagBadge';
 import { UpdateProgressModal, NotificationSoundType, playNotificationSound } from './UpdateProgressModal';
+import { useUpdateHistory } from '@/hooks/useUpdateHistory';
 import { 
   Tags, 
   Palette, 
@@ -42,7 +43,8 @@ import {
   GitBranch,
   Bell,
   Volume2,
-  Play
+  Play,
+  History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -72,6 +74,7 @@ export const AdminPanel = () => {
     setIntervalSeconds,
     syncNow
   } = useAutoSync();
+  const { history: updateHistory, clearHistory: clearUpdateHistory } = useUpdateHistory();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'error'>('idle');
@@ -1751,6 +1754,97 @@ export const AdminPanel = () => {
                         minute: '2-digit'
                       })}
                     </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* Historique des mises à jour */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <History className="w-5 h-5" />
+                    <div>
+                      <CardTitle>Historique des mises à jour</CardTitle>
+                      <CardDescription>Mises à jour effectuées sur cette instance</CardDescription>
+                    </div>
+                  </div>
+                  {updateHistory.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        clearUpdateHistory();
+                        toast.success('Historique effacé');
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Effacer
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {updateHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Aucune mise à jour enregistrée</p>
+                    <p className="text-xs">Les prochaines mises à jour apparaîtront ici</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {updateHistory.map((item, index) => (
+                      <div 
+                        key={item.id}
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-lg border",
+                          index === 0 ? "bg-green-500/10 border-green-500/30" : "bg-muted/30 border-border/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center",
+                            item.success ? "bg-green-500/20 text-green-500" : "bg-destructive/20 text-destructive"
+                          )}>
+                            {item.success ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <code className="bg-black/20 px-1.5 py-0.5 rounded text-xs font-mono text-muted-foreground">
+                                {item.fromVersion}
+                              </code>
+                              <span className="text-muted-foreground">→</span>
+                              <code className="bg-primary/20 px-1.5 py-0.5 rounded text-xs font-mono text-primary">
+                                {item.toVersion}
+                              </code>
+                              {item.commitsBehind > 0 && (
+                                <span className="text-xs bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded">
+                                  +{item.commitsBehind}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {new Date(item.date).toLocaleDateString('fr-FR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        {index === 0 && (
+                          <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full">
+                            Dernière
+                          </span>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
