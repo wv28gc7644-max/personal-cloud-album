@@ -9,6 +9,58 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
+// Play notification sound
+const playNotificationSound = () => {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  
+  // Create a pleasant notification sound
+  const playTone = (frequency: number, startTime: number, duration: number) => {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = frequency;
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+    
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
+  };
+  
+  const now = audioContext.currentTime;
+  // Play a pleasant two-tone chime
+  playTone(587.33, now, 0.15);        // D5
+  playTone(880, now + 0.15, 0.25);    // A5
+};
+
+// Request and show system notification
+const showSystemNotification = () => {
+  if ('Notification' in window) {
+    if (Notification.permission === 'granted') {
+      new Notification('MediaVault mis à jour', {
+        body: 'La mise à jour a été installée avec succès !',
+        icon: '/favicon.ico',
+        tag: 'mediavault-update',
+      });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification('MediaVault mis à jour', {
+            body: 'La mise à jour a été installée avec succès !',
+            icon: '/favicon.ico',
+            tag: 'mediavault-update',
+          });
+        }
+      });
+    }
+  }
+};
+
 interface UpdateProgressModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,6 +144,10 @@ export function UpdateProgressModal({
         setIsComplete(true);
         setProgress(100);
         
+        // Play sound and show notification
+        playNotificationSound();
+        showSystemNotification();
+        
         // Update local version to match latest
         const latestVersion = localStorage.getItem('mediavault-latest-full-sha');
         if (latestVersion) {
@@ -103,7 +159,7 @@ export function UpdateProgressModal({
         // Refresh the page after a short delay
         setTimeout(() => {
           window.location.reload();
-        }, 2000);
+        }, 2500);
         
         return;
       }
