@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
-import { MediaCard } from './MediaCard';
+import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
 import { Images } from 'lucide-react';
 
-export function MediaGrid() {
-  const { viewMode, getFilteredMedia, removeMedia } = useMediaStore();
+interface MediaGridProps {
+  filterType?: 'image' | 'video';
+}
+
+export function MediaGrid({ filterType }: MediaGridProps) {
+  const { viewMode, getFilteredMedia, removeMedia, updateMedia, tags } = useMediaStore();
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   
   const filteredMedia = getFilteredMedia();
+  
+  // Apply additional type filter if specified
+  const displayMedia = useMemo(() => {
+    if (!filterType) return filteredMedia;
+    return filteredMedia.filter(item => item.type === filterType);
+  }, [filteredMedia, filterType]);
 
   const handleDownload = (item: MediaItem) => {
     const link = document.createElement('a');
@@ -21,7 +31,19 @@ export function MediaGrid() {
     document.body.removeChild(link);
   };
 
-  if (filteredMedia.length === 0) {
+  const handleToggleFavorite = (item: MediaItem) => {
+    const favorisTag = tags.find(t => t.name === 'Favoris');
+    if (!favorisTag) return;
+
+    const hasFavoris = item.tags.some(t => t.id === favorisTag.id);
+    const newTags = hasFavoris 
+      ? item.tags.filter(t => t.id !== favorisTag.id)
+      : [...item.tags, favorisTag];
+    
+    updateMedia(item.id, { tags: newTags });
+  };
+
+  if (displayMedia.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center mb-6">
@@ -29,34 +51,46 @@ export function MediaGrid() {
         </div>
         <h3 className="text-xl font-semibold mb-2">Aucun média trouvé</h3>
         <p className="text-muted-foreground max-w-sm">
-          Ajoutez des photos et vidéos pour commencer à construire votre bibliothèque personnelle.
+          {filterType === 'image' 
+            ? 'Aucune photo à afficher.' 
+            : filterType === 'video' 
+            ? 'Aucune vidéo à afficher.'
+            : 'Ajoutez des photos et vidéos pour commencer à construire votre bibliothèque personnelle.'}
         </p>
       </div>
     );
   }
+
+  // Get card style from localStorage
+  const savedSettings = localStorage.getItem('mediavault-admin-settings');
+  const cardStyle = savedSettings ? JSON.parse(savedSettings).cardStyle : 'twitter';
+  const gridColumns = savedSettings ? JSON.parse(savedSettings).gridColumns : 3;
 
   return (
     <>
       <div
         className={cn(
           "p-6 animate-fade-in",
-          viewMode === 'grid' && "media-grid",
-          viewMode === 'grid-large' && "media-grid-large",
-          viewMode === 'list' && "media-list"
+          cardStyle === 'twitter' && "grid gap-6",
+          cardStyle === 'grid' && "media-grid",
+          cardStyle === 'compact' && "media-grid-large"
         )}
+        style={cardStyle === 'twitter' ? { 
+          gridTemplateColumns: `repeat(${Math.min(gridColumns, 2)}, minmax(0, 1fr))` 
+        } : undefined}
       >
-        {filteredMedia.map((item, index) => (
+        {displayMedia.map((item, index) => (
           <div
             key={item.id}
             className="animate-slide-up"
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <MediaCard
+            <MediaCardTwitter
               item={item}
-              viewMode={viewMode}
-              onClick={() => setViewerItem(item)}
+              onView={() => setViewerItem(item)}
               onDelete={() => removeMedia(item.id)}
               onDownload={() => handleDownload(item)}
+              onToggleFavorite={() => handleToggleFavorite(item)}
             />
           </div>
         ))}
@@ -64,7 +98,7 @@ export function MediaGrid() {
 
       <MediaViewer
         item={viewerItem}
-        items={filteredMedia}
+        items={displayMedia}
         onClose={() => setViewerItem(null)}
         onNavigate={setViewerItem}
         onDownload={handleDownload}
