@@ -29,4 +29,32 @@ export interface Playlist {
   createdAt: Date;
 }
 
-export type ViewMode = 'grid' | 'grid-large' | 'list';
+export type ViewMode = 'grid' | 'grid-large' | 'list' | 'masonry';
+
+export type SortOption = 
+  | 'date-desc' 
+  | 'date-asc' 
+  | 'name-asc' 
+  | 'name-desc' 
+  | 'size-desc' 
+  | 'size-asc' 
+  | 'type-image' 
+  | 'type-video'
+  | 'duration-desc';
+
+export interface MediaStats {
+  mediaId: string;
+  viewCount: number;
+  totalWatchTime: number; // in seconds
+  lastViewed: Date;
+  segments?: { start: number; end: number; views: number }[]; // for videos
+}
+
+export interface CardDisplaySettings {
+  showMetadata: boolean;
+  showTitle: boolean;
+  showActionText: boolean;
+  layoutOrder: 'header-first' | 'media-first';
+  videoHoverSound: boolean;
+  videoHoverStart: 'beginning' | 'preview';
+}

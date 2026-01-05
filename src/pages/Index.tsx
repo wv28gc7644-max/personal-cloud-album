@@ -5,13 +5,18 @@ import { MediaGrid } from '@/components/MediaGrid';
 import { UploadModal } from '@/components/UploadModal';
 import { CreatePlaylistModal } from '@/components/CreatePlaylistModal';
 import { AdminPanel } from '@/components/AdminPanel';
+import { StatsPanel } from '@/components/StatsPanel';
+import { SlideshowModal } from '@/components/SlideshowModal';
+import { useMediaStore } from '@/hooks/useMediaStore';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'admin';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('home');
+  const { getFilteredMedia, getFavorites } = useMediaStore();
 
   // Listen for open-admin-updates event to switch to admin view
   useEffect(() => {
@@ -23,22 +28,44 @@ const Index = () => {
     return () => window.removeEventListener('open-admin-updates', handleOpenAdminUpdates);
   }, []);
 
+  const getDisplayMedia = () => {
+    if (currentView === 'favorites') {
+      return getFavorites();
+    }
+    return getFilteredMedia();
+  };
+
+  const getFilterType = () => {
+    if (currentView === 'photos') return 'image';
+    if (currentView === 'videos') return 'video';
+    return undefined;
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar 
         onCreatePlaylist={() => setPlaylistOpen(true)} 
         currentView={currentView}
         onViewChange={setCurrentView}
+        onStartSlideshow={() => setSlideshowOpen(true)}
       />
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentView === 'admin' ? (
           <AdminPanel />
+        ) : currentView === 'stats' ? (
+          <StatsPanel />
         ) : (
           <>
-            <MediaHeader onUploadClick={() => setUploadOpen(true)} />
+            <MediaHeader 
+              onUploadClick={() => setUploadOpen(true)} 
+              onStartSlideshow={() => setSlideshowOpen(true)}
+            />
             <div className="flex-1 overflow-y-auto">
-              <MediaGrid filterType={currentView === 'photos' ? 'image' : currentView === 'videos' ? 'video' : undefined} />
+              <MediaGrid 
+                filterType={getFilterType()} 
+                filterFavorites={currentView === 'favorites'}
+              />
             </div>
           </>
         )}
@@ -46,6 +73,11 @@ const Index = () => {
 
       <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} />
       <CreatePlaylistModal open={playlistOpen} onClose={() => setPlaylistOpen(false)} />
+      <SlideshowModal 
+        open={slideshowOpen} 
+        onClose={() => setSlideshowOpen(false)}
+        items={getDisplayMedia()}
+      />
     </div>
   );
 };

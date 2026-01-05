@@ -5,12 +5,14 @@ import {
   Video, 
   Tags, 
   ListMusic, 
-  Settings, 
   Plus,
   ChevronDown,
   ChevronRight,
   FolderOpen,
-  Shield
+  Settings,
+  Heart,
+  BarChart3,
+  Play
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
@@ -23,24 +25,29 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'admin';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
+  onStartSlideshow?: () => void;
 }
 
-export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: SidebarProps) {
-  const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists } = useMediaStore();
+export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSlideshow }: SidebarProps) {
+  const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites } = useMediaStore();
   const { hasUpdate, commitsBehind } = useUpdateStatus();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
 
-  const navItems: { icon: typeof Home; label: string; view: ViewType }[] = [
+  const favoritesCount = getFavorites().length;
+
+  const navItems: { icon: typeof Home; label: string; view: ViewType; badge?: number }[] = [
     { icon: Home, label: 'Accueil', view: 'home' },
     { icon: Images, label: 'Photos', view: 'photos' },
     { icon: Video, label: 'Vidéos', view: 'videos' },
+    { icon: Heart, label: 'Favoris', view: 'favorites', badge: favoritesCount },
+    { icon: BarChart3, label: 'Statistiques', view: 'stats' },
   ];
 
   return (
@@ -70,10 +77,26 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: Sidebar
                 : "text-sidebar-foreground hover:bg-sidebar-accent/50"
             )}
           >
-            <item.icon className="w-5 h-5" />
+            <item.icon className={cn("w-5 h-5", item.view === 'favorites' && currentView === 'favorites' && "fill-current text-yellow-500")} />
             <span className="font-medium">{item.label}</span>
+            {item.badge !== undefined && item.badge > 0 && (
+              <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
+
+        {/* Slideshow button */}
+        {onStartSlideshow && (
+          <button
+            onClick={onStartSlideshow}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-sidebar-foreground hover:bg-sidebar-accent/50 mt-2 border border-dashed border-sidebar-border"
+          >
+            <Play className="w-5 h-5" />
+            <span className="font-medium">Diaporama</span>
+          </button>
+        )}
 
         {/* Tags section */}
         <div className="pt-6">
@@ -171,7 +194,7 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: Sidebar
         </div>
       </nav>
 
-      {/* Admin & Settings */}
+      {/* Settings */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
         <button 
           onClick={() => onViewChange('admin')}
@@ -182,8 +205,8 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: Sidebar
               : "text-sidebar-foreground hover:bg-sidebar-accent/50"
           )}
         >
-          <Shield className="w-5 h-5" />
-          <span className="font-medium">Administration</span>
+          <Settings className="w-5 h-5" />
+          <span className="font-medium">Paramètres</span>
           {hasUpdate && (
             <Tooltip>
               <TooltipTrigger asChild>

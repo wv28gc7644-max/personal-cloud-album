@@ -1,23 +1,37 @@
-import { Search, Upload, Grid3X3, LayoutGrid, List } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ViewMode } from '@/types/media';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ViewMode, SortOption } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
 import { NotificationCenter } from './NotificationCenter';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
+  onStartSlideshow?: () => void;
 }
 
-export function MediaHeader({ onUploadClick }: MediaHeaderProps) {
-  const { viewMode, setViewMode, searchQuery, setSearchQuery, getFilteredMedia } = useMediaStore();
+export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
+  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, getFilteredMedia } = useMediaStore();
   const filteredCount = getFilteredMedia().length;
 
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
     { mode: 'grid-large', icon: LayoutGrid, label: 'Grande grille' },
     { mode: 'list', icon: List, label: 'Liste' },
+    { mode: 'masonry', icon: LayoutPanelTop, label: 'Mosaïque' },
+  ];
+
+  const sortOptions: { value: SortOption; label: string }[] = [
+    { value: 'date-desc', label: 'Date (récent)' },
+    { value: 'date-asc', label: 'Date (ancien)' },
+    { value: 'name-asc', label: 'Nom (A-Z)' },
+    { value: 'name-desc', label: 'Nom (Z-A)' },
+    { value: 'size-desc', label: 'Taille (grand)' },
+    { value: 'size-asc', label: 'Taille (petit)' },
+    { value: 'type-image', label: 'Photos d\'abord' },
+    { value: 'type-video', label: 'Vidéos d\'abord' },
   ];
 
   return (
@@ -39,6 +53,21 @@ export function MediaHeader({ onUploadClick }: MediaHeaderProps) {
           {filteredCount} médias
         </div>
 
+        {/* Sort */}
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+          <SelectTrigger className="w-40">
+            <ArrowUpDown className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {/* View mode toggles */}
         <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
           {viewModes.map(({ mode, icon: Icon, label }) => (
@@ -57,6 +86,14 @@ export function MediaHeader({ onUploadClick }: MediaHeaderProps) {
             </Button>
           ))}
         </div>
+
+        {/* Slideshow button */}
+        {onStartSlideshow && (
+          <Button variant="outline" size="sm" onClick={onStartSlideshow} className="gap-2">
+            <Play className="w-4 h-4" />
+            Diaporama
+          </Button>
+        )}
 
         {/* Notification Center */}
         <NotificationCenter />

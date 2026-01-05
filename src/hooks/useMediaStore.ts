@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { MediaItem, Tag, Playlist, ViewMode, TagColor } from '@/types/media';
+import { MediaItem, Tag, Playlist, ViewMode, SortOption } from '@/types/media';
 
 interface MediaStore {
   media: MediaItem[];
@@ -8,6 +8,7 @@ interface MediaStore {
   playlists: Playlist[];
   selectedTags: string[];
   viewMode: ViewMode;
+  sortBy: SortOption;
   searchQuery: string;
   
   // Media actions
@@ -29,10 +30,12 @@ interface MediaStore {
   
   // UI actions
   setViewMode: (mode: ViewMode) => void;
+  setSortBy: (sort: SortOption) => void;
   setSearchQuery: (query: string) => void;
   
   // Getters
   getFilteredMedia: () => MediaItem[];
+  getFavorites: () => MediaItem[];
 }
 
 const defaultTags: Tag[] = [
@@ -110,6 +113,33 @@ const demoMedia: MediaItem[] = [
   },
 ];
 
+const sortMedia = (media: MediaItem[], sortBy: SortOption): MediaItem[] => {
+  return [...media].sort((a, b) => {
+    switch (sortBy) {
+      case 'date-desc':
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case 'date-asc':
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      case 'name-desc':
+        return b.name.localeCompare(a.name);
+      case 'size-desc':
+        return b.size - a.size;
+      case 'size-asc':
+        return a.size - b.size;
+      case 'type-image':
+        return a.type === 'image' ? -1 : 1;
+      case 'type-video':
+        return a.type === 'video' ? -1 : 1;
+      case 'duration-desc':
+        return (b.duration || 0) - (a.duration || 0);
+      default:
+        return 0;
+    }
+  });
+};
+
 export const useMediaStore = create<MediaStore>()(
   persist(
     (set, get) => ({
@@ -118,6 +148,7 @@ export const useMediaStore = create<MediaStore>()(
       playlists: [],
       selectedTags: [],
       viewMode: 'grid',
+      sortBy: 'date-desc',
       searchQuery: '',
 
       addMedia: (item) => set((state) => ({ media: [item, ...state.media] })),
@@ -174,12 +205,13 @@ export const useMediaStore = create<MediaStore>()(
       })),
 
       setViewMode: (mode) => set({ viewMode: mode }),
+      setSortBy: (sort) => set({ sortBy: sort }),
       setSearchQuery: (query) => set({ searchQuery: query }),
 
       getFilteredMedia: () => {
-        const { media, selectedTags, searchQuery } = get();
+        const { media, selectedTags, searchQuery, sortBy } = get();
         
-        return media.filter((item) => {
+        const filtered = media.filter((item) => {
           const matchesTags = selectedTags.length === 0 || 
             item.tags.some((tag) => selectedTags.includes(tag.id));
           
@@ -191,6 +223,16 @@ export const useMediaStore = create<MediaStore>()(
           
           return matchesTags && matchesSearch;
         });
+
+        return sortMedia(filtered, sortBy);
+      },
+
+      getFavorites: () => {
+        const { media, sortBy } = get();
+        const favorites = media.filter((item) => 
+          item.tags.some((tag) => tag.name === 'Favoris')
+        );
+        return sortMedia(favorites, sortBy);
       },
     }),
     {
