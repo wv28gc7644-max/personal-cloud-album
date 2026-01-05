@@ -535,27 +535,51 @@ const createServer = (port) => {
       return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
     }
 
-    // List files
+    // List files (scan récursif: inclut les sous-dossiers)
     if (req.url === '/api/files') {
       try {
-        const files = fs.readdirSync(MEDIA_FOLDER)
-          .filter(f => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(f))
-          .map(f => {
-            const filePath = path.join(MEDIA_FOLDER, f);
-            const stats = fs.statSync(filePath);
-            const ext = path.extname(f).toLowerCase();
+        const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
+
+        const listMediaFiles = (dir, baseDir) => {
+          const out = [];
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+          for (const entry of entries) {
+            const abs = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              out.push(...listMediaFiles(abs, baseDir));
+              continue;
+            }
+            if (!entry.isFile()) continue;
+            if (!isSupported(entry.name)) continue;
+
+            const rel = path.relative(baseDir, abs); // ex: "vacances/IMG_001.jpg"
+            const stats = fs.statSync(abs);
+            const ext = path.extname(entry.name).toLowerCase();
             const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
-            
-            return {
-              name: f,
-              url: 'http://localhost:' + port + '/media/' + encodeURIComponent(f),
-              thumbnailUrl: 'http://localhost:' + port + '/media/' + encodeURIComponent(f),
+
+            // URL sûre (on encode chaque morceau mais on garde les /)
+            const urlPath = rel
+              .split(path.sep)
+              .filter(Boolean)
+              .map(encodeURIComponent)
+              .join('/');
+
+            out.push({
+              name: rel,
+              url: 'http://localhost:' + port + '/media/' + urlPath,
+              thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath,
               size: stats.size,
               type: isVideo ? 'video' : 'image',
-              createdAt: stats.birthtime.toISOString()
-            };
-          });
-        
+              createdAt: stats.birthtime.toISOString(),
+            });
+          }
+
+          return out;
+        };
+
+        const files = listMediaFiles(MEDIA_FOLDER, MEDIA_FOLDER);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(files));
       } catch (err) {
@@ -564,19 +588,25 @@ const createServer = (port) => {
       }
     }
 
-    // Serve media files
+    // Serve media files (supporte les sous-dossiers)
     if (req.url.startsWith('/media/')) {
       const fileName = decodeURIComponent(req.url.slice(7));
-      const filePath = path.join(MEDIA_FOLDER, fileName);
-      
+      const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));
+
+      // Sécurité: empêche de sortir de MEDIA_FOLDER
+      if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Bad path' }));
+      }
+
       if (fs.existsSync(filePath)) {
         const stat = fs.statSync(filePath);
-        const ext = path.extname(fileName);
-        
+        const ext = path.extname(filePath);
+
         res.writeHead(200, {
           'Content-Type': getMimeType(ext),
           'Content-Length': stat.size,
-          'Cache-Control': 'public, max-age=31536000'
+          'Cache-Control': 'public, max-age=31536000',
         });
         return fs.createReadStream(filePath).pipe(res);
       }
