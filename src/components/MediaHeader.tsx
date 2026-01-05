@@ -1,9 +1,10 @@
-import { Search, Upload, Grid3X3, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ViewMode } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
+import { NotificationCenter } from './NotificationCenter';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -56,6 +57,9 @@ export function MediaHeader({ onUploadClick }: MediaHeaderProps) {
             </Button>
           ))}
         </div>
+
+        {/* Notification Center */}
+        <NotificationCenter />
 
         {/* Upload button */}
         <Button onClick={onUploadClick} className="gap-2">

@@ -1,18 +1,33 @@
 import { useState, useEffect } from 'react';
 
-export const useUpdateStatus = () => {
-  const [hasUpdate, setHasUpdate] = useState(false);
+interface UpdateStatus {
+  hasUpdate: boolean;
+  commitsBehind: number;
+}
+
+export const useUpdateStatus = (): UpdateStatus => {
+  const [status, setStatus] = useState<UpdateStatus>({ hasUpdate: false, commitsBehind: 0 });
 
   useEffect(() => {
     const checkUpdateStatus = () => {
       const localVersion = localStorage.getItem('mediavault-local-version');
       const latestVersion = localStorage.getItem('mediavault-latest-full-sha');
+      const changelogData = localStorage.getItem('mediavault-changelog');
       
       // Update available if both exist and are different
       if (localVersion && latestVersion && localVersion !== latestVersion) {
-        setHasUpdate(true);
+        let commitsBehind = 0;
+        try {
+          if (changelogData) {
+            const changelog = JSON.parse(changelogData);
+            commitsBehind = Array.isArray(changelog) ? changelog.length : 0;
+          }
+        } catch (e) {
+          commitsBehind = 0;
+        }
+        setStatus({ hasUpdate: true, commitsBehind });
       } else {
-        setHasUpdate(false);
+        setStatus({ hasUpdate: false, commitsBehind: 0 });
       }
     };
 
@@ -21,7 +36,7 @@ export const useUpdateStatus = () => {
 
     // Listen for storage changes (when update check completes)
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'mediavault-latest-full-sha' || e.key === 'mediavault-local-version') {
+      if (e.key === 'mediavault-latest-full-sha' || e.key === 'mediavault-local-version' || e.key === 'mediavault-changelog') {
         checkUpdateStatus();
       }
     };
@@ -44,5 +59,5 @@ export const useUpdateStatus = () => {
     };
   }, []);
 
-  return hasUpdate;
+  return status;
 };

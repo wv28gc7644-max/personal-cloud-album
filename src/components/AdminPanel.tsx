@@ -272,10 +272,13 @@ export const AdminPanel = () => {
               }
               
               setChangelog(filteredCommits);
+              // Store changelog in localStorage for useUpdateStatus
+              localStorage.setItem('mediavault-changelog', JSON.stringify(filteredCommits));
             }
           } catch (changelogErr) {
             console.debug('Failed to fetch changelog:', changelogErr);
             setChangelog([]);
+            localStorage.removeItem('mediavault-changelog');
           }
         } else {
           setChangelog([]);
@@ -301,6 +304,7 @@ export const AdminPanel = () => {
       localStorage.setItem('mediavault-local-version', fullSha);
       setUpdateCheckState('up-to-date');
       setChangelog([]);
+      localStorage.removeItem('mediavault-changelog');
       toast.success("Version marquée comme installée");
       // Notify sidebar to update its badge
       window.dispatchEvent(new CustomEvent('mediavault-update-status-changed'));
