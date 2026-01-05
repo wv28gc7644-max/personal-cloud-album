@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useLocalServer } from '@/hooks/useLocalServer';
+import { useAutoSync } from '@/hooks/useAutoSync';
 import { Tag, TagColor } from '@/types/media';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +29,9 @@ import {
   RefreshCw,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Zap,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -47,6 +50,16 @@ interface AdminSettings {
 export const AdminPanel = () => {
   const { tags, addTag, removeTag, playlists, removePlaylist } = useMediaStore();
   const { isConnected, isLoading, error, testConnection, loadFilesFromServer, filesCount } = useLocalServer();
+  const { 
+    isAutoSyncEnabled, 
+    intervalSeconds, 
+    lastSyncTime, 
+    newFilesCount: autoSyncFilesCount,
+    isSyncing,
+    enableAutoSync, 
+    setIntervalSeconds,
+    syncNow
+  } = useAutoSync();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   
@@ -416,6 +429,105 @@ export const AdminPanel = () => {
                     </>
                   )}
                 </Button>
+
+                {/* Auto-Sync Settings */}
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-primary" />
+                      Synchronisation automatique
+                    </CardTitle>
+                    <CardDescription>
+                      Détecte automatiquement les nouveaux fichiers sans cliquer
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>Activer l'auto-sync</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Vérifie périodiquement les nouveaux fichiers
+                        </p>
+                      </div>
+                      <Switch
+                        checked={isAutoSyncEnabled}
+                        onCheckedChange={enableAutoSync}
+                      />
+                    </div>
+                    
+                    {isAutoSyncEnabled && (
+                      <>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Intervalle: {intervalSeconds}s
+                          </Label>
+                          <Select 
+                            value={intervalSeconds.toString()} 
+                            onValueChange={(v) => setIntervalSeconds(parseInt(v))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="30">Toutes les 30 secondes</SelectItem>
+                              <SelectItem value="60">Toutes les minutes</SelectItem>
+                              <SelectItem value="120">Toutes les 2 minutes</SelectItem>
+                              <SelectItem value="300">Toutes les 5 minutes</SelectItem>
+                              <SelectItem value="600">Toutes les 10 minutes</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Statut:</span>
+                            <span className="flex items-center gap-1">
+                              {isSyncing ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                                  Synchronisation...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-3 h-3 text-green-500" />
+                                  Actif
+                                </>
+                              )}
+                            </span>
+                          </div>
+                          {lastSyncTime && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Dernière sync:</span>
+                              <span>{lastSyncTime.toLocaleTimeString()}</span>
+                            </div>
+                          )}
+                          {autoSyncFilesCount > 0 && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Nouveaux fichiers:</span>
+                              <span className="text-primary font-medium">+{autoSyncFilesCount}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={syncNow}
+                          disabled={isSyncing}
+                          className="w-full"
+                        >
+                          {isSyncing ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                          )}
+                          Synchroniser maintenant
+                        </Button>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Server URL Config */}
                 <div className="p-4 bg-muted/50 rounded-lg border border-border space-y-3">
