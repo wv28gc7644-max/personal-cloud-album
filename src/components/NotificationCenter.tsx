@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Bell, 
   Check, 
@@ -24,6 +24,7 @@ import { useNotifications, Notification, HistoryItem } from '@/hooks/useNotifica
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { UpdateProgressModal } from './UpdateProgressModal';
 
 const getNotificationIcon = (type: Notification['type']) => {
   switch (type) {
@@ -87,6 +88,11 @@ export function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('notifications');
   const [, forceUpdate] = useState(0);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+  // Get version info from localStorage
+  const currentVersion = localStorage.getItem('mediavault-local-version') || '';
+  const newVersion = localStorage.getItem('mediavault-latest-full-sha') || '';
 
   // Listen for notification events to force re-render
   useEffect(() => {
@@ -102,8 +108,7 @@ export function NotificationCenter() {
     
     switch (action.handler) {
       case 'triggerUpdate':
-        // Try to trigger the update script via the local server
-        triggerUpdateScript();
+        handleStartUpdate();
         break;
       case 'openAdmin':
         window.dispatchEvent(new CustomEvent('open-admin-updates'));
@@ -114,10 +119,9 @@ export function NotificationCenter() {
     }
   };
 
-  const triggerUpdateScript = async () => {
+  const getServerUrl = useCallback(() => {
     const serverUrl = localStorage.getItem('mediavault-admin-settings');
     let baseUrl = 'http://localhost:3001';
-    
     try {
       if (serverUrl) {
         const settings = JSON.parse(serverUrl);
@@ -126,27 +130,23 @@ export function NotificationCenter() {
     } catch (e) {
       // Use default
     }
+    return baseUrl;
+  }, []);
 
+  const triggerUpdateScript = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${baseUrl}/api/update`, {
+      const response = await fetch(`${getServerUrl()}/api/update`, {
         method: 'POST',
       });
-      
-      if (response.ok) {
-        toast.success("Mise à jour lancée", {
-          description: "Le script de mise à jour a été exécuté"
-        });
-      } else {
-        toast.error("Erreur", {
-          description: "Impossible de lancer la mise à jour automatique"
-        });
-      }
+      return response.ok;
     } catch (err) {
-      // If the API doesn't exist, guide user to manual update
-      toast.info("Mise à jour manuelle requise", {
-        description: "Exécutez 'Mettre a jour MediaVault.bat' pour mettre à jour"
-      });
+      return false;
     }
+  }, [getServerUrl]);
+
+  const handleStartUpdate = () => {
+    setOpen(false);
+    setShowUpdateModal(true);
   };
 
   const count = unreadCount();
@@ -210,20 +210,20 @@ export function NotificationCenter() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium">Mise à jour disponible</p>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        Maintenant
+                      <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">
+                        {currentVersion.substring(0, 7)} → {newVersion.substring(0, 7)}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {commitsBehind > 0 
-                        ? `${commitsBehind} commit${commitsBehind > 1 ? 's' : ''} en retard`
+                        ? `${commitsBehind} mise${commitsBehind > 1 ? 's' : ''} à jour à installer`
                         : 'Nouvelle version disponible'}
                     </p>
                     <div className="flex gap-2 mt-2">
                       <Button 
                         size="sm" 
                         className="h-7 text-xs"
-                        onClick={triggerUpdateScript}
+                        onClick={handleStartUpdate}
                       >
                         <Download className="w-3 h-3 mr-1" />
                         Mettre à jour
@@ -379,6 +379,16 @@ export function NotificationCenter() {
           </TabsContent>
         </Tabs>
       </PopoverContent>
+
+      {/* Update Progress Modal */}
+      <UpdateProgressModal
+        open={showUpdateModal}
+        onOpenChange={setShowUpdateModal}
+        currentVersion={currentVersion}
+        newVersion={newVersion}
+        commitsBehind={commitsBehind}
+        onStartUpdate={triggerUpdateScript}
+      />
     </Popover>
   );
 }
