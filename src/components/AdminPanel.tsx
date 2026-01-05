@@ -121,7 +121,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="tags" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-6 bg-muted/50">
             <TabsTrigger value="tags" className="gap-2">
               <Tags className="w-4 h-4" />
               Tags
@@ -141,6 +141,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="export" className="gap-2">
               <Package className="w-4 h-4" />
               Export
+            </TabsTrigger>
+            <TabsTrigger value="update" className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Mise à jour
             </TabsTrigger>
           </TabsList>
 
@@ -1222,6 +1226,240 @@ export const AdminPanel = () => {
                 <p className="text-xs text-muted-foreground italic">
                   Le serveur démarrera automatiquement à chaque démarrage de Windows !
                 </p>
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+          {/* Update Tab */}
+          <TabsContent value="update" className="space-y-4 mt-6">
+            
+            {/* Introduction */}
+            <Card className="border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <RefreshCw className="w-6 h-6 text-primary" />
+                  🔄 Mettre à jour votre site
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Après avoir fait des modifications dans Lovable, suivez ces étapes simples pour mettre à jour votre site auto-hébergé.
+                  <strong className="text-foreground"> Beaucoup plus court que l'installation initiale !</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
+                  <div className="text-green-400 font-medium mb-2">✅ Bonne nouvelle !</div>
+                  <p className="text-sm text-muted-foreground">
+                    La mise à jour ne prend que <strong className="text-foreground">3 étapes rapides</strong> au lieu de 7. 
+                    Node.js est déjà installé, GitHub est déjà connecté, et votre dossier est déjà prêt.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 1: Télécharger le nouveau code */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-purple-500/30">
+              <CardHeader className="bg-purple-500/10 border-b border-purple-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">1</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">GITHUB</span>
+                      📥 Télécharger le nouveau code
+                    </CardTitle>
+                    <CardDescription>Récupérez les modifications faites dans Lovable</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 1.1 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">1.1</span>
+                    <span className="font-medium">Allez sur GitHub</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Ouvrez <a href="https://github.com" target="_blank" className="text-primary hover:underline">github.com</a> dans votre navigateur
+                  </div>
+                </div>
+
+                {/* Sous-étape 1.2 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">1.2</span>
+                    <span className="font-medium">Ouvrez votre repository MediaVault</span>
+                  </div>
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                    <li>Cliquez sur votre photo de profil (en haut à droite)</li>
+                    <li>Cliquez sur <strong className="text-foreground">"Your repositories"</strong></li>
+                    <li>Cliquez sur le nom de votre projet</li>
+                  </ol>
+                </div>
+
+                {/* Sous-étape 1.3 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">1.3</span>
+                    <span className="font-medium">Téléchargez le code mis à jour</span>
+                  </div>
+                  <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+                    <li>Cliquez sur le bouton vert <strong className="text-green-400">"&lt;&gt; Code"</strong></li>
+                    <li>Cliquez sur <strong className="text-foreground">"Download ZIP"</strong></li>
+                    <li>Le fichier se télécharge automatiquement</li>
+                  </ol>
+                </div>
+
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 2: Remplacer les fichiers */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-green-500/30">
+              <CardHeader className="bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">2</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">VOTRE PC</span>
+                      📁 Remplacer et recompiler
+                    </CardTitle>
+                    <CardDescription>Mettez à jour les fichiers sur votre ordinateur</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 2.1 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">2.1</span>
+                    <span className="font-medium">Ouvrez le fichier ZIP téléchargé</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Double-cliquez sur le fichier ZIP dans votre dossier Téléchargements
+                  </div>
+                </div>
+
+                {/* Sous-étape 2.2 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">2.2</span>
+                    <span className="font-medium">Remplacez le contenu de C:\MediaVault</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p>Sélectionnez <strong className="text-foreground">tout le contenu</strong> du dossier extrait et copiez-le dans <code className="bg-black/30 px-1 rounded">C:\MediaVault</code></p>
+                  </div>
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-sm">
+                    <span className="text-amber-400 font-medium">⚠️ Important :</span>
+                    <ul className="text-muted-foreground mt-1 list-disc list-inside space-y-1">
+                      <li><strong className="text-red-400">NE supprimez PAS</strong> votre dossier <code className="bg-black/30 px-1 rounded">media</code> (vos photos/vidéos)</li>
+                      <li><strong className="text-red-400">NE supprimez PAS</strong> votre fichier <code className="bg-black/30 px-1 rounded">data.json</code> (vos métadonnées)</li>
+                      <li><strong className="text-red-400">NE supprimez PAS</strong> votre fichier <code className="bg-black/30 px-1 rounded">server.cjs</code> (votre serveur configuré)</li>
+                      <li>Remplacez uniquement le reste (dossiers src, package.json, etc.)</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Sous-étape 2.3 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">2.3</span>
+                    <span className="font-medium">Recompilez le site</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Ouvrez l'Invite de commandes (<kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd> → <code className="bg-black/30 px-1 rounded">cmd</code> → Entrée)
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm space-y-2">
+                    <div><span className="text-green-400">cd C:\MediaVault</span></div>
+                    <div><span className="text-green-400">npm install</span> <span className="text-muted-foreground"># seulement si nouveaux packages</span></div>
+                    <div><span className="text-green-400">npm run build</span></div>
+                  </div>
+                  <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg text-sm">
+                    <span className="text-blue-400 font-medium">💡 Astuce :</span>
+                    <span className="text-muted-foreground"> Si vous n'avez pas ajouté de nouvelles fonctionnalités, vous pouvez sauter <code className="bg-black/30 px-1 rounded">npm install</code> et faire directement <code className="bg-black/30 px-1 rounded">npm run build</code></span>
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 3: Relancer le serveur */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-emerald-500/50 bg-gradient-to-r from-emerald-500/10 to-green-500/5">
+              <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-lg">3</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">VOTRE PC</span>
+                      🚀 Relancer le serveur
+                    </CardTitle>
+                    <CardDescription>Démarrez votre site mis à jour</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 3.1 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">3.1</span>
+                    <span className="font-medium">Si le serveur tourne déjà, arrêtez-le</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Dans la fenêtre d'invite de commandes où le serveur tourne, appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Ctrl + C</kbd>
+                  </div>
+                </div>
+
+                {/* Sous-étape 3.2 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">3.2</span>
+                    <span className="font-medium">Relancez le serveur</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-emerald-400">node server.cjs</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 3.3 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">3.3</span>
+                    <span className="font-medium">Vérifiez les changements</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Ouvrez <code className="bg-black/30 px-1 rounded">http://localhost:3001</code> dans votre navigateur. Faites <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Ctrl + F5</kbd> pour forcer le rechargement.
+                  </div>
+                </div>
+
+                <div className="bg-green-500/20 border border-green-500/40 p-4 rounded-lg text-center">
+                  <div className="text-2xl mb-2">🎉</div>
+                  <div className="text-green-400 font-medium">Votre site est maintenant à jour !</div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Récapitulatif rapide */}
+            <Card className="border-muted">
+              <CardHeader>
+                <CardTitle className="text-lg">📋 Récapitulatif rapide</CardTitle>
+                <CardDescription>Les 3 commandes à retenir pour chaque mise à jour</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-black/50 p-4 rounded-lg font-mono text-sm space-y-1">
+                  <div><span className="text-muted-foreground"># 1. Allez dans le dossier</span></div>
+                  <div><span className="text-green-400">cd C:\MediaVault</span></div>
+                  <div className="pt-2"><span className="text-muted-foreground"># 2. Recompilez (après avoir remplacé les fichiers)</span></div>
+                  <div><span className="text-green-400">npm run build</span></div>
+                  <div className="pt-2"><span className="text-muted-foreground"># 3. Relancez le serveur</span></div>
+                  <div><span className="text-green-400">node server.cjs</span></div>
+                </div>
               </CardContent>
             </Card>
 
