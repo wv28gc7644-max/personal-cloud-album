@@ -9,26 +9,31 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  Shield
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+type ViewType = 'home' | 'photos' | 'videos' | 'admin';
+
 interface SidebarProps {
   onCreatePlaylist: () => void;
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void;
 }
 
-export function Sidebar({ onCreatePlaylist }: SidebarProps) {
+export function Sidebar({ onCreatePlaylist, currentView, onViewChange }: SidebarProps) {
   const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists } = useMediaStore();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
 
-  const navItems = [
-    { icon: Home, label: 'Accueil', active: true },
-    { icon: Images, label: 'Photos' },
-    { icon: Video, label: 'Vidéos' },
+  const navItems: { icon: typeof Home; label: string; view: ViewType }[] = [
+    { icon: Home, label: 'Accueil', view: 'home' },
+    { icon: Images, label: 'Photos', view: 'photos' },
+    { icon: Video, label: 'Vidéos', view: 'videos' },
   ];
 
   return (
@@ -49,10 +54,11 @@ export function Sidebar({ onCreatePlaylist }: SidebarProps) {
       <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => (
           <button
-            key={item.label}
+            key={item.view}
+            onClick={() => onViewChange(item.view)}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-              item.active
+              currentView === item.view
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "text-sidebar-foreground hover:bg-sidebar-accent/50"
             )}
@@ -158,11 +164,19 @@ export function Sidebar({ onCreatePlaylist }: SidebarProps) {
         </div>
       </nav>
 
-      {/* Settings */}
-      <div className="p-3 border-t border-sidebar-border">
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-          <Settings className="w-5 h-5" />
-          <span className="font-medium">Paramètres</span>
+      {/* Admin & Settings */}
+      <div className="p-3 border-t border-sidebar-border space-y-1">
+        <button 
+          onClick={() => onViewChange('admin')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+            currentView === 'admin'
+              ? "bg-primary/20 text-primary"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          <Shield className="w-5 h-5" />
+          <span className="font-medium">Administration</span>
         </button>
       </div>
     </aside>
