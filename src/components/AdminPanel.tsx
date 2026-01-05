@@ -36,7 +36,9 @@ import {
   Package,
   ExternalLink,
   Copy,
-  Check
+  Check,
+  AlertCircle,
+  GitBranch
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -68,6 +70,8 @@ export const AdminPanel = () => {
   } = useAutoSync();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
+  const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'error'>('idle');
+  const [latestCommitInfo, setLatestCommitInfo] = useState<{ sha: string; message: string; date: string } | null>(null);
   
   const [settings, setSettings] = useState<AdminSettings>(() => {
     const saved = localStorage.getItem('mediavault-admin-settings');
@@ -110,6 +114,106 @@ export const AdminPanel = () => {
 
   const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const checkForUpdates = async () => {
+    setUpdateCheckState('checking');
+    setLatestCommitInfo(null);
+    
+    // Get the GitHub repo URL from localStorage or prompt user
+    const repoUrl = localStorage.getItem('mediavault-github-repo');
+    
+    if (!repoUrl) {
+      toast.error("URL du repository non configurée", {
+        description: "Entrez l'URL de votre repository GitHub ci-dessous"
+      });
+      setUpdateCheckState('error');
+      return;
+    }
+
+    try {
+      // Extract owner and repo from URL
+      const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
+      if (!match) {
+        toast.error("URL GitHub invalide", {
+          description: "Format attendu: https://github.com/user/repo"
+        });
+        setUpdateCheckState('error');
+        return;
+      }
+
+      const [, owner, repo] = match;
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits/main`;
+      
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast.error("Repository introuvable", {
+            description: "Vérifiez l'URL et que le repository est public"
+          });
+        } else {
+          toast.error("Erreur GitHub", {
+            description: `Statut: ${response.status}`
+          });
+        }
+        setUpdateCheckState('error');
+        return;
+      }
+
+      const data = await response.json();
+      
+      const commitInfo = {
+        sha: data.sha.substring(0, 7),
+        message: data.commit.message.split('\n')[0].substring(0, 60),
+        date: new Date(data.commit.author.date).toLocaleDateString('fr-FR', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      };
+      
+      // Store full SHA for later comparison
+      localStorage.setItem('mediavault-latest-full-sha', data.sha);
+      setLatestCommitInfo(commitInfo);
+      
+      // Check against local version (stored in localStorage)
+      const localVersion = localStorage.getItem('mediavault-local-version');
+      
+      if (localVersion === data.sha) {
+        setUpdateCheckState('up-to-date');
+        toast.success("Vous êtes à jour !", {
+          description: `Version: ${commitInfo.sha}`
+        });
+      } else {
+        setUpdateCheckState('available');
+        toast.info("Mise à jour disponible !", {
+          description: commitInfo.message
+        });
+      }
+    } catch (err) {
+      console.error('Error checking for updates:', err);
+      toast.error("Erreur de connexion", {
+        description: "Impossible de contacter GitHub"
+      });
+      setUpdateCheckState('error');
+    }
+  };
+
+  const saveRepoUrl = (url: string) => {
+    localStorage.setItem('mediavault-github-repo', url);
+    toast.success("URL sauvegardée");
+  };
+
+  const markAsUpdated = () => {
+    const fullSha = localStorage.getItem('mediavault-latest-full-sha');
+    if (fullSha) {
+      localStorage.setItem('mediavault-local-version', fullSha);
+      setUpdateCheckState('up-to-date');
+      toast.success("Version marquée comme installée");
+    }
   };
 
   return (
@@ -1343,6 +1447,115 @@ export const AdminPanel = () => {
                     Node.js est déjà installé, GitHub est déjà connecté, et votre dossier est déjà prêt.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* Vérifier les mises à jour */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-blue-500/50 bg-gradient-to-r from-blue-500/10 to-indigo-500/10">
+              <CardHeader className="bg-blue-500/10 border-b border-blue-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                    <GitBranch className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      🔍 Vérifier les mises à jour
+                    </CardTitle>
+                    <CardDescription>Comparez votre version avec la dernière version sur GitHub</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Configuration du repo */}
+                <div className="space-y-2">
+                  <Label htmlFor="github-repo">URL de votre repository GitHub</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="github-repo"
+                      placeholder="https://github.com/votre-nom/votre-repo"
+                      defaultValue={localStorage.getItem('mediavault-github-repo') || ''}
+                      onChange={(e) => saveRepoUrl(e.target.value)}
+                    />
+                    <Button 
+                      onClick={checkForUpdates}
+                      disabled={updateCheckState === 'checking'}
+                      className="gap-2 min-w-[180px]"
+                    >
+                      {updateCheckState === 'checking' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Vérification...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-4 h-4" />
+                          Vérifier les mises à jour
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Trouvez l'URL sur GitHub → Votre repository → Bouton vert "Code" → Copiez l'URL HTTPS
+                  </p>
+                </div>
+
+                {/* Résultat de la vérification */}
+                {updateCheckState === 'available' && latestCommitInfo && (
+                  <div className="bg-amber-500/20 border border-amber-500/40 p-4 rounded-lg space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-amber-400" />
+                      <span className="font-medium text-amber-400">Mise à jour disponible !</span>
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <p><span className="text-muted-foreground">Dernière version :</span> <code className="bg-black/30 px-1 rounded text-foreground">{latestCommitInfo.sha}</code></p>
+                      <p><span className="text-muted-foreground">Date :</span> <span className="text-foreground">{latestCommitInfo.date}</span></p>
+                      <p><span className="text-muted-foreground">Description :</span> <span className="text-foreground">{latestCommitInfo.message}</span></p>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button variant="outline" size="sm" onClick={markAsUpdated}>
+                        <Check className="w-4 h-4 mr-2" />
+                        J'ai installé cette version
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {updateCheckState === 'up-to-date' && latestCommitInfo && (
+                  <div className="bg-green-500/20 border border-green-500/40 p-4 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                      <span className="font-medium text-green-400">Vous êtes à jour !</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Version actuelle : <code className="bg-black/30 px-1 rounded">{latestCommitInfo.sha}</code> ({latestCommitInfo.date})
+                    </p>
+                  </div>
+                )}
+
+                {updateCheckState === 'error' && (
+                  <div className="bg-red-500/20 border border-red-500/40 p-4 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <XCircle className="w-5 h-5 text-red-400" />
+                      <span className="font-medium text-red-400">Erreur de vérification</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Vérifiez l'URL du repository et votre connexion internet.
+                    </p>
+                  </div>
+                )}
+
+                <div className="bg-muted/50 p-3 rounded-lg text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">💡 Comment ça marche :</span>
+                  <ul className="mt-1 list-disc list-inside space-y-1">
+                    <li>Ce bouton vérifie la dernière version disponible sur GitHub</li>
+                    <li>Si une mise à jour est disponible, suivez les étapes ci-dessous</li>
+                    <li>Après avoir mis à jour, cliquez sur "J'ai installé cette version"</li>
+                  </ul>
+                </div>
+
               </CardContent>
             </Card>
 
