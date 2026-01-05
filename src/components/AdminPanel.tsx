@@ -74,6 +74,123 @@ interface AdminSettings {
   localServerUrl: string;
 }
 
+// Card Display Settings Component
+const CardDisplaySettingsSection = () => {
+  const [showMetadata, setShowMetadata] = useState(() => 
+    localStorage.getItem('mediavault-card-show-metadata') !== 'false'
+  );
+  const [showTitle, setShowTitle] = useState(() => 
+    localStorage.getItem('mediavault-card-show-title') !== 'false'
+  );
+  const [showActionText, setShowActionText] = useState(() => 
+    localStorage.getItem('mediavault-card-show-action-text') !== 'false'
+  );
+  const [layoutOrder, setLayoutOrder] = useState<'header-first' | 'media-first'>(() => 
+    (localStorage.getItem('mediavault-card-layout-order') as 'header-first' | 'media-first') || 'header-first'
+  );
+  const [videoHoverSound, setVideoHoverSound] = useState(() => 
+    localStorage.getItem('mediavault-video-hover-sound') === 'true'
+  );
+
+  const updateCardSettings = (key: string, value: boolean | string) => {
+    localStorage.setItem(`mediavault-card-${key}`, String(value));
+    // Dispatch event to update cards
+    window.dispatchEvent(new CustomEvent('mediavault-card-settings-changed'));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LayoutList className="w-5 h-5" />
+          Affichage des cartes médias
+        </CardTitle>
+        <CardDescription>Personnalisez l'apparence des cartes dans la galerie</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div>
+            <Label htmlFor="show-metadata" className="text-sm font-medium cursor-pointer">Afficher la barre de métadonnées</Label>
+            <p className="text-xs text-muted-foreground">Date, poids, type de fichier</p>
+          </div>
+          <Switch
+            id="show-metadata"
+            checked={showMetadata}
+            onCheckedChange={(checked) => {
+              setShowMetadata(checked);
+              updateCardSettings('show-metadata', checked);
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div>
+            <Label htmlFor="show-title" className="text-sm font-medium cursor-pointer">Afficher le titre du média</Label>
+            <p className="text-xs text-muted-foreground">Nom du fichier dans l'en-tête</p>
+          </div>
+          <Switch
+            id="show-title"
+            checked={showTitle}
+            onCheckedChange={(checked) => {
+              setShowTitle(checked);
+              updateCardSettings('show-title', checked);
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div>
+            <Label htmlFor="show-action-text" className="text-sm font-medium cursor-pointer">Texte des boutons d'action</Label>
+            <p className="text-xs text-muted-foreground">Afficher "Voir", "DL", etc. ou uniquement les icônes</p>
+          </div>
+          <Switch
+            id="show-action-text"
+            checked={showActionText}
+            onCheckedChange={(checked) => {
+              setShowActionText(checked);
+              updateCardSettings('show-action-text', checked);
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div>
+            <Label className="text-sm font-medium">Disposition de la carte</Label>
+            <p className="text-xs text-muted-foreground">Ordre des éléments</p>
+          </div>
+          <Select value={layoutOrder} onValueChange={(v) => {
+            setLayoutOrder(v as 'header-first' | 'media-first');
+            updateCardSettings('layout-order', v);
+          }}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="header-first">En-tête en haut</SelectItem>
+              <SelectItem value="media-first">Média en haut</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+          <div>
+            <Label htmlFor="video-hover-sound" className="text-sm font-medium cursor-pointer">Son au survol des vidéos</Label>
+            <p className="text-xs text-muted-foreground">Activer le son quand vous survolez une vidéo</p>
+          </div>
+          <Switch
+            id="video-hover-sound"
+            checked={videoHoverSound}
+            onCheckedChange={(checked) => {
+              setVideoHoverSound(checked);
+              updateCardSettings('video-hover-sound', checked);
+            }}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 export const AdminPanel = () => {
   const { tags, addTag, removeTag, playlists, removePlaylist } = useMediaStore();
   const { isConnected, isLoading, error, testConnection, loadFilesFromServer, filesCount } = useLocalServer();
@@ -97,7 +214,7 @@ export const AdminPanel = () => {
   const [lastCheckDate, setLastCheckDate] = useState<string | null>(() => 
     localStorage.getItem('mediavault-last-update-check')
   );
-  const [activeTab, setActiveTab] = useState('tags');
+  const [activeTab, setActiveTab] = useState('general');
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [notificationSound, setNotificationSound] = useState<NotificationSoundType>(() => 
     (localStorage.getItem('mediavault-notification-sound') as NotificationSoundType) || 'chime'
@@ -447,12 +564,16 @@ export const AdminPanel = () => {
     <div className="h-full overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Administration</h1>
+          <h1 className="text-2xl font-bold text-foreground">Paramètres</h1>
           <p className="text-muted-foreground mt-1">Gérez les tags, playlists, et paramètres de votre MediaVault</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-7 bg-muted/50">
+            <TabsTrigger value="general" className="gap-2">
+              <Settings className="w-4 h-4" />
+              Général
+            </TabsTrigger>
             <TabsTrigger value="tags" className="gap-2">
               <Tags className="w-4 h-4" />
               Tags
@@ -478,6 +599,157 @@ export const AdminPanel = () => {
               Mise à jour
             </TabsTrigger>
           </TabsList>
+
+          {/* General Settings Tab */}
+          <TabsContent value="general" className="space-y-4 mt-6">
+            {/* Notification Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Paramètres de notifications
+                </CardTitle>
+                <CardDescription>Personnalisez les notifications de mise à jour</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Son de notification */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label className="text-sm font-medium">Son de notification</Label>
+                      <p className="text-xs text-muted-foreground">Son joué à la fin d'une mise à jour</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={notificationSound} onValueChange={(v) => handleNotificationSoundChange(v as NotificationSoundType)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chime">Carillon</SelectItem>
+                        <SelectItem value="bell">Cloche</SelectItem>
+                        <SelectItem value="success">Fanfare</SelectItem>
+                        <SelectItem value="ping">Ping</SelectItem>
+                        <SelectItem value="none">Aucun</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => playNotificationSound(notificationSound)}
+                      disabled={notificationSound === 'none'}
+                    >
+                      <Play className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Notifications système */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Bell className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="system-notif-general" className="text-sm font-medium cursor-pointer">Notifications système</Label>
+                      <p className="text-xs text-muted-foreground">Afficher une notification Windows/Mac après mise à jour</p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="system-notif-general"
+                    checked={showSystemNotifications}
+                    onCheckedChange={handleSystemNotificationsChange}
+                  />
+                </div>
+
+                {/* Vérification automatique au démarrage */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-3">
+                    <Zap className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="auto-update-check-general" className="text-sm font-medium cursor-pointer">
+                        Vérification automatique au démarrage
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Affiche une notification si une mise à jour est disponible
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="auto-update-check-general"
+                    defaultChecked={localStorage.getItem('mediavault-disable-auto-update-check') !== 'true'}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        localStorage.removeItem('mediavault-disable-auto-update-check');
+                      } else {
+                        localStorage.setItem('mediavault-disable-auto-update-check', 'true');
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Vérification en temps réel */}
+                <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Radio className={cn("w-5 h-5", realtimeCheckEnabled && "text-primary animate-pulse")} />
+                      <div>
+                        <Label htmlFor="realtime-check-general" className="text-sm font-medium cursor-pointer">
+                          Vérification en temps réel
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Vérifie périodiquement et notifie immédiatement
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id="realtime-check-general"
+                      checked={realtimeCheckEnabled}
+                      onCheckedChange={handleRealtimeCheckChange}
+                    />
+                  </div>
+                  
+                  {realtimeCheckEnabled && (
+                    <div className="pt-2 border-t border-border/50 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-sm text-muted-foreground flex-shrink-0">Intervalle :</Label>
+                        <Select value={realtimeCheckInterval.toString()} onValueChange={handleRealtimeIntervalChange}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="30">30 secondes</SelectItem>
+                            <SelectItem value="60">1 minute</SelectItem>
+                            <SelectItem value="120">2 minutes</SelectItem>
+                            <SelectItem value="300">5 minutes</SelectItem>
+                            <SelectItem value="600">10 minutes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {isRealtimeChecking ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                            <span>Vérification en cours...</span>
+                          </>
+                        ) : realtimeLastCheck ? (
+                          <>
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            <span>Dernière vérif: {realtimeLastCheck.toLocaleTimeString('fr-FR')}</span>
+                          </>
+                        ) : (
+                          <span>En attente de la première vérification...</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card Display Settings */}
+            <CardDisplaySettingsSection />
+          </TabsContent>
 
           {/* Tags Tab */}
           <TabsContent value="tags" className="space-y-4 mt-6">

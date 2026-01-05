@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
+import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
@@ -9,20 +10,27 @@ import { Images } from 'lucide-react';
 
 interface MediaGridProps {
   filterType?: 'image' | 'video';
+  filterFavorites?: boolean;
 }
 
-export function MediaGrid({ filterType }: MediaGridProps) {
-  const { viewMode, getFilteredMedia, removeMedia, updateMedia, tags } = useMediaStore();
+export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
+  const { viewMode, getFilteredMedia, getFavorites, removeMedia, updateMedia, tags } = useMediaStore();
   const { deleteFromServer } = useBidirectionalSync();
+  const { recordView } = useMediaStats();
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   
-  const filteredMedia = getFilteredMedia();
+  const filteredMedia = filterFavorites ? getFavorites() : getFilteredMedia();
   
   // Apply additional type filter if specified
   const displayMedia = useMemo(() => {
     if (!filterType) return filteredMedia;
     return filteredMedia.filter(item => item.type === filterType);
   }, [filteredMedia, filterType]);
+
+  const handleView = (item: MediaItem) => {
+    recordView(item.id);
+    setViewerItem(item);
+  };
 
   const handleDownload = (item: MediaItem) => {
     const link = document.createElement('a');
@@ -63,7 +71,9 @@ export function MediaGrid({ filterType }: MediaGridProps) {
         </div>
         <h3 className="text-xl font-semibold mb-2">Aucun média trouvé</h3>
         <p className="text-muted-foreground max-w-sm">
-          {filterType === 'image' 
+          {filterFavorites
+            ? 'Aucun favori à afficher. Ajoutez des médias à vos favoris.'
+            : filterType === 'image' 
             ? 'Aucune photo à afficher.' 
             : filterType === 'video' 
             ? 'Aucune vidéo à afficher.'
@@ -78,28 +88,39 @@ export function MediaGrid({ filterType }: MediaGridProps) {
   const cardStyle = savedSettings ? JSON.parse(savedSettings).cardStyle : 'twitter';
   const gridColumns = savedSettings ? JSON.parse(savedSettings).gridColumns : 3;
 
+  const getGridClasses = () => {
+    if (viewMode === 'masonry') {
+      return "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4";
+    }
+    if (cardStyle === 'twitter') {
+      return "grid gap-6";
+    }
+    if (cardStyle === 'grid') {
+      return "media-grid";
+    }
+    return "media-grid-large";
+  };
+
   return (
     <>
       <div
-        className={cn(
-          "p-6 animate-fade-in",
-          cardStyle === 'twitter' && "grid gap-6",
-          cardStyle === 'grid' && "media-grid",
-          cardStyle === 'compact' && "media-grid-large"
-        )}
-        style={cardStyle === 'twitter' ? { 
+        className={cn("p-6 animate-fade-in", getGridClasses())}
+        style={cardStyle === 'twitter' && viewMode !== 'masonry' ? { 
           gridTemplateColumns: `repeat(${Math.min(gridColumns, 2)}, minmax(0, 1fr))` 
         } : undefined}
       >
         {displayMedia.map((item, index) => (
           <div
             key={item.id}
-            className="animate-slide-up"
+            className={cn(
+              "animate-slide-up",
+              viewMode === 'masonry' && "break-inside-avoid"
+            )}
             style={{ animationDelay: `${index * 50}ms` }}
           >
             <MediaCardTwitter
               item={item}
-              onView={() => setViewerItem(item)}
+              onView={() => handleView(item)}
               onDelete={() => handleDelete(item)}
               onDownload={() => handleDownload(item)}
               onToggleFavorite={() => handleToggleFavorite(item)}
@@ -112,7 +133,10 @@ export function MediaGrid({ filterType }: MediaGridProps) {
         item={viewerItem}
         items={displayMedia}
         onClose={() => setViewerItem(null)}
-        onNavigate={setViewerItem}
+        onNavigate={(item) => {
+          recordView(item.id);
+          setViewerItem(item);
+        }}
         onDownload={handleDownload}
       />
     </>
