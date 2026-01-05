@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
+import { useLocalServer } from '@/hooks/useLocalServer';
 import { Tag, TagColor } from '@/types/media';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,11 @@ import {
   LayoutList,
   Moon,
   Sun,
-  Monitor
+  Monitor,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -41,6 +46,7 @@ interface AdminSettings {
 
 export const AdminPanel = () => {
   const { tags, addTag, removeTag, playlists, removePlaylist } = useMediaStore();
+  const { isConnected, isLoading, error, testConnection, loadFilesFromServer, filesCount } = useLocalServer();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState<TagColor>('blue');
   
@@ -330,95 +336,134 @@ export const AdminPanel = () => {
           <TabsContent value="server" className="space-y-4 mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Serveur local</CardTitle>
-                <CardDescription>Connectez votre disque dur Windows</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  Serveur local
+                  {isConnected ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </CardTitle>
+                <CardDescription>Connectez votre disque dur Windows pour charger automatiquement vos fichiers</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg border border-border">
-                  <h4 className="font-medium mb-2">Configuration du serveur</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Pour accéder à vos fichiers locaux, vous devez lancer un petit serveur sur votre PC Windows.
-                  </p>
-                  
-                  <div className="space-y-3">
-                    <Label htmlFor="serverUrl">URL du serveur local</Label>
-                    <Input
-                      id="serverUrl"
-                      value={settings.localServerUrl}
-                      onChange={(e) => updateSetting('localServerUrl', e.target.value)}
-                      placeholder="http://localhost:3001"
-                    />
+                {/* Connection Status */}
+                <div className={cn(
+                  "p-4 rounded-lg border",
+                  isConnected 
+                    ? "bg-green-500/10 border-green-500/30" 
+                    : "bg-muted/50 border-border"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium flex items-center gap-2">
+                        {isConnected ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            Serveur connecté
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-4 h-4 text-muted-foreground" />
+                            Serveur non connecté
+                          </>
+                        )}
+                      </h4>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {isConnected 
+                          ? `${filesCount} fichier(s) chargé(s)` 
+                          : 'Lancez le serveur local et cliquez sur "Tester la connexion"'
+                        }
+                      </p>
+                      {error && (
+                        <p className="text-sm text-destructive mt-2">{error}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={testConnection}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        <span className="ml-2">Tester</span>
+                      </Button>
+                    </div>
                   </div>
+                </div>
+
+                {/* Load Files Button */}
+                <Button 
+                  onClick={loadFilesFromServer} 
+                  disabled={isLoading}
+                  className="w-full gap-2"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Chargement en cours...
+                    </>
+                  ) : (
+                    <>
+                      <FolderOpen className="w-5 h-5" />
+                      Charger les fichiers depuis le serveur
+                    </>
+                  )}
+                </Button>
+
+                {/* Server URL Config */}
+                <div className="p-4 bg-muted/50 rounded-lg border border-border space-y-3">
+                  <Label htmlFor="serverUrl">URL du serveur local</Label>
+                  <Input
+                    id="serverUrl"
+                    value={settings.localServerUrl}
+                    onChange={(e) => updateSetting('localServerUrl', e.target.value)}
+                    placeholder="http://localhost:3001"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Modifiez l'URL si vous utilisez un port différent
+                  </p>
                 </div>
 
                 <Card className="bg-amber-500/10 border-amber-500/30">
                   <CardContent className="pt-4">
-                    <h4 className="font-medium text-amber-400 mb-2">📁 Instructions</h4>
+                    <h4 className="font-medium text-amber-400 mb-2">📁 Instructions pour démarrer le serveur</h4>
                     <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                      <li>Installez Node.js sur votre PC Windows</li>
-                      <li>Créez un dossier pour votre serveur</li>
+                      <li>Installez <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Node.js</a> sur votre PC Windows</li>
+                      <li>Créez un dossier pour votre serveur (ex: <code className="bg-muted px-1 rounded">C:\MediaServer</code>)</li>
                       <li>Copiez le script ci-dessous dans un fichier <code className="bg-muted px-1 rounded">server.js</code></li>
-                      <li>Exécutez <code className="bg-muted px-1 rounded">node server.js</code></li>
-                      <li>Vos fichiers seront accessibles via l'API</li>
+                      <li>Modifiez <code className="bg-muted px-1 rounded">MEDIA_FOLDER</code> avec le chemin de vos médias</li>
+                      <li>Ouvrez un terminal et exécutez: <code className="bg-muted px-1 rounded">node server.js</code></li>
+                      <li>Revenez ici et cliquez sur "Charger les fichiers"</li>
                     </ol>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Script serveur (server.js)</CardTitle>
+                    <CardTitle className="text-sm flex items-center justify-between">
+                      Script serveur (server.js)
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(serverScript);
+                          toast.success('Script copié dans le presse-papier');
+                        }}
+                      >
+                        Copier
+                      </Button>
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <pre className="text-xs bg-black/50 p-4 rounded-lg overflow-x-auto">
-{`const http = require('http');
-const fs = require('fs');
-const path = require('path');
-
-const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
-const PORT = 3001;
-
-const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    return res.end();
-  }
-
-  if (req.url === '/api/files') {
-    const files = fs.readdirSync(MEDIA_FOLDER)
-      .filter(f => /\\.(jpg|jpeg|png|gif|mp4|webm)$/i.test(f))
-      .map(f => ({
-        name: f,
-        url: \`http://localhost:\${PORT}/media/\${f}\`,
-        size: fs.statSync(path.join(MEDIA_FOLDER, f)).size
-      }));
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(files));
-  }
-
-  if (req.url.startsWith('/media/')) {
-    const fileName = decodeURIComponent(req.url.slice(7));
-    const filePath = path.join(MEDIA_FOLDER, fileName);
-    if (fs.existsSync(filePath)) {
-      const stat = fs.statSync(filePath);
-      res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': stat.size
-      });
-      return fs.createReadStream(filePath).pipe(res);
-    }
-  }
-
-  res.writeHead(404);
-  res.end('Not Found');
-});
-
-server.listen(PORT, () => {
-  console.log(\`Serveur MediaVault sur http://localhost:\${PORT}\`);
-  console.log(\`Dossier: \${MEDIA_FOLDER}\`);
-});`}
+                    <pre className="text-xs bg-black/50 p-4 rounded-lg overflow-x-auto max-h-80">
+{serverScript}
                     </pre>
                   </CardContent>
                 </Card>
@@ -435,3 +480,101 @@ server.listen(PORT, () => {
     </div>
   );
 };
+
+const serverScript = `const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+// ⚠️ MODIFIEZ CE CHEMIN avec votre dossier de médias
+const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
+const PORT = 3001;
+
+const getMimeType = (ext) => {
+  const types = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mov': 'video/quicktime'
+  };
+  return types[ext.toLowerCase()] || 'application/octet-stream';
+};
+
+const server = http.createServer((req, res) => {
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    return res.end();
+  }
+
+  // Health check
+  if (req.url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
+  }
+
+  // List files
+  if (req.url === '/api/files') {
+    try {
+      const files = fs.readdirSync(MEDIA_FOLDER)
+        .filter(f => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(f))
+        .map(f => {
+          const filePath = path.join(MEDIA_FOLDER, f);
+          const stats = fs.statSync(filePath);
+          const ext = path.extname(f).toLowerCase();
+          const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
+          
+          return {
+            name: f,
+            url: 'http://localhost:' + PORT + '/media/' + encodeURIComponent(f),
+            thumbnailUrl: 'http://localhost:' + PORT + '/media/' + encodeURIComponent(f),
+            size: stats.size,
+            type: isVideo ? 'video' : 'image',
+            createdAt: stats.birthtime.toISOString()
+          };
+        });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(files));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
+  // Serve media files
+  if (req.url.startsWith('/media/')) {
+    const fileName = decodeURIComponent(req.url.slice(7));
+    const filePath = path.join(MEDIA_FOLDER, fileName);
+    
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+      const ext = path.extname(fileName);
+      
+      res.writeHead(200, {
+        'Content-Type': getMimeType(ext),
+        'Content-Length': stat.size,
+        'Cache-Control': 'public, max-age=31536000'
+      });
+      return fs.createReadStream(filePath).pipe(res);
+    }
+  }
+
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Not Found' }));
+});
+
+server.listen(PORT, () => {
+  console.log('MediaVault Server démarré!');
+  console.log('Dossier: ' + MEDIA_FOLDER);
+  console.log('URL: http://localhost:' + PORT);
+  console.log('API: http://localhost:' + PORT + '/api/files');
+  console.log('Laissez cette fenêtre ouverte et retournez sur MediaVault.');
+});`;
