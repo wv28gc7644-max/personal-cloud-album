@@ -600,313 +600,310 @@ export const AdminPanel = () => {
   );
 };
 
-const serverScript = `const http = require('http');
-const fs = require('fs');
-const path = require('path');
-
-// ⚠️ MODIFIEZ CE CHEMIN avec votre dossier de médias
-// ✅ IMPORTANT (Windows) : utilisez des / ou échappez les \\\\ 
-//   Bon:  'C:/Users/jimmy/Pictures'
-//   Bon:  'C:\\\\Users\\\\jimmy\\\\Pictures'
-//   Mauvais: 'C:\\Users\\jimmy\\Pictures'  (les \\\\ cassent la chaîne)
-const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
-
-// Ports à essayer (si le premier est occupé, essaie le suivant)
-const PORTS = [3001, 3002, 3003, 3004, 3005];
-let currentPort = PORTS[0];
-
-// Vérification du dossier au démarrage (évite ENOENT)
-if (!fs.existsSync(MEDIA_FOLDER)) {
-  console.error('❌ MEDIA_FOLDER introuvable:', MEDIA_FOLDER);
-  console.log('➡️ Corrigez MEDIA_FOLDER puis relancez: node server.js');
-  process.exit(1);
-}
-
-const getMimeType = (ext) => {
-  const types = {
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.mp4': 'video/mp4',
-    '.webm': 'video/webm',
-    '.mov': 'video/quicktime'
-  };
-  return types[ext.toLowerCase()] || 'application/octet-stream';
-};
-
-// Parse multipart form data (simple implementation)
-const parseMultipart = (buffer, boundary) => {
-  const parts = [];
-  const boundaryBuffer = Buffer.from('--' + boundary);
-  let start = buffer.indexOf(boundaryBuffer) + boundaryBuffer.length + 2;
-  
-  while (start < buffer.length) {
-    const end = buffer.indexOf(boundaryBuffer, start);
-    if (end === -1) break;
-    
-    const part = buffer.slice(start, end - 2);
-    const headerEnd = part.indexOf('\\r\\n\\r\\n');
-    if (headerEnd === -1) {
-      start = end + boundaryBuffer.length + 2;
-      continue;
-    }
-    
-    const headers = part.slice(0, headerEnd).toString();
-    const content = part.slice(headerEnd + 4);
-    
-    const filenameMatch = headers.match(/filename="([^"]+)"/);
-    if (filenameMatch) {
-      parts.push({
-        filename: filenameMatch[1],
-        data: content
-      });
-    }
-    
-    start = end + boundaryBuffer.length + 2;
-  }
-  
-  return parts;
-};
-
-const createServer = (port) => {
-  const server = http.createServer((req, res) => {
-    // CORS Headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
-    if (req.method === 'OPTIONS') {
-      res.writeHead(200);
-      return res.end();
-    }
-
-    // Health check
-    if (req.url === '/api/health') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
-    }
-
-    // Upload file
-    if (req.url === '/api/upload' && req.method === 'POST') {
-      const contentType = req.headers['content-type'] || '';
-      const boundary = contentType.split('boundary=')[1];
-      
-      if (!boundary) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Invalid content-type' }));
-      }
-      
-      const chunks = [];
-      req.on('data', chunk => chunks.push(chunk));
-      req.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const parts = parseMultipart(buffer, boundary);
-          
-          if (parts.length === 0) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'No file found' }));
-          }
-          
-          const file = parts[0];
-          const safeName = file.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-          const filePath = path.join(MEDIA_FOLDER, safeName);
-          
-          fs.writeFileSync(filePath, file.data);
-          
-          const urlPath = encodeURIComponent(safeName);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            success: true,
-            fileName: safeName,
-            url: 'http://localhost:' + port + '/media/' + urlPath,
-            thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath
-          }));
-          
-          console.log('✅ Fichier uploadé:', safeName);
-        } catch (err) {
-          console.error('❌ Erreur upload:', err.message);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-      return;
-    }
-
-    // Delete file
-    if (req.url === '/api/delete' && req.method === 'DELETE') {
-      let body = '';
-      req.on('data', chunk => body += chunk);
-      req.on('end', () => {
-        try {
-          const { fileName } = JSON.parse(body);
-          if (!fileName) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'fileName required' }));
-          }
-          
-          const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));
-          
-          // Security: prevent path traversal
-          if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'Invalid path' }));
-          }
-          
-          if (!fs.existsSync(filePath)) {
-            res.writeHead(404, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: 'File not found' }));
-          }
-          
-          fs.unlinkSync(filePath);
-          
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, fileName }));
-          
-          console.log('🗑️ Fichier supprimé:', fileName);
-        } catch (err) {
-          console.error('❌ Erreur suppression:', err.message);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
-      });
-      return;
-    }
-
-    // List files (scan récursif: inclut les sous-dossiers)
-    if (req.url === '/api/files') {
-      try {
-        const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
-
-        const listMediaFiles = (dir, baseDir) => {
-          const out = [];
-          const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-          for (const entry of entries) {
-            const abs = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-              out.push(...listMediaFiles(abs, baseDir));
-              continue;
-            }
-            if (!entry.isFile()) continue;
-            if (!isSupported(entry.name)) continue;
-
-            const rel = path.relative(baseDir, abs); // ex: "vacances/IMG_001.jpg"
-            const stats = fs.statSync(abs);
-            const ext = path.extname(entry.name).toLowerCase();
-            const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);
-
-            // URL sûre (on encode chaque morceau mais on garde les /)
-            const urlPath = rel
-              .split(path.sep)
-              .filter(Boolean)
-              .map(encodeURIComponent)
-              .join('/');
-
-            out.push({
-              name: rel,
-              url: 'http://localhost:' + port + '/media/' + urlPath,
-              thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath,
-              size: stats.size,
-              type: isVideo ? 'video' : 'image',
-              createdAt: stats.birthtime.toISOString(),
-            });
-          }
-
-          return out;
-        };
-
-        const files = listMediaFiles(MEDIA_FOLDER, MEDIA_FOLDER);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify(files));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
-      }
-    }
-
-    // Serve media files (supporte les sous-dossiers)
-    if (req.url.startsWith('/media/')) {
-      const fileName = decodeURIComponent(req.url.slice(7));
-      const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));
-
-      // Sécurité: empêche de sortir de MEDIA_FOLDER
-      if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Bad path' }));
-      }
-
-      if (fs.existsSync(filePath)) {
-        const stat = fs.statSync(filePath);
-        const ext = path.extname(filePath);
-
-        res.writeHead(200, {
-          'Content-Type': getMimeType(ext),
-          'Content-Length': stat.size,
-          'Cache-Control': 'public, max-age=31536000',
-        });
-        return fs.createReadStream(filePath).pipe(res);
-      }
-    }
-
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not Found' }));
-  });
-
-  return server;
-};
-
-// Fonction pour démarrer le serveur avec gestion d'erreurs
-const startServer = (portIndex = 0) => {
-  if (portIndex >= PORTS.length) {
-    console.error('❌ Erreur: Tous les ports sont occupés (3001-3005)');
-    console.log('');
-    console.log('Solutions:');
-    console.log('1. Fermez les autres instances du serveur');
-    console.log('2. Redémarrez votre ordinateur');
-    console.log('3. Exécutez: netstat -ano | findstr :3001');
-    console.log('   puis: taskkill /PID <numero> /F');
-    process.exit(1);
-  }
-
-  const port = PORTS[portIndex];
-  const server = createServer(port);
-
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log('⚠️  Port ' + port + ' occupé, essai du port ' + PORTS[portIndex + 1] + '...');
-      startServer(portIndex + 1);
-    } else {
-      console.error('❌ Erreur serveur:', err.message);
-      process.exit(1);
-    }
-  });
-
-  server.listen(port, () => {
-    currentPort = port;
-    console.log('');
-    console.log('✅ MediaVault Server démarré!');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📁 Dossier: ' + MEDIA_FOLDER);
-    console.log('🌐 URL: http://localhost:' + port);
-    console.log('📡 API: http://localhost:' + port + '/api/files');
-    console.log('📤 Upload: http://localhost:' + port + '/api/upload');
-    console.log('🗑️ Delete: http://localhost:' + port + '/api/delete');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('');
-    if (port !== 3001) {
-      console.log('⚠️  IMPORTANT: Mettez à jour l\\'URL dans MediaVault:');
-      console.log('   http://localhost:' + port);
-      console.log('');
-    }
-    console.log('Laissez cette fenêtre ouverte et retournez sur MediaVault.');
-  });
-};
-
-// Démarrage
-console.log('');
-console.log('🚀 Démarrage du serveur MediaVault...');
-startServer();`;
+// Script stored outside template literal to avoid escaping issues
+const serverScript = [
+  "const http = require('http');",
+  "const fs = require('fs');",
+  "const path = require('path');",
+  "",
+  "// ⚠️ MODIFIEZ CE CHEMIN avec votre dossier de médias",
+  "// Utilisez des / (slash) pour les chemins Windows",
+  "// Exemple: 'C:/Users/VotreNom/Pictures'",
+  "const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';",
+  "",
+  "// Ports à essayer (si le premier est occupé, essaie le suivant)",
+  "const PORTS = [3001, 3002, 3003, 3004, 3005];",
+  "let currentPort = PORTS[0];",
+  "",
+  "// Vérification du dossier au démarrage",
+  "if (!fs.existsSync(MEDIA_FOLDER)) {",
+  "  console.error('❌ MEDIA_FOLDER introuvable:', MEDIA_FOLDER);",
+  "  console.log('➡️ Corrigez MEDIA_FOLDER puis relancez: node server.js');",
+  "  process.exit(1);",
+  "}",
+  "",
+  "const getMimeType = (ext) => {",
+  "  const types = {",
+  "    '.jpg': 'image/jpeg',",
+  "    '.jpeg': 'image/jpeg',",
+  "    '.png': 'image/png',",
+  "    '.gif': 'image/gif',",
+  "    '.webp': 'image/webp',",
+  "    '.mp4': 'video/mp4',",
+  "    '.webm': 'video/webm',",
+  "    '.mov': 'video/quicktime'",
+  "  };",
+  "  return types[ext.toLowerCase()] || 'application/octet-stream';",
+  "};",
+  "",
+  "// Parse multipart form data",
+  "const parseMultipart = (buffer, boundary) => {",
+  "  const parts = [];",
+  "  const boundaryBuffer = Buffer.from('--' + boundary);",
+  "  let start = buffer.indexOf(boundaryBuffer) + boundaryBuffer.length + 2;",
+  "  ",
+  "  while (start < buffer.length) {",
+  "    const end = buffer.indexOf(boundaryBuffer, start);",
+  "    if (end === -1) break;",
+  "    ",
+  "    const part = buffer.slice(start, end - 2);",
+  "    const headerEnd = part.indexOf(Buffer.from([13, 10, 13, 10]));",
+  "    if (headerEnd === -1) {",
+  "      start = end + boundaryBuffer.length + 2;",
+  "      continue;",
+  "    }",
+  "    ",
+  "    const headers = part.slice(0, headerEnd).toString();",
+  "    const content = part.slice(headerEnd + 4);",
+  "    ",
+  "    const filenameMatch = headers.match(/filename=\"([^\"]+)\"/);",
+  "    if (filenameMatch) {",
+  "      parts.push({",
+  "        filename: filenameMatch[1],",
+  "        data: content",
+  "      });",
+  "    }",
+  "    ",
+  "    start = end + boundaryBuffer.length + 2;",
+  "  }",
+  "  ",
+  "  return parts;",
+  "};",
+  "",
+  "const createServer = (port) => {",
+  "  const server = http.createServer((req, res) => {",
+  "    // CORS Headers",
+  "    res.setHeader('Access-Control-Allow-Origin', '*');",
+  "    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');",
+  "    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');",
+  "    ",
+  "    if (req.method === 'OPTIONS') {",
+  "      res.writeHead(200);",
+  "      return res.end();",
+  "    }",
+  "",
+  "    // Health check",
+  "    if (req.url === '/api/health') {",
+  "      res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "      return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));",
+  "    }",
+  "",
+  "    // Upload file",
+  "    if (req.url === '/api/upload' && req.method === 'POST') {",
+  "      const contentType = req.headers['content-type'] || '';",
+  "      const boundary = contentType.split('boundary=')[1];",
+  "      ",
+  "      if (!boundary) {",
+  "        res.writeHead(400, { 'Content-Type': 'application/json' });",
+  "        return res.end(JSON.stringify({ error: 'Invalid content-type' }));",
+  "      }",
+  "      ",
+  "      const chunks = [];",
+  "      req.on('data', chunk => chunks.push(chunk));",
+  "      req.on('end', () => {",
+  "        try {",
+  "          const buffer = Buffer.concat(chunks);",
+  "          const parts = parseMultipart(buffer, boundary);",
+  "          ",
+  "          if (parts.length === 0) {",
+  "            res.writeHead(400, { 'Content-Type': 'application/json' });",
+  "            return res.end(JSON.stringify({ error: 'No file found' }));",
+  "          }",
+  "          ",
+  "          const file = parts[0];",
+  "          const safeName = file.filename.replace(/[^a-zA-Z0-9._-]/g, '_');",
+  "          const filePath = path.join(MEDIA_FOLDER, safeName);",
+  "          ",
+  "          fs.writeFileSync(filePath, file.data);",
+  "          ",
+  "          const urlPath = encodeURIComponent(safeName);",
+  "          res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "          res.end(JSON.stringify({",
+  "            success: true,",
+  "            fileName: safeName,",
+  "            url: 'http://localhost:' + port + '/media/' + urlPath,",
+  "            thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath",
+  "          }));",
+  "          ",
+  "          console.log('✅ Fichier uploadé:', safeName);",
+  "        } catch (err) {",
+  "          console.error('❌ Erreur upload:', err.message);",
+  "          res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "          res.end(JSON.stringify({ error: err.message }));",
+  "        }",
+  "      });",
+  "      return;",
+  "    }",
+  "",
+  "    // Delete file",
+  "    if (req.url === '/api/delete' && req.method === 'DELETE') {",
+  "      let body = '';",
+  "      req.on('data', chunk => body += chunk);",
+  "      req.on('end', () => {",
+  "        try {",
+  "          const { fileName } = JSON.parse(body);",
+  "          if (!fileName) {",
+  "            res.writeHead(400, { 'Content-Type': 'application/json' });",
+  "            return res.end(JSON.stringify({ error: 'fileName required' }));",
+  "          }",
+  "          ",
+  "          const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));",
+  "          ",
+  "          // Security: prevent path traversal",
+  "          if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {",
+  "            res.writeHead(400, { 'Content-Type': 'application/json' });",
+  "            return res.end(JSON.stringify({ error: 'Invalid path' }));",
+  "          }",
+  "          ",
+  "          if (!fs.existsSync(filePath)) {",
+  "            res.writeHead(404, { 'Content-Type': 'application/json' });",
+  "            return res.end(JSON.stringify({ error: 'File not found' }));",
+  "          }",
+  "          ",
+  "          fs.unlinkSync(filePath);",
+  "          ",
+  "          res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "          res.end(JSON.stringify({ success: true, fileName }));",
+  "          ",
+  "          console.log('🗑️ Fichier supprimé:', fileName);",
+  "        } catch (err) {",
+  "          console.error('❌ Erreur suppression:', err.message);",
+  "          res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "          res.end(JSON.stringify({ error: err.message }));",
+  "        }",
+  "      });",
+  "      return;",
+  "    }",
+  "",
+  "    // List files (scan récursif)",
+  "    if (req.url === '/api/files') {",
+  "      try {",
+  "        const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);",
+  "",
+  "        const listMediaFiles = (dir, baseDir) => {",
+  "          const out = [];",
+  "          const entries = fs.readdirSync(dir, { withFileTypes: true });",
+  "",
+  "          for (const entry of entries) {",
+  "            const abs = path.join(dir, entry.name);",
+  "            if (entry.isDirectory()) {",
+  "              out.push(...listMediaFiles(abs, baseDir));",
+  "              continue;",
+  "            }",
+  "            if (!entry.isFile()) continue;",
+  "            if (!isSupported(entry.name)) continue;",
+  "",
+  "            const rel = path.relative(baseDir, abs);",
+  "            const stats = fs.statSync(abs);",
+  "            const ext = path.extname(entry.name).toLowerCase();",
+  "            const isVideo = ['.mp4', '.webm', '.mov'].includes(ext);",
+  "",
+  "            const urlPath = rel",
+  "              .split(path.sep)",
+  "              .filter(Boolean)",
+  "              .map(encodeURIComponent)",
+  "              .join('/');",
+  "",
+  "            out.push({",
+  "              name: rel,",
+  "              url: 'http://localhost:' + port + '/media/' + urlPath,",
+  "              thumbnailUrl: 'http://localhost:' + port + '/media/' + urlPath,",
+  "              size: stats.size,",
+  "              type: isVideo ? 'video' : 'image',",
+  "              createdAt: stats.birthtime.toISOString(),",
+  "            });",
+  "          }",
+  "",
+  "          return out;",
+  "        };",
+  "",
+  "        const files = listMediaFiles(MEDIA_FOLDER, MEDIA_FOLDER);",
+  "",
+  "        res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "        return res.end(JSON.stringify(files));",
+  "      } catch (err) {",
+  "        res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "        return res.end(JSON.stringify({ error: err.message }));",
+  "      }",
+  "    }",
+  "",
+  "    // Serve media files",
+  "    if (req.url.startsWith('/media/')) {",
+  "      const fileName = decodeURIComponent(req.url.slice(7));",
+  "      const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));",
+  "",
+  "      if (!filePath.startsWith(path.normalize(MEDIA_FOLDER + path.sep))) {",
+  "        res.writeHead(400, { 'Content-Type': 'application/json' });",
+  "        return res.end(JSON.stringify({ error: 'Bad path' }));",
+  "      }",
+  "",
+  "      if (fs.existsSync(filePath)) {",
+  "        const stat = fs.statSync(filePath);",
+  "        const ext = path.extname(filePath);",
+  "",
+  "        res.writeHead(200, {",
+  "          'Content-Type': getMimeType(ext),",
+  "          'Content-Length': stat.size,",
+  "          'Cache-Control': 'public, max-age=31536000',",
+  "        });",
+  "        return fs.createReadStream(filePath).pipe(res);",
+  "      }",
+  "    }",
+  "",
+  "    res.writeHead(404, { 'Content-Type': 'application/json' });",
+  "    res.end(JSON.stringify({ error: 'Not Found' }));",
+  "  });",
+  "",
+  "  return server;",
+  "};",
+  "",
+  "const startServer = (portIndex = 0) => {",
+  "  if (portIndex >= PORTS.length) {",
+  "    console.error('❌ Erreur: Tous les ports sont occupés (3001-3005)');",
+  "    console.log('');",
+  "    console.log('Solutions:');",
+  "    console.log('1. Fermez les autres instances du serveur');",
+  "    console.log('2. Redémarrez votre ordinateur');",
+  "    console.log('3. Exécutez: netstat -ano | findstr :3001');",
+  "    console.log('   puis: taskkill /PID <numero> /F');",
+  "    process.exit(1);",
+  "  }",
+  "",
+  "  const port = PORTS[portIndex];",
+  "  const server = createServer(port);",
+  "",
+  "  server.on('error', (err) => {",
+  "    if (err.code === 'EADDRINUSE') {",
+  "      console.log('⚠️  Port ' + port + ' occupé, essai du port ' + PORTS[portIndex + 1] + '...');",
+  "      startServer(portIndex + 1);",
+  "    } else {",
+  "      console.error('❌ Erreur serveur:', err.message);",
+  "      process.exit(1);",
+  "    }",
+  "  });",
+  "",
+  "  server.listen(port, () => {",
+  "    currentPort = port;",
+  "    console.log('');",
+  "    console.log('✅ MediaVault Server démarré!');",
+  "    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');",
+  "    console.log('📁 Dossier: ' + MEDIA_FOLDER);",
+  "    console.log('🌐 URL: http://localhost:' + port);",
+  "    console.log('📡 API: http://localhost:' + port + '/api/files');",
+  "    console.log('📤 Upload: http://localhost:' + port + '/api/upload');",
+  "    console.log('🗑️ Delete: http://localhost:' + port + '/api/delete');",
+  "    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');",
+  "    console.log('');",
+  "    if (port !== 3001) {",
+  "      console.log('⚠️  IMPORTANT: Mettez à jour URL dans MediaVault:');",
+  "      console.log('   http://localhost:' + port);",
+  "      console.log('');",
+  "    }",
+  "    console.log('Laissez cette fenêtre ouverte et retournez sur MediaVault.');",
+  "  });",
+  "};",
+  "",
+  "console.log('');",
+  "console.log('🚀 Démarrage du serveur MediaVault...');",
+  "startServer();"
+].join('\n');
