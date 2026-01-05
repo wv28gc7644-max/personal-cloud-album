@@ -122,6 +122,7 @@ export const AdminPanel = () => {
     
     // Get the GitHub repo URL from localStorage or prompt user
     const repoUrl = localStorage.getItem('mediavault-github-repo');
+    const branch = localStorage.getItem('mediavault-github-branch') || 'main';
     
     if (!repoUrl) {
       toast.error("URL du repository non configurée", {
@@ -143,14 +144,26 @@ export const AdminPanel = () => {
       }
 
       const [, owner, repo] = match;
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits/main`;
       
-      const response = await fetch(apiUrl);
+      // Try the configured branch first, then fallback to master if main fails
+      let response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${branch}`);
+      
+      // If main fails, try master
+      if (!response.ok && response.status === 404 && branch === 'main') {
+        response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/master`);
+        if (response.ok) {
+          localStorage.setItem('mediavault-github-branch', 'master');
+        }
+      }
       
       if (!response.ok) {
         if (response.status === 404) {
           toast.error("Repository introuvable", {
-            description: "Vérifiez l'URL et que le repository est public"
+            description: "Vérifiez que le repository existe, est public, et que la branche est correcte"
+          });
+        } else if (response.status === 403) {
+          toast.error("Limite d'API atteinte", {
+            description: "GitHub limite les requêtes. Réessayez dans quelques minutes"
           });
         } else {
           toast.error("Erreur GitHub", {
@@ -1470,36 +1483,57 @@ export const AdminPanel = () => {
               <CardContent className="pt-4 space-y-4">
                 
                 {/* Configuration du repo */}
-                <div className="space-y-2">
-                  <Label htmlFor="github-repo">URL de votre repository GitHub</Label>
-                  <div className="flex gap-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="github-repo">URL de votre repository GitHub</Label>
                     <Input
                       id="github-repo"
                       placeholder="https://github.com/votre-nom/votre-repo"
                       defaultValue={localStorage.getItem('mediavault-github-repo') || ''}
                       onChange={(e) => saveRepoUrl(e.target.value)}
                     />
-                    <Button 
-                      onClick={checkForUpdates}
-                      disabled={updateCheckState === 'checking'}
-                      className="gap-2 min-w-[180px]"
-                    >
-                      {updateCheckState === 'checking' ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Vérification...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="w-4 h-4" />
-                          Vérifier les mises à jour
-                        </>
-                      )}
-                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Trouvez l'URL sur GitHub → Votre repository → Bouton vert "Code" → Copiez l'URL HTTPS
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Trouvez l'URL sur GitHub → Votre repository → Bouton vert "Code" → Copiez l'URL HTTPS
-                  </p>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="github-branch">Branche Git</Label>
+                    <div className="flex gap-2">
+                      <Select 
+                        defaultValue={localStorage.getItem('mediavault-github-branch') || 'main'}
+                        onValueChange={(value) => localStorage.setItem('mediavault-github-branch', value)}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Branche" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="main">main</SelectItem>
+                          <SelectItem value="master">master</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        onClick={checkForUpdates}
+                        disabled={updateCheckState === 'checking'}
+                        className="gap-2 flex-1"
+                      >
+                        {updateCheckState === 'checking' ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Vérification...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4" />
+                            Vérifier les mises à jour
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      La branche par défaut est généralement "main" ou "master" selon votre repo
+                    </p>
+                  </div>
                 </div>
 
                 {/* Résultat de la vérification */}
