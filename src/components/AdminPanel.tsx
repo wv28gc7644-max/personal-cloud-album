@@ -606,122 +606,625 @@ export const AdminPanel = () => {
 
           {/* Export Tab */}
           <TabsContent value="export" className="space-y-4 mt-6">
-            <Card className="border-primary/30 bg-primary/5">
+            
+            {/* Introduction */}
+            <Card className="border-primary/30 bg-gradient-to-r from-primary/10 to-primary/5">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="w-5 h-5 text-primary" />
-                  Self-Hosting Complet
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Package className="w-6 h-6 text-primary" />
+                  🏠 Self-Hosting Complet — Guide Débutant
                 </CardTitle>
-                <CardDescription>
-                  Hébergez tout sur votre PC — site + médias + métadonnées. Utilisez Lovable uniquement pour modifier.
+                <CardDescription className="text-base">
+                  Suivez ces étapes pour héberger MediaVault 100% sur votre PC. 
+                  <strong className="text-foreground"> Plus besoin de payer Lovable chaque mois</strong> — utilisez-le uniquement pour modifier votre site.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                
-                {/* Step 1: GitHub */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">1</div>
-                    <div>
-                      <h4 className="font-medium">Connecter GitHub</h4>
-                      <p className="text-sm text-muted-foreground">Crée une copie de votre code (gratuit)</p>
-                    </div>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <div className="text-2xl mb-1">💻</div>
+                    <div className="text-sm font-medium text-blue-400">LOVABLE</div>
+                    <div className="text-xs text-muted-foreground">Modifier le site</div>
                   </div>
-                  <Button variant="outline" className="w-full gap-2" onClick={() => window.open('https://github.com', '_blank')}>
-                    <ExternalLink className="w-4 h-4" />
-                    Ouvrir GitHub (créer un compte si besoin)
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Ensuite, dans Lovable : Paramètres → GitHub → Connecter
-                  </p>
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                    <div className="text-2xl mb-1">📦</div>
+                    <div className="text-sm font-medium text-purple-400">GITHUB</div>
+                    <div className="text-xs text-muted-foreground">Stocker le code</div>
+                  </div>
+                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <div className="text-2xl mb-1">🖥️</div>
+                    <div className="text-sm font-medium text-green-400">VOTRE PC</div>
+                    <div className="text-xs text-muted-foreground">Exécuter le site</div>
+                  </div>
                 </div>
+              </CardContent>
+            </Card>
 
-                {/* Step 2: Download */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">2</div>
-                    <div>
-                      <h4 className="font-medium">Télécharger le site compilé</h4>
-                      <p className="text-sm text-muted-foreground">Une fois GitHub connecté, téléchargez le build</p>
-                    </div>
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 1: LOVABLE - Connecter GitHub */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-blue-500/30">
+              <CardHeader className="bg-blue-500/10 border-b border-blue-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-lg">1</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">LOVABLE</span>
+                      Connecter GitHub à Lovable
+                    </CardTitle>
+                    <CardDescription>Permet de récupérer le code sur votre PC</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 1.1 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.1</span>
+                    <span className="font-medium">Dans Lovable, cliquez sur votre nom de projet (en haut à gauche)</span>
                   </div>
                   <div className="bg-muted/50 p-3 rounded-lg text-sm">
-                    <p className="text-muted-foreground">Dans le terminal de votre dossier GitHub :</p>
-                    <code className="block mt-2 bg-black/30 p-2 rounded text-xs">npm install && npm run build</code>
-                    <p className="text-muted-foreground mt-2">Le dossier <code className="bg-black/30 px-1 rounded">dist/</code> contient votre site.</p>
+                    <div className="text-muted-foreground">Vous verrez un menu déroulant avec plusieurs options</div>
                   </div>
                 </div>
 
-                {/* Step 3: Server Script */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">3</div>
-                    <div>
-                      <h4 className="font-medium">Script serveur tout-en-un</h4>
-                      <p className="text-sm text-muted-foreground">Remplacez votre server.js par celui-ci</p>
-                    </div>
+                {/* Sous-étape 1.2 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.2</span>
+                    <span className="font-medium">Cliquez sur "Settings" (Paramètres)</span>
                   </div>
-                  <Card>
+                </div>
+
+                {/* Sous-étape 1.3 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.3</span>
+                    <span className="font-medium">Dans le menu de gauche, cliquez sur "GitHub"</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 1.4 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.4</span>
+                    <span className="font-medium">Cliquez sur le bouton "Connect to GitHub"</span>
+                  </div>
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-sm">
+                    <span className="text-amber-400 font-medium">⚠️ Si vous n'avez pas de compte GitHub :</span>
+                    <p className="text-muted-foreground mt-1">Une fenêtre s'ouvrira. Cliquez sur "Create an account" (Créer un compte) sur GitHub.</p>
+                  </div>
+                </div>
+
+                {/* Sous-étape 1.5 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.5</span>
+                    <span className="font-medium">Autorisez Lovable à accéder à votre GitHub</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Cliquez sur "Authorize lovable-dev" dans la fenêtre GitHub</div>
+                </div>
+
+                {/* Sous-étape 1.6 */}
+                <div className="pl-4 border-l-2 border-blue-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">1.6</span>
+                    <span className="font-medium">Cliquez sur "Create Repository"</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Lovable va créer un dépôt (repository) sur votre GitHub avec tout le code du site</div>
+                </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm"><strong>Résultat :</strong> Votre code est maintenant sur GitHub !</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 2: GITHUB - Télécharger le code */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-purple-500/30">
+              <CardHeader className="bg-purple-500/10 border-b border-purple-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold text-lg">2</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">GITHUB</span>
+                      Télécharger le code sur votre PC
+                    </CardTitle>
+                    <CardDescription>Récupérez les fichiers du site</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 2.1 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.1</span>
+                    <span className="font-medium">Allez sur GitHub.com et connectez-vous</span>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open('https://github.com', '_blank')}>
+                    <ExternalLink className="w-4 h-4" />
+                    Ouvrir GitHub.com
+                  </Button>
+                </div>
+
+                {/* Sous-étape 2.2 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.2</span>
+                    <span className="font-medium">Cliquez sur votre photo de profil (en haut à droite)</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 2.3 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.3</span>
+                    <span className="font-medium">Cliquez sur "Your repositories" (Vos dépôts)</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 2.4 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.4</span>
+                    <span className="font-medium">Cliquez sur le nom de votre projet MediaVault</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">C'est le dépôt créé par Lovable à l'étape précédente</div>
+                </div>
+
+                {/* Sous-étape 2.5 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.5</span>
+                    <span className="font-medium">Cliquez sur le bouton vert "Code"</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg">
+                    <div className="text-sm text-muted-foreground">Un menu apparaît avec plusieurs options</div>
+                  </div>
+                </div>
+
+                {/* Sous-étape 2.6 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.6</span>
+                    <span className="font-medium">Cliquez sur "Download ZIP"</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">Le téléchargement commence automatiquement</div>
+                </div>
+
+                {/* Sous-étape 2.7 */}
+                <div className="pl-4 border-l-2 border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">2.7</span>
+                    <span className="font-medium">Décompressez le fichier ZIP</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Faites un clic droit sur le fichier téléchargé</p>
+                    <p className="text-muted-foreground">• Cliquez sur "Extraire tout..." ou "Extract All..."</p>
+                    <p className="text-muted-foreground">• Choisissez <code className="bg-black/30 px-1 rounded">C:\MediaVault</code> comme destination</p>
+                  </div>
+                </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm"><strong>Résultat :</strong> Vous avez maintenant le code dans <code className="bg-black/30 px-1 rounded">C:\MediaVault</code></span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 3: PC - Installer Node.js */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-green-500/30">
+              <CardHeader className="bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">3</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">VOTRE PC</span>
+                      Installer Node.js
+                    </CardTitle>
+                    <CardDescription>Le moteur qui fait tourner le serveur</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 3.1 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">3.1</span>
+                    <span className="font-medium">Téléchargez Node.js</span>
+                  </div>
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => window.open('https://nodejs.org/en/download/', '_blank')}>
+                    <Download className="w-4 h-4" />
+                    Ouvrir nodejs.org (téléchargement)
+                  </Button>
+                </div>
+
+                {/* Sous-étape 3.2 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">3.2</span>
+                    <span className="font-medium">Cliquez sur "Windows Installer" (version LTS recommandée)</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">LTS = version stable, recommandée pour la majorité des utilisateurs</div>
+                </div>
+
+                {/* Sous-étape 3.3 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">3.3</span>
+                    <span className="font-medium">Installez Node.js</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Double-cliquez sur le fichier téléchargé</p>
+                    <p className="text-muted-foreground">• Cliquez "Next" (Suivant) à chaque étape</p>
+                    <p className="text-muted-foreground">• Cochez "Automatically install necessary tools" si proposé</p>
+                    <p className="text-muted-foreground">• Cliquez "Install" puis "Finish"</p>
+                  </div>
+                </div>
+
+                {/* Sous-étape 3.4 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">3.4</span>
+                    <span className="font-medium">Vérifiez l'installation</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
+                    <p className="text-muted-foreground">• Tapez <code className="bg-black/30 px-1 rounded">cmd</code> et appuyez Entrée</p>
+                    <p className="text-muted-foreground">• Tapez <code className="bg-black/30 px-1 rounded">node --version</code> et appuyez Entrée</p>
+                    <p className="text-muted-foreground">• Vous devriez voir quelque chose comme <code className="bg-black/30 px-1 rounded">v20.x.x</code></p>
+                  </div>
+                </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm"><strong>Résultat :</strong> Node.js est installé et prêt !</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 4: PC - Compiler le site */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-green-500/30">
+              <CardHeader className="bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">4</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">VOTRE PC</span>
+                      Compiler le site
+                    </CardTitle>
+                    <CardDescription>Transformer le code en site web utilisable</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 4.1 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">4.1</span>
+                    <span className="font-medium">Ouvrez l'Invite de commandes</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
+                    <p className="text-muted-foreground">• Tapez <code className="bg-black/30 px-1 rounded">cmd</code> et appuyez Entrée</p>
+                  </div>
+                </div>
+
+                {/* Sous-étape 4.2 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">4.2</span>
+                    <span className="font-medium">Allez dans le dossier du projet</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-green-400">cd C:\MediaVault</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">Copiez-collez cette commande et appuyez Entrée</div>
+                </div>
+
+                {/* Sous-étape 4.3 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">4.3</span>
+                    <span className="font-medium">Installez les dépendances</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-green-400">npm install</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">⏱️ Attendez que ça finisse (peut prendre 1-2 minutes)</div>
+                </div>
+
+                {/* Sous-étape 4.4 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">4.4</span>
+                    <span className="font-medium">Compilez le site</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-green-400">npm run build</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">⏱️ Attendez le message "build completed" (30 secondes environ)</div>
+                </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm"><strong>Résultat :</strong> Un dossier <code className="bg-black/30 px-1 rounded">dist</code> est apparu dans votre projet !</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 5: PC - Créer le script serveur */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-green-500/30">
+              <CardHeader className="bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">5</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">VOTRE PC</span>
+                      Créer le fichier server.js
+                    </CardTitle>
+                    <CardDescription>Le cœur de votre serveur local</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 5.1 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">5.1</span>
+                    <span className="font-medium">Ouvrez le Bloc-notes</span>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows</kbd></p>
+                    <p className="text-muted-foreground">• Tapez <code className="bg-black/30 px-1 rounded">bloc-notes</code> ou <code className="bg-black/30 px-1 rounded">notepad</code></p>
+                    <p className="text-muted-foreground">• Cliquez sur l'application Bloc-notes</p>
+                  </div>
+                </div>
+
+                {/* Sous-étape 5.2 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">5.2</span>
+                    <span className="font-medium">Copiez le script ci-dessous</span>
+                  </div>
+                  <Card className="border-primary/30">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center justify-between">
-                        server.js (Self-Hosting Complet)
+                        <span className="flex items-center gap-2">
+                          📄 server.js — Script complet
+                        </span>
                         <Button 
-                          variant="ghost" 
+                          variant="default" 
                           size="sm"
+                          className="gap-2"
                           onClick={() => {
                             navigator.clipboard.writeText(selfHostingScript);
-                            toast.success('Script copié !');
+                            toast.success('Script copié dans le presse-papier !');
                           }}
                         >
-                          <Copy className="w-4 h-4 mr-1" />
-                          Copier
+                          <Copy className="w-4 h-4" />
+                          Copier le script
                         </Button>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <pre className="text-xs bg-black/50 p-4 rounded-lg overflow-x-auto max-h-60">
+                      <pre className="text-xs bg-black/50 p-4 rounded-lg overflow-x-auto max-h-48 whitespace-pre-wrap">
 {selfHostingScript}
                       </pre>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Step 4: Structure */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">4</div>
-                    <div>
-                      <h4 className="font-medium">Structure finale</h4>
-                      <p className="text-sm text-muted-foreground">Organisez vos fichiers comme ceci</p>
-                    </div>
+                {/* Sous-étape 5.3 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">5.3</span>
+                    <span className="font-medium">Collez le script dans le Bloc-notes</span>
                   </div>
-                  <div className="bg-muted/50 p-4 rounded-lg font-mono text-sm">
-                    <div className="text-muted-foreground">C:\MediaVault\</div>
-                    <div className="ml-4">├── server.js <span className="text-primary">(le script ci-dessus)</span></div>
-                    <div className="ml-4">├── dist\ <span className="text-primary">(dossier du site compilé)</span></div>
-                    <div className="ml-4">├── media\ <span className="text-primary">(vos photos/vidéos)</span></div>
-                    <div className="ml-4">└── data.json <span className="text-primary">(créé automatiquement)</span></div>
+                  <div className="text-sm text-muted-foreground">Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Ctrl + V</kbd></div>
+                </div>
+
+                {/* Sous-étape 5.4 - IMPORTANT */}
+                <div className="pl-4 border-l-2 border-amber-500/50 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">5.4 ⚠️</span>
+                    <span className="font-medium text-amber-400">IMPORTANT : Modifiez les chemins !</span>
+                  </div>
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-lg text-sm space-y-3">
+                    <p className="text-muted-foreground">Trouvez ces 3 lignes au début du script et modifiez-les :</p>
+                    <div className="bg-black/50 p-3 rounded font-mono text-xs space-y-1">
+                      <p><span className="text-amber-400">const MEDIA_FOLDER = '</span><span className="text-green-400">C:/MediaVault/media</span><span className="text-amber-400">';</span></p>
+                      <p><span className="text-amber-400">const DIST_FOLDER = '</span><span className="text-green-400">C:/MediaVault/dist</span><span className="text-amber-400">';</span></p>
+                      <p><span className="text-amber-400">const DATA_FILE = '</span><span className="text-green-400">C:/MediaVault/data.json</span><span className="text-amber-400">';</span></p>
+                    </div>
+                    <p className="text-muted-foreground">
+                      <strong>MEDIA_FOLDER</strong> = où sont vos photos/vidéos<br/>
+                      <strong>DIST_FOLDER</strong> = le dossier "dist" créé à l'étape 4<br/>
+                      <strong>DATA_FILE</strong> = où sauvegarder vos tags/playlists
+                    </p>
+                    <p className="text-amber-400 font-medium">⚠️ Utilisez des / (pas des \) même sur Windows !</p>
                   </div>
                 </div>
 
-                {/* Step 5: Launch */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 font-bold">✓</div>
-                    <div>
-                      <h4 className="font-medium">Lancer votre site</h4>
-                      <p className="text-sm text-muted-foreground">Votre site fonctionne 100% en local !</p>
-                    </div>
+                {/* Sous-étape 5.5 */}
+                <div className="pl-4 border-l-2 border-green-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">5.5</span>
+                    <span className="font-medium">Enregistrez le fichier</span>
                   </div>
-                  <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
-                    <p className="text-sm">Exécutez dans le dossier MediaVault :</p>
-                    <code className="block mt-2 bg-black/30 p-2 rounded text-sm">node server.js</code>
-                    <p className="text-sm mt-2">Puis ouvrez : <strong>http://localhost:3001</strong></p>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                    <p className="text-muted-foreground">• Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Ctrl + S</kbd></p>
+                    <p className="text-muted-foreground">• Naviguez vers <code className="bg-black/30 px-1 rounded">C:\MediaVault</code></p>
+                    <p className="text-muted-foreground">• Nom du fichier : <code className="bg-black/30 px-1 rounded">server.js</code></p>
+                    <p className="text-muted-foreground">• Type : <code className="bg-black/30 px-1 rounded">Tous les fichiers (*.*)</code></p>
+                    <p className="text-muted-foreground">• Cliquez "Enregistrer"</p>
                   </div>
                 </div>
 
+                <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-lg flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                  <span className="text-sm"><strong>Résultat :</strong> Le fichier server.js est prêt !</span>
+                </div>
               </CardContent>
             </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 6: PC - Organiser les dossiers */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-green-500/30">
+              <CardHeader className="bg-green-500/10 border-b border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">6</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">VOTRE PC</span>
+                      Organiser vos dossiers
+                    </CardTitle>
+                    <CardDescription>Créez un dossier pour vos médias</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                <div className="bg-muted/50 p-4 rounded-lg font-mono text-sm">
+                  <div className="text-foreground font-semibold mb-2">📁 Structure finale de C:\MediaVault\ :</div>
+                  <div className="space-y-1 text-muted-foreground">
+                    <div>├── 📄 server.js <span className="text-primary">(le script que vous venez de créer)</span></div>
+                    <div>├── 📁 dist\ <span className="text-primary">(créé automatiquement par npm run build)</span></div>
+                    <div>│   ├── index.html</div>
+                    <div>│   ├── assets\</div>
+                    <div>│   └── ...</div>
+                    <div>├── 📁 media\ <span className="text-amber-400 font-semibold">← Créez ce dossier et mettez vos photos/vidéos dedans</span></div>
+                    <div>│   ├── photo1.jpg</div>
+                    <div>│   ├── video1.mp4</div>
+                    <div>│   └── ...</div>
+                    <div>└── 📄 data.json <span className="text-primary">(créé automatiquement au premier lancement)</span></div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-sm">
+                  <span className="text-amber-400 font-medium">💡 Astuce :</span>
+                  <span className="text-muted-foreground"> Créez le dossier <code className="bg-black/30 px-1 rounded">media</code> maintenant et copiez-y quelques photos pour tester.</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* ÉTAPE 7: Lancer le serveur */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-emerald-500/50 bg-gradient-to-r from-emerald-500/10 to-green-500/5">
+              <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-lg">7</div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">VOTRE PC</span>
+                      🚀 Lancer votre site !
+                    </CardTitle>
+                    <CardDescription>Le moment de vérité</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                
+                {/* Sous-étape 7.1 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">7.1</span>
+                    <span className="font-medium">Ouvrez l'Invite de commandes</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground"><kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd> → tapez <code className="bg-black/30 px-1 rounded">cmd</code> → Entrée</div>
+                </div>
+
+                {/* Sous-étape 7.2 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">7.2</span>
+                    <span className="font-medium">Allez dans le dossier MediaVault</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-emerald-400">cd C:\MediaVault</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 7.3 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">7.3</span>
+                    <span className="font-medium">Lancez le serveur</span>
+                  </div>
+                  <div className="bg-black/50 p-3 rounded-lg font-mono text-sm">
+                    <span className="text-emerald-400">node server.js</span>
+                  </div>
+                </div>
+
+                {/* Sous-étape 7.4 */}
+                <div className="pl-4 border-l-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">7.4</span>
+                    <span className="font-medium">Ouvrez votre navigateur</span>
+                  </div>
+                  <div className="bg-emerald-500/20 border border-emerald-500/40 p-4 rounded-lg text-center">
+                    <p className="text-lg font-bold text-emerald-400">http://localhost:3001</p>
+                    <p className="text-sm text-muted-foreground mt-1">Copiez cette adresse dans votre navigateur</p>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/40 p-4 rounded-lg space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-6 h-6 text-green-500" />
+                    <span className="text-lg font-bold text-green-400">🎉 Félicitations !</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Votre site MediaVault fonctionne maintenant <strong className="text-foreground">100% sur votre PC</strong> !
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Vos photos, vidéos et métadonnées (tags, playlists) sont stockées localement.
+                    Vous n'avez plus besoin de Lovable sauf pour modifier le site.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            {/* BONUS: Lancement automatique au démarrage Windows */}
+            {/* ═══════════════════════════════════════════════════════════════════ */}
+            <Card className="border-muted">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  💡 Bonus : Lancement automatique au démarrage de Windows
+                </CardTitle>
+                <CardDescription>Pour ne plus avoir à lancer manuellement le serveur</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm space-y-2">
+                  <p className="text-muted-foreground">1. Appuyez sur <kbd className="px-1 py-0.5 bg-black/30 rounded text-xs">Windows + R</kbd></p>
+                  <p className="text-muted-foreground">2. Tapez <code className="bg-black/30 px-1 rounded">shell:startup</code> et appuyez Entrée</p>
+                  <p className="text-muted-foreground">3. Créez un raccourci vers <code className="bg-black/30 px-1 rounded">C:\MediaVault\server.js</code> dans ce dossier</p>
+                  <p className="text-muted-foreground">4. Faites clic droit sur le raccourci → Propriétés</p>
+                  <p className="text-muted-foreground">5. Dans "Cible", mettez : <code className="bg-black/30 px-1 rounded">node C:\MediaVault\server.js</code></p>
+                </div>
+                <p className="text-xs text-muted-foreground italic">
+                  Le serveur démarrera automatiquement à chaque démarrage de Windows !
+                </p>
+              </CardContent>
+            </Card>
+
           </TabsContent>
         </Tabs>
       </div>
