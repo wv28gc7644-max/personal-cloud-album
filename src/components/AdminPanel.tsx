@@ -1715,6 +1715,30 @@ export const AdminPanel = () => {
                   </div>
                 )}
 
+                {/* Option vérification automatique */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-update-check" className="text-sm font-medium cursor-pointer">
+                      Vérification automatique au démarrage
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Affiche une notification si une mise à jour est disponible
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-update-check"
+                    defaultChecked={localStorage.getItem('mediavault-disable-auto-update-check') !== 'true'}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        localStorage.removeItem('mediavault-disable-auto-update-check');
+                      } else {
+                        localStorage.setItem('mediavault-disable-auto-update-check', 'true');
+                      }
+                      toast.success(checked ? "Vérification automatique activée" : "Vérification automatique désactivée");
+                    }}
+                  />
+                </div>
+
                 <div className="bg-muted/50 p-3 rounded-lg text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">💡 Comment ça marche :</span>
                   <ul className="mt-1 list-disc list-inside space-y-1">
