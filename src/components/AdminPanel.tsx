@@ -73,6 +73,9 @@ export const AdminPanel = () => {
   const [updateCheckState, setUpdateCheckState] = useState<'idle' | 'checking' | 'available' | 'up-to-date' | 'error'>('idle');
   const [latestCommitInfo, setLatestCommitInfo] = useState<{ sha: string; message: string; date: string } | null>(null);
   const [changelog, setChangelog] = useState<Array<{ sha: string; message: string; date: string; author: string }>>([]);
+  const [lastCheckDate, setLastCheckDate] = useState<string | null>(() => 
+    localStorage.getItem('mediavault-last-update-check')
+  );
   const [activeTab, setActiveTab] = useState('tags');
 
   // Listen for open-admin-updates event from startup update check
@@ -220,6 +223,11 @@ export const AdminPanel = () => {
       // Store full SHA for later comparison
       localStorage.setItem('mediavault-latest-full-sha', data.sha);
       setLatestCommitInfo(commitInfo);
+      
+      // Store last check date
+      const checkDate = new Date().toISOString();
+      localStorage.setItem('mediavault-last-update-check', checkDate);
+      setLastCheckDate(checkDate);
       
       // Check against local version (stored in localStorage)
       const localVersion = localStorage.getItem('mediavault-local-version');
@@ -1597,9 +1605,23 @@ export const AdminPanel = () => {
                         )}
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      La branche par défaut est généralement "main" ou "master" selon votre repo
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>La branche par défaut est généralement "main" ou "master" selon votre repo</span>
+                      {lastCheckDate && (
+                        <>
+                          <span>•</span>
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            Dernière vérification : {new Date(lastCheckDate).toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Token pour repos privés */}
