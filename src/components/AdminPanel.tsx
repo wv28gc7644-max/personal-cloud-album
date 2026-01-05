@@ -31,7 +31,12 @@ import {
   XCircle,
   Loader2,
   Zap,
-  Clock
+  Clock,
+  Download,
+  Package,
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -116,7 +121,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="tags" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-5 bg-muted/50">
             <TabsTrigger value="tags" className="gap-2">
               <Tags className="w-4 h-4" />
               Tags
@@ -132,6 +137,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="server" className="gap-2">
               <Server className="w-4 h-4" />
               Serveur
+            </TabsTrigger>
+            <TabsTrigger value="export" className="gap-2">
+              <Package className="w-4 h-4" />
+              Export
             </TabsTrigger>
           </TabsList>
 
@@ -594,6 +603,126 @@ export const AdminPanel = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Export Tab */}
+          <TabsContent value="export" className="space-y-4 mt-6">
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  Self-Hosting Complet
+                </CardTitle>
+                <CardDescription>
+                  Hébergez tout sur votre PC — site + médias + métadonnées. Utilisez Lovable uniquement pour modifier.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                
+                {/* Step 1: GitHub */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">1</div>
+                    <div>
+                      <h4 className="font-medium">Connecter GitHub</h4>
+                      <p className="text-sm text-muted-foreground">Crée une copie de votre code (gratuit)</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="w-full gap-2" onClick={() => window.open('https://github.com', '_blank')}>
+                    <ExternalLink className="w-4 h-4" />
+                    Ouvrir GitHub (créer un compte si besoin)
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Ensuite, dans Lovable : Paramètres → GitHub → Connecter
+                  </p>
+                </div>
+
+                {/* Step 2: Download */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">2</div>
+                    <div>
+                      <h4 className="font-medium">Télécharger le site compilé</h4>
+                      <p className="text-sm text-muted-foreground">Une fois GitHub connecté, téléchargez le build</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 p-3 rounded-lg text-sm">
+                    <p className="text-muted-foreground">Dans le terminal de votre dossier GitHub :</p>
+                    <code className="block mt-2 bg-black/30 p-2 rounded text-xs">npm install && npm run build</code>
+                    <p className="text-muted-foreground mt-2">Le dossier <code className="bg-black/30 px-1 rounded">dist/</code> contient votre site.</p>
+                  </div>
+                </div>
+
+                {/* Step 3: Server Script */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">3</div>
+                    <div>
+                      <h4 className="font-medium">Script serveur tout-en-un</h4>
+                      <p className="text-sm text-muted-foreground">Remplacez votre server.js par celui-ci</p>
+                    </div>
+                  </div>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center justify-between">
+                        server.js (Self-Hosting Complet)
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selfHostingScript);
+                            toast.success('Script copié !');
+                          }}
+                        >
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copier
+                        </Button>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <pre className="text-xs bg-black/50 p-4 rounded-lg overflow-x-auto max-h-60">
+{selfHostingScript}
+                      </pre>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Step 4: Structure */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">4</div>
+                    <div>
+                      <h4 className="font-medium">Structure finale</h4>
+                      <p className="text-sm text-muted-foreground">Organisez vos fichiers comme ceci</p>
+                    </div>
+                  </div>
+                  <div className="bg-muted/50 p-4 rounded-lg font-mono text-sm">
+                    <div className="text-muted-foreground">C:\MediaVault\</div>
+                    <div className="ml-4">├── server.js <span className="text-primary">(le script ci-dessus)</span></div>
+                    <div className="ml-4">├── dist\ <span className="text-primary">(dossier du site compilé)</span></div>
+                    <div className="ml-4">├── media\ <span className="text-primary">(vos photos/vidéos)</span></div>
+                    <div className="ml-4">└── data.json <span className="text-primary">(créé automatiquement)</span></div>
+                  </div>
+                </div>
+
+                {/* Step 5: Launch */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-500 font-bold">✓</div>
+                    <div>
+                      <h4 className="font-medium">Lancer votre site</h4>
+                      <p className="text-sm text-muted-foreground">Votre site fonctionne 100% en local !</p>
+                    </div>
+                  </div>
+                  <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-lg">
+                    <p className="text-sm">Exécutez dans le dossier MediaVault :</p>
+                    <code className="block mt-2 bg-black/30 p-2 rounded text-sm">node server.js</code>
+                    <p className="text-sm mt-2">Puis ouvrez : <strong>http://localhost:3001</strong></p>
+                  </div>
+                </div>
+
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -906,4 +1035,192 @@ const serverScript = [
   "console.log('');",
   "console.log('🚀 Démarrage du serveur MediaVault...');",
   "startServer();"
+].join('\n');
+
+// Script tout-en-un pour self-hosting complet (site + API + métadonnées)
+const selfHostingScript = [
+  "const http = require('http');",
+  "const fs = require('fs');",
+  "const path = require('path');",
+  "",
+  "// ═══════════════════════════════════════════════════════════",
+  "// CONFIGURATION - Modifiez ces chemins selon votre installation",
+  "// ═══════════════════════════════════════════════════════════",
+  "const MEDIA_FOLDER = 'C:/MediaVault/media';     // Vos photos/vidéos",
+  "const DIST_FOLDER = 'C:/MediaVault/dist';       // Le site compilé",
+  "const DATA_FILE = 'C:/MediaVault/data.json';    // Métadonnées (tags, playlists)",
+  "",
+  "const PORT = 3001;",
+  "",
+  "// Vérifications au démarrage",
+  "if (!fs.existsSync(MEDIA_FOLDER)) {",
+  "  console.error('❌ Dossier média introuvable:', MEDIA_FOLDER);",
+  "  process.exit(1);",
+  "}",
+  "if (!fs.existsSync(DIST_FOLDER)) {",
+  "  console.error('❌ Dossier dist introuvable:', DIST_FOLDER);",
+  "  console.log('➡️ Compilez le site avec: npm run build');",
+  "  process.exit(1);",
+  "}",
+  "",
+  "// Initialiser data.json si inexistant",
+  "if (!fs.existsSync(DATA_FILE)) {",
+  "  fs.writeFileSync(DATA_FILE, JSON.stringify({ media: [], tags: [], playlists: [] }, null, 2));",
+  "  console.log('📄 Fichier data.json créé');",
+  "}",
+  "",
+  "const getMimeType = (ext) => {",
+  "  const types = {",
+  "    '.html': 'text/html',",
+  "    '.css': 'text/css',",
+  "    '.js': 'application/javascript',",
+  "    '.json': 'application/json',",
+  "    '.png': 'image/png',",
+  "    '.jpg': 'image/jpeg',",
+  "    '.jpeg': 'image/jpeg',",
+  "    '.gif': 'image/gif',",
+  "    '.webp': 'image/webp',",
+  "    '.svg': 'image/svg+xml',",
+  "    '.mp4': 'video/mp4',",
+  "    '.webm': 'video/webm',",
+  "    '.mov': 'video/quicktime',",
+  "    '.ico': 'image/x-icon',",
+  "    '.woff': 'font/woff',",
+  "    '.woff2': 'font/woff2'",
+  "  };",
+  "  return types[ext.toLowerCase()] || 'application/octet-stream';",
+  "};",
+  "",
+  "const server = http.createServer((req, res) => {",
+  "  res.setHeader('Access-Control-Allow-Origin', '*');",
+  "  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');",
+  "  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');",
+  "",
+  "  if (req.method === 'OPTIONS') {",
+  "    res.writeHead(200);",
+  "    return res.end();",
+  "  }",
+  "",
+  "  // API: Santé",
+  "  if (req.url === '/api/health') {",
+  "    res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "    return res.end(JSON.stringify({ status: 'ok' }));",
+  "  }",
+  "",
+  "  // API: Lire les données (tags, playlists, médias)",
+  "  if (req.url === '/api/data' && req.method === 'GET') {",
+  "    try {",
+  "      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));",
+  "      res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "      return res.end(JSON.stringify(data));",
+  "    } catch (err) {",
+  "      res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "      return res.end(JSON.stringify({ error: err.message }));",
+  "    }",
+  "  }",
+  "",
+  "  // API: Sauvegarder les données",
+  "  if (req.url === '/api/data' && req.method === 'POST') {",
+  "    let body = '';",
+  "    req.on('data', chunk => body += chunk);",
+  "    req.on('end', () => {",
+  "      try {",
+  "        const data = JSON.parse(body);",
+  "        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));",
+  "        res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "        res.end(JSON.stringify({ success: true }));",
+  "      } catch (err) {",
+  "        res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "        res.end(JSON.stringify({ error: err.message }));",
+  "      }",
+  "    });",
+  "    return;",
+  "  }",
+  "",
+  "  // API: Lister les fichiers média",
+  "  if (req.url === '/api/files') {",
+  "    try {",
+  "      const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);",
+  "      const listFiles = (dir, baseDir) => {",
+  "        const out = [];",
+  "        const entries = fs.readdirSync(dir, { withFileTypes: true });",
+  "        for (const entry of entries) {",
+  "          const abs = path.join(dir, entry.name);",
+  "          if (entry.isDirectory()) {",
+  "            out.push(...listFiles(abs, baseDir));",
+  "          } else if (entry.isFile() && isSupported(entry.name)) {",
+  "            const rel = path.relative(baseDir, abs);",
+  "            const stats = fs.statSync(abs);",
+  "            const ext = path.extname(entry.name).toLowerCase();",
+  "            const urlPath = rel.split(path.sep).map(encodeURIComponent).join('/');",
+  "            out.push({",
+  "              name: rel,",
+  "              url: 'http://localhost:' + PORT + '/media/' + urlPath,",
+  "              thumbnailUrl: 'http://localhost:' + PORT + '/media/' + urlPath,",
+  "              size: stats.size,",
+  "              type: ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 'image',",
+  "              createdAt: stats.birthtime.toISOString()",
+  "            });",
+  "          }",
+  "        }",
+  "        return out;",
+  "      };",
+  "      const files = listFiles(MEDIA_FOLDER, MEDIA_FOLDER);",
+  "      res.writeHead(200, { 'Content-Type': 'application/json' });",
+  "      return res.end(JSON.stringify(files));",
+  "    } catch (err) {",
+  "      res.writeHead(500, { 'Content-Type': 'application/json' });",
+  "      return res.end(JSON.stringify({ error: err.message }));",
+  "    }",
+  "  }",
+  "",
+  "  // Servir les fichiers média",
+  "  if (req.url.startsWith('/media/')) {",
+  "    const fileName = decodeURIComponent(req.url.slice(7));",
+  "    const filePath = path.normalize(path.join(MEDIA_FOLDER, fileName));",
+  "    if (filePath.startsWith(path.normalize(MEDIA_FOLDER)) && fs.existsSync(filePath)) {",
+  "      const stat = fs.statSync(filePath);",
+  "      res.writeHead(200, {",
+  "        'Content-Type': getMimeType(path.extname(filePath)),",
+  "        'Content-Length': stat.size,",
+  "        'Cache-Control': 'public, max-age=31536000'",
+  "      });",
+  "      return fs.createReadStream(filePath).pipe(res);",
+  "    }",
+  "  }",
+  "",
+  "  // Servir le site (fichiers statiques)",
+  "  let urlPath = req.url.split('?')[0];",
+  "  if (urlPath === '/') urlPath = '/index.html';",
+  "",
+  "  const filePath = path.join(DIST_FOLDER, urlPath);",
+  "  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {",
+  "    const ext = path.extname(filePath);",
+  "    res.writeHead(200, { 'Content-Type': getMimeType(ext) });",
+  "    return fs.createReadStream(filePath).pipe(res);",
+  "  }",
+  "",
+  "  // SPA fallback: renvoyer index.html",
+  "  const indexPath = path.join(DIST_FOLDER, 'index.html');",
+  "  if (fs.existsSync(indexPath)) {",
+  "    res.writeHead(200, { 'Content-Type': 'text/html' });",
+  "    return fs.createReadStream(indexPath).pipe(res);",
+  "  }",
+  "",
+  "  res.writeHead(404);",
+  "  res.end('Not Found');",
+  "});",
+  "",
+  "server.listen(PORT, () => {",
+  "  console.log('');",
+  "  console.log('✅ MediaVault Self-Hosted démarré!');",
+  "  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');",
+  "  console.log('🌐 Site: http://localhost:' + PORT);",
+  "  console.log('📁 Médias: ' + MEDIA_FOLDER);",
+  "  console.log('📦 Site: ' + DIST_FOLDER);",
+  "  console.log('💾 Données: ' + DATA_FILE);",
+  "  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');",
+  "  console.log('');",
+  "  console.log('Ouvrez http://localhost:' + PORT + ' dans votre navigateur');",
+  "});"
 ].join('\n');
