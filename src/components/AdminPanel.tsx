@@ -13,7 +13,8 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TagBadge } from './TagBadge';
 import { UpdateProgressModal, NotificationSoundType, playNotificationSound } from './UpdateProgressModal';
-import { useUpdateHistory } from '@/hooks/useUpdateHistory';
+import { useUpdateHistory, UpdateHistoryItem } from '@/hooks/useUpdateHistory';
+import { useRealtimeUpdateCheck } from '@/hooks/useRealtimeUpdateCheck';
 import { 
   Tags, 
   Palette, 
@@ -44,10 +45,23 @@ import {
   Bell,
   Volume2,
   Play,
-  History
+  History,
+  RotateCcw,
+  Radio
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 const TAG_COLORS: TagColor[] = ['yellow', 'blue', 'green', 'purple', 'orange', 'pink', 'gray'];
 
@@ -91,6 +105,29 @@ export const AdminPanel = () => {
   const [showSystemNotifications, setShowSystemNotifications] = useState(() => 
     localStorage.getItem('mediavault-show-system-notifications') !== 'false'
   );
+  const [realtimeCheckEnabled, setRealtimeCheckEnabled] = useState(() => 
+    localStorage.getItem('mediavault-realtime-update-check') === 'true'
+  );
+  const [realtimeCheckInterval, setRealtimeCheckInterval] = useState(() => 
+    parseInt(localStorage.getItem('mediavault-realtime-update-interval') || '60')
+  );
+  const [restoreTarget, setRestoreTarget] = useState<UpdateHistoryItem | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  // Realtime update check hook
+  const { lastCheck: realtimeLastCheck, isChecking: isRealtimeChecking } = useRealtimeUpdateCheck({
+    enabled: realtimeCheckEnabled,
+    intervalSeconds: realtimeCheckInterval,
+    onUpdateDetected: (info, commitsBehind) => {
+      // Refresh changelog state
+      try {
+        const stored = localStorage.getItem('mediavault-changelog');
+        if (stored) setChangelog(JSON.parse(stored));
+      } catch (e) {}
+      setUpdateCheckState('available');
+      setLatestCommitInfo(info);
+    }
+  });
 
   // Listen for open-admin-updates event from startup update check
   useEffect(() => {
@@ -160,6 +197,19 @@ export const AdminPanel = () => {
     }
   }, [getServerUrl]);
 
+  const triggerRestoreScript = useCallback(async (targetVersion: string): Promise<boolean> => {
+    try {
+      const response = await fetch(`${getServerUrl()}/api/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: targetVersion }),
+      });
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }, [getServerUrl]);
+
   const handleNotificationSoundChange = (value: NotificationSoundType) => {
     setNotificationSound(value);
     localStorage.setItem('mediavault-notification-sound', value);
@@ -168,6 +218,44 @@ export const AdminPanel = () => {
   const handleSystemNotificationsChange = (checked: boolean) => {
     setShowSystemNotifications(checked);
     localStorage.setItem('mediavault-show-system-notifications', checked.toString());
+  };
+
+  const handleRealtimeCheckChange = (checked: boolean) => {
+    setRealtimeCheckEnabled(checked);
+    localStorage.setItem('mediavault-realtime-update-check', checked.toString());
+  };
+
+  const handleRealtimeIntervalChange = (value: string) => {
+    const interval = parseInt(value);
+    setRealtimeCheckInterval(interval);
+    localStorage.setItem('mediavault-realtime-update-interval', value);
+  };
+
+  const handleRestoreVersion = async (item: UpdateHistoryItem) => {
+    setIsRestoring(true);
+    const fullVersion = localStorage.getItem(`mediavault-version-sha-${item.fromVersion}`) || item.fromVersion;
+    
+    try {
+      const success = await triggerRestoreScript(fullVersion);
+      if (success) {
+        toast.success('Restauration lancée', {
+          description: `Retour à la version ${item.fromVersion}...`
+        });
+        // Wait for server restart
+        setTimeout(() => {
+          window.location.reload();
+        }, 10000);
+      } else {
+        toast.error('Erreur de restauration', {
+          description: 'Vérifiez que le serveur supporte la restauration'
+        });
+      }
+    } catch (err) {
+      toast.error('Erreur de connexion');
+    } finally {
+      setIsRestoring(false);
+      setRestoreTarget(null);
+    }
   };
 
   // Get version info
@@ -1716,7 +1804,7 @@ export const AdminPanel = () => {
                   />
                 </div>
 
-                {/* Vérification automatique */}
+                {/* Vérification automatique au démarrage */}
                 <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
                   <div className="flex items-center gap-3">
                     <Zap className="w-5 h-5 text-muted-foreground" />
@@ -1743,11 +1831,68 @@ export const AdminPanel = () => {
                   />
                 </div>
 
+                {/* Vérification en temps réel */}
+                <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Radio className={cn("w-5 h-5", realtimeCheckEnabled && "text-primary animate-pulse")} />
+                      <div>
+                        <Label htmlFor="realtime-check" className="text-sm font-medium cursor-pointer">
+                          Vérification en temps réel
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Vérifie périodiquement et notifie immédiatement
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id="realtime-check"
+                      checked={realtimeCheckEnabled}
+                      onCheckedChange={handleRealtimeCheckChange}
+                    />
+                  </div>
+                  
+                  {realtimeCheckEnabled && (
+                    <div className="pt-2 border-t border-border/50 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-sm text-muted-foreground flex-shrink-0">Intervalle :</Label>
+                        <Select value={realtimeCheckInterval.toString()} onValueChange={handleRealtimeIntervalChange}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="30">30 secondes</SelectItem>
+                            <SelectItem value="60">1 minute</SelectItem>
+                            <SelectItem value="120">2 minutes</SelectItem>
+                            <SelectItem value="300">5 minutes</SelectItem>
+                            <SelectItem value="600">10 minutes</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {isRealtimeChecking ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin text-primary" />
+                            <span>Vérification en cours...</span>
+                          </>
+                        ) : realtimeLastCheck ? (
+                          <>
+                            <CheckCircle className="w-3 h-3 text-green-500" />
+                            <span>Dernière vérif: {realtimeLastCheck.toLocaleTimeString('fr-FR')}</span>
+                          </>
+                        ) : (
+                          <span>En attente de la première vérification...</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {lastCheckDate && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
                     <Clock className="w-3 h-3" />
                     <span>
-                      Dernière vérification : {new Date(lastCheckDate).toLocaleDateString('fr-FR', {
+                      Dernière vérification manuelle : {new Date(lastCheckDate).toLocaleDateString('fr-FR', {
                         day: 'numeric',
                         month: 'short',
                         hour: '2-digit',
@@ -1838,11 +1983,62 @@ export const AdminPanel = () => {
                             </p>
                           </div>
                         </div>
-                        {index === 0 && (
-                          <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full">
-                            Dernière
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {index === 0 ? (
+                            <span className="text-xs bg-green-500/20 text-green-500 px-2 py-1 rounded-full">
+                              Dernière
+                            </span>
+                          ) : (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  className="text-muted-foreground hover:text-foreground gap-1"
+                                  disabled={isRestoring}
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  Restaurer
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="flex items-center gap-2">
+                                    <RotateCcw className="w-5 h-5" />
+                                    Restaurer la version {item.fromVersion} ?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="space-y-2">
+                                    <p>
+                                      Cette action va restaurer MediaVault à la version <code className="bg-black/20 px-1 rounded">{item.fromVersion}</code>.
+                                    </p>
+                                    <p className="text-amber-500">
+                                      ⚠️ Vos données locales (tags, playlists) seront préservées, mais les nouvelles fonctionnalités seront perdues.
+                                    </p>
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleRestoreVersion(item)}
+                                    className="bg-amber-600 hover:bg-amber-700"
+                                  >
+                                    {isRestoring ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                        Restauration...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <RotateCcw className="w-4 h-4 mr-2" />
+                                        Confirmer la restauration
+                                      </>
+                                    )}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
