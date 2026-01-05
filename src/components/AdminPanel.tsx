@@ -486,11 +486,22 @@ const fs = require('fs');
 const path = require('path');
 
 // ⚠️ MODIFIEZ CE CHEMIN avec votre dossier de médias
+// ✅ IMPORTANT (Windows) : utilisez des / ou échappez les \\ 
+//   Bon:  'C:/Users/jimmy/Pictures'
+//   Bon:  'C:\\Users\\jimmy\\Pictures'
+//   Mauvais: 'C:\Users\jimmy\Pictures'  (les \\ cassent la chaîne)
 const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
 
 // Ports à essayer (si le premier est occupé, essaie le suivant)
 const PORTS = [3001, 3002, 3003, 3004, 3005];
 let currentPort = PORTS[0];
+
+// Vérification du dossier au démarrage (évite ENOENT)
+if (!fs.existsSync(MEDIA_FOLDER)) {
+  console.error('❌ MEDIA_FOLDER introuvable:', MEDIA_FOLDER);
+  console.log('➡️ Corrigez MEDIA_FOLDER puis relancez: node server.js');
+  process.exit(1);
+}
 
 const getMimeType = (ext) => {
   const types = {
