@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
 import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive } from 'lucide-react';
@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
+import { useAdvancedCardSettings } from './CardDesignEditor';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,11 +35,22 @@ export const MediaCardTwitter = ({
   const [isHovered, setIsHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { settings } = useCardSettings();
+  const { settings: basicSettings } = useCardSettings();
+  const advancedSettings = useAdvancedCardSettings();
   const { getStats } = useMediaStats();
   
   const stats = getStats(item.id);
   const viewCount = stats?.viewCount || 0;
+
+  // Use advanced settings with fallback to basic
+  const showMetadata = advancedSettings.showMetadata;
+  const showTitle = advancedSettings.showTitle;
+  const showActionText = advancedSettings.showActionText;
+  const layoutOrder = advancedSettings.layoutOrder;
+  const showHeader = advancedSettings.showHeader;
+  const showActions = advancedSettings.showActions;
+  const showDuration = advancedSettings.showDuration;
+  const showViewCount = advancedSettings.showViewCount;
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -56,7 +68,7 @@ export const MediaCardTwitter = ({
     setIsHovered(true);
     if (item.type === 'video' && videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.muted = !settings.videoHoverSound;
+      videoRef.current.muted = !basicSettings.videoHoverSound;
       videoRef.current.play().catch(() => {});
       setIsVideoPlaying(true);
     }
@@ -73,49 +85,112 @@ export const MediaCardTwitter = ({
   const formattedDateTime = format(new Date(item.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr });
   const timeAgo = format(new Date(item.createdAt), "d MMM", { locale: fr });
 
+  const getAspectRatioClass = () => {
+    switch (advancedSettings.mediaAspectRatio) {
+      case '1:1': return 'aspect-square';
+      case '4:3': return 'aspect-[4/3]';
+      default: return 'aspect-video';
+    }
+  };
+
   const renderHeader = () => (
-    <div className="p-4 pb-3 flex items-start gap-3">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground font-semibold text-sm">
-        MV
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-foreground">MediaVault</span>
-          <span className="text-muted-foreground text-sm">@mediavault</span>
-          <span className="text-muted-foreground text-sm">·</span>
-          <span className="text-muted-foreground text-sm">{timeAgo}</span>
+    showHeader && (
+      <div 
+        className="flex items-start gap-3"
+        style={{ 
+          padding: advancedSettings.headerPadding,
+          paddingBottom: advancedSettings.headerPadding * 0.75
+        }}
+      >
+        <div 
+          className="rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground font-semibold flex-shrink-0"
+          style={{ 
+            width: advancedSettings.avatarSize, 
+            height: advancedSettings.avatarSize,
+            fontSize: advancedSettings.avatarSize * 0.35
+          }}
+        >
+          MV
         </div>
-        {settings.showTitle && (
-          <p className="text-foreground mt-1 line-clamp-2">{item.name}</p>
-        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span 
+              className="font-semibold text-foreground"
+              style={{ fontSize: advancedSettings.usernameFontSize }}
+            >
+              MediaVault
+            </span>
+            <span 
+              className="text-muted-foreground"
+              style={{ fontSize: advancedSettings.usernameFontSize * 0.9 }}
+            >
+              @mediavault
+            </span>
+            <span 
+              className="text-muted-foreground"
+              style={{ fontSize: advancedSettings.usernameFontSize * 0.9 }}
+            >
+              ·
+            </span>
+            <span 
+              className="text-muted-foreground"
+              style={{ fontSize: advancedSettings.usernameFontSize * 0.9 }}
+            >
+              {timeAgo}
+            </span>
+          </div>
+          {showTitle && (
+            <p 
+              className="text-foreground mt-1"
+              style={{ 
+                fontSize: advancedSettings.titleFontSize,
+                display: '-webkit-box',
+                WebkitLineClamp: advancedSettings.titleLineClamp,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden'
+              }}
+            >
+              {item.name}
+            </p>
+          )}
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon-sm" 
+              className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              style={{ 
+                width: advancedSettings.actionButtonSize, 
+                height: advancedSettings.actionButtonSize 
+              }}
+            >
+              <MoreHorizontal style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onView}>
+              <Eye className="w-4 h-4 mr-2" />
+              Voir
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDownload}>
+              <Download className="w-4 h-4 mr-2" />
+              Télécharger
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onDelete} className="text-destructive">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Supprimer
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-            <MoreHorizontal className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onView}>
-            <Eye className="w-4 h-4 mr-2" />
-            Voir
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onDownload}>
-            <Download className="w-4 h-4 mr-2" />
-            Télécharger
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onDelete} className="text-destructive">
-            <Trash2 className="w-4 h-4 mr-2" />
-            Supprimer
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    )
   );
 
   const renderMedia = () => (
     <div 
-      className="relative aspect-video bg-black/20 cursor-pointer overflow-hidden"
+      className={cn("relative bg-black/20 cursor-pointer overflow-hidden", getAspectRatioClass())}
+      style={{ borderRadius: advancedSettings.mediaBorderRadius }}
       onClick={onView}
     >
       {item.type === 'video' && isHovered ? (
@@ -125,7 +200,7 @@ export const MediaCardTwitter = ({
           className="w-full h-full object-cover"
           loop
           playsInline
-          muted={!settings.videoHoverSound}
+          muted={!basicSettings.videoHoverSound}
         />
       ) : (
         <img
@@ -166,14 +241,14 @@ export const MediaCardTwitter = ({
       </div>
 
       {/* Duration for videos */}
-      {item.type === 'video' && item.duration && (
+      {item.type === 'video' && item.duration && showDuration && (
         <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-xs text-white font-medium">
           {Math.floor(item.duration / 60)}:{(item.duration % 60).toString().padStart(2, '0')}
         </div>
       )}
 
       {/* View count badge */}
-      {viewCount > 0 && (
+      {viewCount > 0 && showViewCount && (
         <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-xs text-white font-medium flex items-center gap-1">
           <Eye className="w-3 h-3" />
           {viewCount}
@@ -183,14 +258,20 @@ export const MediaCardTwitter = ({
   );
 
   const renderMetadata = () => (
-    settings.showMetadata && (
-      <div className="px-4 py-2 flex items-center gap-4 text-xs text-muted-foreground border-b border-border/30">
+    showMetadata && (
+      <div 
+        className="flex items-center gap-4 text-muted-foreground border-b border-border/30"
+        style={{ 
+          padding: `${advancedSettings.headerPadding * 0.5}px ${advancedSettings.headerPadding}px`,
+          fontSize: advancedSettings.metadataFontSize 
+        }}
+      >
         <span className="flex items-center gap-1">
-          <Calendar className="w-3.5 h-3.5" />
+          <Calendar style={{ width: advancedSettings.metadataFontSize, height: advancedSettings.metadataFontSize }} />
           {formattedDateTime}
         </span>
         <span className="flex items-center gap-1">
-          <HardDrive className="w-3.5 h-3.5" />
+          <HardDrive style={{ width: advancedSettings.metadataFontSize, height: advancedSettings.metadataFontSize }} />
           {formatFileSize(item.size)}
         </span>
         <span className="uppercase font-medium text-primary/80">
@@ -201,58 +282,71 @@ export const MediaCardTwitter = ({
   );
 
   const renderActions = () => (
-    <div className="px-2 py-1 flex items-center justify-between">
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10"
-        onClick={(e) => { e.stopPropagation(); onView(); }}
-      >
-        <Eye className="w-4 h-4" />
-        {settings.showActionText && <span className="text-xs">Voir</span>}
-      </Button>
-      
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className={cn(
-          "flex-1 gap-2 transition-colors",
-          isLiked 
-            ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" 
-            : "text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-        )}
-        onClick={handleLike}
-      >
-        <Heart className={cn("w-4 h-4", isLiked && "fill-current")} />
-        {settings.showActionText && <span className="text-xs">{isLiked ? 'Favori' : 'J\'aime'}</span>}
-      </Button>
+    showActions && (
+      <div className="px-2 py-1 flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10"
+          style={{ height: advancedSettings.actionButtonSize }}
+          onClick={(e) => { e.stopPropagation(); onView(); }}
+        >
+          <Eye style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
+          {showActionText && <span style={{ fontSize: advancedSettings.actionIconSize * 0.75 }}>Voir</span>}
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          className={cn(
+            "flex-1 gap-2 transition-colors",
+            isLiked 
+              ? "text-red-500 hover:text-red-600 hover:bg-red-500/10" 
+              : "text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+          )}
+          style={{ height: advancedSettings.actionButtonSize }}
+          onClick={handleLike}
+        >
+          <Heart 
+            className={cn(isLiked && "fill-current")}
+            style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }}
+          />
+          {showActionText && (
+            <span style={{ fontSize: advancedSettings.actionIconSize * 0.75 }}>
+              {isLiked ? 'Favori' : 'J\'aime'}
+            </span>
+          )}
+        </Button>
 
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="flex-1 gap-2 text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
-        onClick={(e) => { e.stopPropagation(); onDownload(); }}
-      >
-        <Download className="w-4 h-4" />
-      </Button>
+        <Button 
+          variant="ghost" 
+          className="flex-1 gap-2 text-muted-foreground hover:text-green-500 hover:bg-green-500/10"
+          style={{ height: advancedSettings.actionButtonSize }}
+          onClick={(e) => { e.stopPropagation(); onDownload(); }}
+        >
+          <Download style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
+        </Button>
 
-      <Button 
-        variant="ghost" 
-        size="sm" 
-        className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10"
-      >
-        <Share className="w-4 h-4" />
-      </Button>
-    </div>
+        <Button 
+          variant="ghost" 
+          className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10"
+          style={{ height: advancedSettings.actionButtonSize }}
+        >
+          <Share style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
+        </Button>
+      </div>
+    )
   );
 
   return (
     <article 
-      className="group bg-card border border-border/50 rounded-xl overflow-hidden transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      className="group bg-card border border-border/50 overflow-hidden transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      style={{ 
+        borderRadius: advancedSettings.cardBorderRadius,
+        padding: advancedSettings.cardPadding
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {settings.layoutOrder === 'header-first' ? (
+      {layoutOrder === 'header-first' ? (
         <>
           {renderHeader()}
           {renderMedia()}

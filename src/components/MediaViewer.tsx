@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, Tag as TagIcon } from 'lucide-react';
 import { MediaItem } from '@/types/media';
 import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
+import { VideoHeatmap } from './VideoHeatmap';
+import { useMediaStats } from '@/hooks/useMediaStats';
 import { cn } from '@/lib/utils';
 
 interface MediaViewerProps {
@@ -15,11 +17,15 @@ interface MediaViewerProps {
 
 export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: MediaViewerProps) {
   const [isVisible, setIsVisible] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const lastSegmentTimeRef = useRef<number>(0);
+  const { recordVideoSegment, getStats } = useMediaStats();
 
   useEffect(() => {
     if (item) {
       setIsVisible(true);
       document.body.style.overflow = 'hidden';
+      lastSegmentTimeRef.current = 0;
     } else {
       document.body.style.overflow = '';
     }
@@ -28,6 +34,30 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
       document.body.style.overflow = '';
     };
   }, [item]);
+
+  // Track video segments
+  const handleTimeUpdate = useCallback(() => {
+    if (!videoRef.current || !item) return;
+    
+    const currentTime = videoRef.current.currentTime;
+    const segmentSize = 5; // 5 second segments
+    
+    // Record segment every 2 seconds of playback
+    if (currentTime - lastSegmentTimeRef.current >= 2) {
+      const segmentStart = Math.floor(lastSegmentTimeRef.current / segmentSize) * segmentSize;
+      const segmentEnd = segmentStart + segmentSize;
+      
+      recordVideoSegment(item.id, segmentStart, Math.min(segmentEnd, item.duration || segmentEnd));
+      lastSegmentTimeRef.current = currentTime;
+    }
+  }, [item, recordVideoSegment]);
+
+  // Handle seek (replay detection)
+  const handleSeeked = useCallback(() => {
+    if (videoRef.current) {
+      lastSegmentTimeRef.current = videoRef.current.currentTime;
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -66,6 +96,8 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
   };
 
   if (!item) return null;
+
+  const stats = getStats(item.id);
 
   return (
     <div
@@ -121,26 +153,44 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
 
       {/* Media content */}
       <div className="absolute inset-0 flex items-center justify-center p-20">
-        {item.type === 'image' ? (
-          <img
-            src={item.url}
-            alt={item.name}
-            className={cn(
-              "max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-all duration-500",
-              isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-            )}
-          />
-        ) : (
-          <video
-            src={item.url}
-            controls
-            autoPlay
-            className={cn(
-              "max-w-full max-h-full rounded-lg shadow-2xl transition-all duration-500",
-              isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-            )}
-          />
-        )}
+        <div className="flex flex-col items-center max-w-full max-h-full">
+          {item.type === 'image' ? (
+            <img
+              src={item.url}
+              alt={item.name}
+              className={cn(
+                "max-w-full max-h-[calc(100vh-160px)] object-contain rounded-lg shadow-2xl transition-all duration-500",
+                isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+              )}
+            />
+          ) : (
+            <div className="flex flex-col w-full max-w-4xl">
+              <video
+                ref={videoRef}
+                src={item.url}
+                controls
+                autoPlay
+                onTimeUpdate={handleTimeUpdate}
+                onSeeked={handleSeeked}
+                className={cn(
+                  "max-w-full max-h-[calc(100vh-200px)] rounded-lg shadow-2xl transition-all duration-500",
+                  isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+                )}
+              />
+              {/* Video Heatmap */}
+              {item.duration && (
+                <div className="mt-2 px-2">
+                  <VideoHeatmap 
+                    stats={stats} 
+                    duration={item.duration} 
+                    height={6}
+                    className="rounded-full opacity-80"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Counter */}
