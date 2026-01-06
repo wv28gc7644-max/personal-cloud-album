@@ -187,24 +187,57 @@ export const MediaCardTwitter = ({
     )
   );
 
+  // Get thumbnail URL - prefer server thumbnail, then item thumbnail, then first frame
+  const getThumbnailUrl = () => {
+    if (item.thumbnailUrl && item.thumbnailUrl !== item.url) {
+      return item.thumbnailUrl;
+    }
+    // For videos without thumbnail, we'll show video element with poster
+    if (item.type === 'video') {
+      return undefined;
+    }
+    return item.url;
+  };
+
+  const thumbnailUrl = getThumbnailUrl();
+
   const renderMedia = () => (
     <div 
-      className={cn("relative bg-black/20 cursor-pointer overflow-hidden", getAspectRatioClass())}
+      className={cn("relative bg-muted cursor-pointer overflow-hidden", getAspectRatioClass())}
       style={{ borderRadius: advancedSettings.mediaBorderRadius }}
       onClick={onView}
     >
-      {item.type === 'video' && isHovered ? (
-        <video
-          ref={videoRef}
-          src={item.url}
-          className="w-full h-full object-cover"
-          loop
-          playsInline
-          muted={!basicSettings.videoHoverSound}
-        />
+      {item.type === 'video' ? (
+        <>
+          {/* Video element - always present, plays on hover */}
+          <video
+            ref={videoRef}
+            src={item.url}
+            poster={thumbnailUrl}
+            className={cn(
+              "w-full h-full object-cover transition-transform duration-500",
+              isHovered && "scale-105"
+            )}
+            loop
+            playsInline
+            muted={!basicSettings.videoHoverSound}
+            preload="metadata"
+          />
+          {/* Fallback image overlay when video not playing */}
+          {!isVideoPlaying && thumbnailUrl && (
+            <img
+              src={thumbnailUrl}
+              alt={item.name}
+              className={cn(
+                "absolute inset-0 w-full h-full object-cover transition-all duration-500",
+                isHovered && "opacity-0"
+              )}
+            />
+          )}
+        </>
       ) : (
         <img
-          src={item.thumbnailUrl || item.url}
+          src={item.url}
           alt={item.name}
           className={cn(
             "w-full h-full object-cover transition-transform duration-500",

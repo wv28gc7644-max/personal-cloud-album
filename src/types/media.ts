@@ -29,7 +29,7 @@ export interface Playlist {
   createdAt: Date;
 }
 
-export type ViewMode = 'grid' | 'grid-large' | 'list' | 'masonry';
+export type ViewMode = 'grid' | 'grid-large' | 'list' | 'masonry' | 'media-only';
 
 export type SortOption = 
   | 'date-desc' 

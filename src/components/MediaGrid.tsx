@@ -3,6 +3,7 @@ import { useMediaStore } from '@/hooks/useMediaStore';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaCardTwitter } from './MediaCardTwitter';
+import { MediaCardMinimal } from './MediaCardMinimal';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
@@ -83,48 +84,52 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
     );
   }
 
-  // Get card style from localStorage
+  // Get grid columns from localStorage
   const savedSettings = localStorage.getItem('mediavault-admin-settings');
-  const cardStyle = savedSettings ? JSON.parse(savedSettings).cardStyle : 'twitter';
   const gridColumns = savedSettings ? JSON.parse(savedSettings).gridColumns : 3;
 
   const getGridClasses = () => {
-    if (viewMode === 'masonry') {
-      return "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4";
+    switch (viewMode) {
+      case 'masonry':
+      case 'media-only':
+        return "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4";
+      case 'list':
+        return "flex flex-col gap-4";
+      case 'grid-large':
+        return "grid grid-cols-1 md:grid-cols-2 gap-6";
+      case 'grid':
+      default:
+        return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4";
     }
-    if (cardStyle === 'twitter') {
-      return "grid gap-6";
-    }
-    if (cardStyle === 'grid') {
-      return "media-grid";
-    }
-    return "media-grid-large";
   };
 
   return (
     <>
-      <div
-        className={cn("p-6 animate-fade-in", getGridClasses())}
-        style={cardStyle === 'twitter' && viewMode !== 'masonry' ? { 
-          gridTemplateColumns: `repeat(${Math.min(gridColumns, 2)}, minmax(0, 1fr))` 
-        } : undefined}
-      >
+      <div className={cn("p-6 animate-fade-in", getGridClasses())}>
         {displayMedia.map((item, index) => (
           <div
             key={item.id}
             className={cn(
               "animate-slide-up",
-              viewMode === 'masonry' && "break-inside-avoid"
+              (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
+              viewMode === 'list' && "max-w-3xl mx-auto w-full"
             )}
             style={{ animationDelay: `${index * 50}ms` }}
           >
-            <MediaCardTwitter
-              item={item}
-              onView={() => handleView(item)}
-              onDelete={() => handleDelete(item)}
-              onDownload={() => handleDownload(item)}
-              onToggleFavorite={() => handleToggleFavorite(item)}
-            />
+            {viewMode === 'media-only' ? (
+              <MediaCardMinimal
+                item={item}
+                onView={() => handleView(item)}
+              />
+            ) : (
+              <MediaCardTwitter
+                item={item}
+                onView={() => handleView(item)}
+                onDelete={() => handleDelete(item)}
+                onDownload={() => handleDownload(item)}
+                onToggleFavorite={() => handleToggleFavorite(item)}
+              />
+            )}
           </div>
         ))}
       </div>

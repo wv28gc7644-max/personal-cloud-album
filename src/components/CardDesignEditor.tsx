@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -20,7 +20,9 @@ import {
   Play,
   MoreHorizontal,
   Calendar,
-  HardDrive
+  HardDrive,
+  Upload,
+  FileDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -155,6 +157,7 @@ const getStoredSettings = (): AdvancedCardSettings => {
 export const CardDesignEditor = () => {
   const [settings, setSettings] = useState<AdvancedCardSettings>(getStoredSettings);
   const [previewTab, setPreviewTab] = useState<'image' | 'video'>('image');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     localStorage.setItem('mediavault-advanced-card-settings', JSON.stringify(settings));
@@ -178,6 +181,46 @@ export const CardDesignEditor = () => {
   const resetSettings = () => {
     setSettings(DEFAULT_SETTINGS);
     toast.success('Paramètres réinitialisés');
+  };
+
+  // Export settings to JSON file
+  const exportSettings = () => {
+    const dataStr = JSON.stringify(settings, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `mediavault-design-preset-${settings.preset}-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('Preset exporté');
+  };
+
+  // Import settings from JSON file
+  const importSettings = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedSettings = JSON.parse(e.target?.result as string) as AdvancedCardSettings;
+        // Validate that it has required fields
+        if (typeof importedSettings.cardBorderRadius === 'number') {
+          setSettings({ ...DEFAULT_SETTINGS, ...importedSettings, preset: 'custom' });
+          toast.success('Preset importé avec succès');
+        } else {
+          throw new Error('Format invalide');
+        }
+      } catch (err) {
+        toast.error('Erreur lors de l\'import du preset');
+      }
+    };
+    reader.readAsText(file);
+    // Reset input
+    event.target.value = '';
   };
 
   const getAspectRatioClass = () => {
@@ -379,6 +422,25 @@ export const CardDesignEditor = () => {
               <span>Compact</span>
               <span className="text-xs opacity-70">Plus de cartes</span>
             </Button>
+          </div>
+          
+          {/* Export/Import buttons */}
+          <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
+            <Button variant="outline" size="sm" onClick={exportSettings} className="flex-1">
+              <FileDown className="w-4 h-4 mr-2" />
+              Exporter
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex-1">
+              <Upload className="w-4 h-4 mr-2" />
+              Importer
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={importSettings}
+              className="hidden"
+            />
           </div>
         </CardContent>
       </Card>
