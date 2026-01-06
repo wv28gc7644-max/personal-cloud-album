@@ -58,3 +58,28 @@ export interface CardDisplaySettings {
   videoHoverSound: boolean;
   videoHoverStart: 'beginning' | 'preview';
 }
+
+export interface AdvancedCardSettings {
+  cardBorderRadius: number;
+  cardPadding: number;
+  showHeader: boolean;
+  headerPadding: number;
+  avatarSize: number;
+  usernameFontSize: number;
+  mediaAspectRatio: 'auto' | '16:9' | '4:3' | '1:1';
+  mediaBorderRadius: number;
+  showDuration: boolean;
+  showViewCount: boolean;
+  showMetadata: boolean;
+  metadataFontSize: number;
+  showTitle: boolean;
+  titleFontSize: number;
+  titleLineClamp: number;
+  showActions: boolean;
+  showActionText: boolean;
+  actionButtonSize: number;
+  actionIconSize: number;
+  layoutOrder: 'header-first' | 'media-first';
+  sectionGap: number;
+  preset: 'normal' | 'minimalist' | 'compact' | 'custom';
+}

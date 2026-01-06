@@ -3,6 +3,7 @@ import { useMediaStats } from '@/hooks/useMediaStats';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { MiniHeatmap } from './VideoHeatmap';
 import { 
   BarChart3, 
   Eye, 
@@ -10,7 +11,8 @@ import {
   TrendingUp, 
   Trash2,
   Image,
-  Video
+  Video,
+  Flame
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -141,49 +143,67 @@ export function StatsPanel() {
                 <p className="text-sm">Consultez des médias pour voir apparaître les statistiques</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {mostViewed.map((stat, index) => {
                   const mediaItem = getMediaById(stat.mediaId);
                   if (!mediaItem) return null;
 
                   const maxViews = mostViewed[0]?.viewCount || 1;
                   const percentage = (stat.viewCount / maxViews) * 100;
+                  const hasSegments = stat.segments && stat.segments.length > 0;
 
                   return (
-                    <div key={stat.mediaId} className="flex items-center gap-4">
-                      <span className="w-6 text-center font-bold text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                        <img 
-                          src={mediaItem.thumbnailUrl || mediaItem.url} 
-                          alt={mediaItem.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{mediaItem.name}</p>
-                          {mediaItem.type === 'video' ? (
-                            <Video className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          ) : (
-                            <Image className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          )}
-                        </div>
-                        <div className="mt-1 h-2 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
+                    <div key={stat.mediaId} className="space-y-2">
+                      <div className="flex items-center gap-4">
+                        <span className="w-6 text-center font-bold text-muted-foreground">
+                          {index + 1}
+                        </span>
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                          <img 
+                            src={mediaItem.thumbnailUrl || mediaItem.url} 
+                            alt={mediaItem.name}
+                            className="w-full h-full object-cover"
                           />
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">{mediaItem.name}</p>
+                            {mediaItem.type === 'video' ? (
+                              <Video className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            ) : (
+                              <Image className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                            {hasSegments && (
+                              <span title="Heatmap disponible">
+                                <Flame className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-primary rounded-full transition-all"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold">{stat.viewCount}</p>
+                          <p className="text-xs text-muted-foreground">vues</p>
+                        </div>
+                        {stat.totalWatchTime > 0 && (
+                          <div className="text-right text-sm text-muted-foreground">
+                            {formatWatchTime(stat.totalWatchTime)}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold">{stat.viewCount}</p>
-                        <p className="text-xs text-muted-foreground">vues</p>
-                      </div>
-                      {stat.totalWatchTime > 0 && (
-                        <div className="text-right text-sm text-muted-foreground">
-                          {formatWatchTime(stat.totalWatchTime)}
+                      {/* Mini heatmap for videos with segments */}
+                      {mediaItem.type === 'video' && mediaItem.duration && hasSegments && (
+                        <div className="ml-10 pl-6">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Flame className="w-3 h-3 text-orange-500" />
+                            <span className="text-xs text-muted-foreground">Passages les plus regardés</span>
+                          </div>
+                          <MiniHeatmap stats={stat} duration={mediaItem.duration} />
                         </div>
                       )}
                     </div>

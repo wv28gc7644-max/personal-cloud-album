@@ -11,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import { TagBadge } from './TagBadge';
 import { UpdateProgressModal, NotificationSoundType, playNotificationSound } from './UpdateProgressModal';
 import { useUpdateHistory, UpdateHistoryItem } from '@/hooks/useUpdateHistory';
 import { useRealtimeUpdateCheck } from '@/hooks/useRealtimeUpdateCheck';
+import { CardDesignEditor } from './CardDesignEditor';
 import { 
   Tags, 
   Palette, 
@@ -47,7 +49,9 @@ import {
   Play,
   History,
   RotateCcw,
-  Radio
+  Radio,
+  Film,
+  Image
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -864,102 +868,7 @@ export const AdminPanel = () => {
 
           {/* Appearance Tab */}
           <TabsContent value="appearance" className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Style d'affichage</CardTitle>
-                <CardDescription>Personnalisez l'apparence de votre galerie</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-3">
-                  <Label>Style des cartes</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { value: 'twitter', label: 'Twitter', icon: LayoutList },
-                      { value: 'grid', label: 'Grille', icon: Grid3X3 },
-                      { value: 'compact', label: 'Compact', icon: Grid3X3 }
-                    ].map((style) => (
-                      <button
-                        key={style.value}
-                        onClick={() => updateSetting('cardStyle', style.value as AdminSettings['cardStyle'])}
-                        className={cn(
-                          "p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2",
-                          settings.cardStyle === style.value 
-                            ? "border-primary bg-primary/10" 
-                            : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <style.icon className="w-6 h-6" />
-                        <span className="text-sm font-medium">{style.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Colonnes de la grille: {settings.gridColumns}</Label>
-                  <Slider
-                    value={[settings.gridColumns]}
-                    onValueChange={([value]) => updateSetting('gridColumns', value)}
-                    min={1}
-                    max={6}
-                    step={1}
-                    className="w-full"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label>Thème</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { value: 'dark', label: 'Sombre', icon: Moon },
-                      { value: 'light', label: 'Clair', icon: Sun },
-                      { value: 'system', label: 'Système', icon: Monitor }
-                    ].map((theme) => (
-                      <button
-                        key={theme.value}
-                        onClick={() => updateSetting('theme', theme.value as AdminSettings['theme'])}
-                        className={cn(
-                          "p-3 rounded-lg border-2 transition-all flex items-center justify-center gap-2",
-                          settings.theme === theme.value 
-                            ? "border-primary bg-primary/10" 
-                            : "border-border hover:border-primary/50"
-                        )}
-                      >
-                        <theme.icon className="w-4 h-4" />
-                        <span className="text-sm">{theme.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Lecture automatique</Label>
-                    <p className="text-sm text-muted-foreground">Lire les vidéos automatiquement au survol</p>
-                  </div>
-                  <Switch
-                    checked={settings.autoPlay}
-                    onCheckedChange={(checked) => updateSetting('autoPlay', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Afficher les métadonnées</Label>
-                    <p className="text-sm text-muted-foreground">Taille, date, type de fichier</p>
-                  </div>
-                  <Switch
-                    checked={settings.showMetadata}
-                    onCheckedChange={(checked) => updateSetting('showMetadata', checked)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Button onClick={handleSaveSettings} className="w-full gap-2">
-              <Save className="w-4 h-4" />
-              Sauvegarder les paramètres
-            </Button>
+            <CardDesignEditor />
           </TabsContent>
 
           {/* Server Tab */}
@@ -1152,7 +1061,66 @@ export const AdminPanel = () => {
                   </CardContent>
                 </Card>
 
-                {/* Server URL Config */}
+                {/* FFmpeg Thumbnail Generation */}
+                <Card className="border-blue-500/30 bg-blue-500/5">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Film className="w-4 h-4 text-blue-500" />
+                      Génération de thumbnails vidéo (FFmpeg)
+                    </CardTitle>
+                    <CardDescription>
+                      Générez des miniatures haute qualité pour vos vidéos via le serveur local
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                      <p className="text-muted-foreground">
+                        Le script serveur inclut la génération de thumbnails automatique via FFmpeg.
+                        Assurez-vous que FFmpeg est installé sur votre machine Windows.
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <a 
+                          href="https://www.gyan.dev/ffmpeg/builds/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Télécharger FFmpeg
+                        </a>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium">Endpoints disponibles :</h4>
+                      <ul className="text-xs text-muted-foreground space-y-1.5">
+                        <li className="flex items-center gap-2">
+                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/check-ffmpeg</code>
+                          <span>Vérifier l'installation FFmpeg</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/generate-thumbnail</code>
+                          <span>Générer un thumbnail (POST)</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/generate-all-thumbnails</code>
+                          <span>Générer tous les thumbnails</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/thumbnails/:filename</code>
+                          <span>Servir les thumbnails</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                      <p className="text-xs text-green-400 flex items-center gap-2">
+                        <CheckCircle className="w-3 h-3" />
+                        Le script server.cjs ci-dessous inclut déjà le support FFmpeg
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
                 <div className="p-4 bg-muted/50 rounded-lg border border-border space-y-3">
                   <Label htmlFor="serverUrl">URL du serveur local</Label>
                   <Input
