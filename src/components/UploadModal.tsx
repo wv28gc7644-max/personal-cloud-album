@@ -19,6 +19,15 @@ interface UploadModalProps {
 
 const tagColors: TagColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'gray'];
 
+const getServerUrl = (): string => {
+  const saved = localStorage.getItem('mediavault-admin-settings');
+  if (saved) {
+    const settings = JSON.parse(saved);
+    return settings.localServerUrl || 'http://localhost:3001';
+  }
+  return 'http://localhost:3001';
+};
+
 const isServerConfigured = (): boolean => {
   const saved = localStorage.getItem('mediavault-admin-settings');
   if (saved) {
@@ -26,6 +35,19 @@ const isServerConfigured = (): boolean => {
     return !!settings.localServerUrl;
   }
   return false;
+};
+
+// Check if server is reachable
+const checkServerAvailable = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${getServerUrl()}/api/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(3000)
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 };
 
 export function UploadModal({ open, onClose }: UploadModalProps) {
@@ -75,24 +97,28 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
   };
 
   const handleUpload = async () => {
-    const serverConfigured = isServerConfigured();
     let successCount = 0;
-    let failCount = 0;
+    let serverUploadCount = 0;
+    let localOnlyCount = 0;
+    
+    // Check server availability first
+    const serverAvailable = await checkServerAvailable();
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       
-      if (serverConfigured) {
-        // Try to upload to server first
+      if (serverAvailable) {
+        // Upload to server
         const result = await uploadToServer(file, selectedTags);
         if (result) {
           successCount++;
+          serverUploadCount++;
           continue;
         }
       }
       
-      // Fallback: add locally only
+      // Fallback: add locally only (when server not available)
       const isVideo = file.type.startsWith('video/');
       const url = URL.createObjectURL(file);
       
@@ -111,14 +137,21 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       addHistoryItem({
         type: 'upload',
         title: 'Fichier ajouté',
-        description: 'Ajouté localement',
+        description: 'Ajouté localement uniquement',
         mediaName: file.name,
       });
       successCount++;
+      localOnlyCount++;
     }
     
     if (successCount > 0) {
-      toast.success(`${successCount} fichier(s) ajouté(s)`);
+      if (serverUploadCount > 0 && localOnlyCount === 0) {
+        toast.success(`${successCount} fichier(s) uploadé(s) sur le serveur`);
+      } else if (localOnlyCount > 0 && serverUploadCount === 0) {
+        toast.warning(`${successCount} fichier(s) ajouté(s) localement (serveur non disponible)`);
+      } else {
+        toast.success(`${serverUploadCount} sur serveur, ${localOnlyCount} localement`);
+      }
     }
     
     setFiles([]);
