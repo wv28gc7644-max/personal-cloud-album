@@ -397,47 +397,102 @@ export function AIServiceManager() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Installation (Auto + Manuelle)
+                Installation (Auto + Mode Debug)
               </CardTitle>
               <CardDescription>
-                Option recommandée : l'installeur automatique génère un rapport texte prêt à nous envoyer.
+                Utilise le mode "Debug étape par étape" pour trouver exactement où ça coince. Chaque étape crée un log dédié.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button
-                  size="lg"
-                  className="h-auto py-4 flex-col gap-2"
-                  onClick={() => downloadScript('install-ai-suite-auto.bat')}
-                >
-                  <Download className="w-6 h-6" />
-                  <span className="font-semibold">Installation + diagnostic</span>
-                  <span className="text-xs opacity-80">install-ai-suite-auto.bat</span>
-                </Button>
+            <CardContent className="space-y-6">
+              {/* Mode normal */}
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Mode normal (1 clic)</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button
+                    size="lg"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('install-ai-suite-auto.bat')}
+                  >
+                    <Download className="w-6 h-6" />
+                    <span className="font-semibold">Installation + diagnostic</span>
+                    <span className="text-xs opacity-80">install-ai-suite-auto.bat</span>
+                  </Button>
 
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="h-auto py-4 flex-col gap-2"
-                  onClick={() => downloadScript('install-ai-suite-complete.ps1')}
-                >
-                  <Download className="w-6 h-6" />
-                  <span className="font-semibold">Installation PowerShell</span>
-                  <span className="text-xs opacity-80">install-ai-suite-complete.ps1</span>
-                </Button>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('install-ai-suite-complete.ps1')}
+                  >
+                    <Download className="w-6 h-6" />
+                    <span className="font-semibold">Installation PowerShell</span>
+                    <span className="text-xs opacity-80">install-ai-suite-complete.ps1</span>
+                  </Button>
 
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-auto py-4 flex-col gap-2"
-                  onClick={() => downloadScript('start-ai-services.bat')}
-                >
-                  <Play className="w-6 h-6" />
-                  <span className="font-semibold">Démarrer les services</span>
-                  <span className="text-xs opacity-80">start-ai-services.bat</span>
-                </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('start-ai-services.bat')}
+                  >
+                    <Play className="w-6 h-6" />
+                    <span className="font-semibold">Démarrer les services</span>
+                    <span className="text-xs opacity-80">start-ai-services.bat</span>
+                  </Button>
+                </div>
               </div>
-              
+
+              {/* Mode debug étape par étape */}
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Mode Debug (étape par étape) — temporaire</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-00-prepare.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 00</span>
+                    <span className="text-xs opacity-80">Préparation / logs</span>
+                  </Button>
+
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-01-prereqs.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 01</span>
+                    <span className="text-xs opacity-80">Prérequis (winget)</span>
+                  </Button>
+
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-02-python311.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 02</span>
+                    <span className="text-xs opacity-80">Python 3.11</span>
+                  </Button>
+
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-03-git.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 03</span>
+                    <span className="text-xs opacity-80">Git</span>
+                  </Button>
+
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-04-ollama.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 04</span>
+                    <span className="text-xs opacity-80">Ollama</span>
+                  </Button>
+
+                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-05-run-complete-installer.bat')}>
+                    <FileText className="w-6 h-6" />
+                    <span className="font-semibold">Étape 05</span>
+                    <span className="text-xs opacity-80">Installer services (PS1)</span>
+                  </Button>
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Ordre recommandé :</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Étape 00 → 01 → 02 → 03 → 04 → 05</li>
+                    <li>Si une étape échoue, envoie-moi juste le fichier log correspondant (dans <code className="px-1 py-0.5 rounded bg-muted">%USERPROFILE%\MediaVault-AI\logs\</code>).</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Outils */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button 
                   size="lg" 
@@ -449,7 +504,7 @@ export function AIServiceManager() {
                   <span className="font-semibold">Arrêter les services</span>
                   <span className="text-xs opacity-80">stop-ai-services.bat</span>
                 </Button>
-                
+
                 <Button 
                   size="lg" 
                   variant="outline"
@@ -463,8 +518,7 @@ export function AIServiceManager() {
                         return;
                       }
                       const data = await response.json();
-                      
-                      // Télécharger le fichier
+
                       const blob = new Blob([data.content], { type: 'text/plain' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
@@ -474,7 +528,7 @@ export function AIServiceManager() {
                       a.click();
                       document.body.removeChild(a);
                       URL.revokeObjectURL(url);
-                      
+
                       toast.success(`Log téléchargé: ${data.filename}`);
                     } catch (e) {
                       toast.error('Serveur local non accessible. Lancez server.cjs d\'abord.');
@@ -485,7 +539,7 @@ export function AIServiceManager() {
                   <span className="font-semibold">Dernier log d'installation</span>
                   <span className="text-xs opacity-80">Télécharger automatiquement</span>
                 </Button>
-                
+
                 <Button 
                   size="lg" 
                   variant="destructive"
@@ -510,21 +564,6 @@ export function AIServiceManager() {
                   </p>
                 </div>
               )}
-              
-              <div className="p-4 rounded-lg bg-muted/50 border">
-                <p className="text-sm font-medium mb-2">Comment exécuter le script d'installation:</p>
-                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
-                  <li>Téléchargez <strong>install-ai-suite-complete.ps1</strong></li>
-                  <li>Ouvrez PowerShell en tant qu'Administrateur</li>
-                  <li>Exécutez:
-                    <code className="block mt-1 p-2 bg-background rounded text-xs">
-                      Set-ExecutionPolicy Bypass -Scope Process; cd $env:USERPROFILE\Downloads; .\install-ai-suite-complete.ps1
-                    </code>
-                  </li>
-                  <li>Attendez la fin de l'installation (~15-30 min)</li>
-                  <li>Double-cliquez sur le raccourci "MediaVault AI" sur le bureau</li>
-                </ol>
-              </div>
             </CardContent>
           </Card>
 
