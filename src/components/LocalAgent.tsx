@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Terminal,
   Play,
@@ -9,17 +9,21 @@ import {
   WifiOff,
   Cpu,
   HardDrive,
-  MemoryStick,
   FileText,
   Activity,
   Download,
   Wrench,
   Trash2,
   ChevronRight,
+  ChevronDown,
   CheckCircle,
   XCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Rocket,
+  ExternalLink,
+  Package,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AgentTerminal } from './AgentTerminal';
 import { useLocalAgent } from '@/hooks/useLocalAgent';
 import { cn } from '@/lib/utils';
@@ -60,6 +65,9 @@ const SYSTEM_COMMANDS = [
   { id: 'nvidia-smi', label: 'GPU' },
 ];
 
+// Vérifier si on est en HTTPS (Lovable preview)
+const isHTTPS = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
 export default function LocalAgent() {
   const {
     isConnected,
@@ -84,6 +92,8 @@ export default function LocalAgent() {
   const [selectedLogContent, setSelectedLogContent] = useState<string | null>(null);
   const [selectedLogName, setSelectedLogName] = useState<string | null>(null);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
+  const [setupOpen, setSetupOpen] = useState(true);
+  const [autoInstallProgress, setAutoInstallProgress] = useState(0);
 
   // Connexion initiale
   useEffect(() => {
@@ -127,16 +137,34 @@ export default function LocalAgent() {
     setCurrentCommand(commandId);
     addLine('command', commandId);
 
+    // Gérer auto-install avec progression
+    if (commandId === 'auto-install') {
+      setAutoInstallProgress(0);
+    }
+
     if (useStream) {
+      let stepCount = 0;
       const cleanup = streamCommand(commandId, (line) => {
         if (line.type === 'stdout' && line.text) {
           addLine('stdout', line.text);
         } else if (line.type === 'stderr' && line.text) {
           addLine('stderr', line.text);
+        } else if (line.type === 'info' && line.text) {
+          addLine('info', line.text);
+          // Détecter les étapes pour la progression
+          if (line.text.includes('Étape')) {
+            stepCount++;
+            setAutoInstallProgress(Math.round((stepCount / 7) * 100));
+          }
+        } else if (line.type === 'success' && line.text) {
+          addLine('success', line.text);
         } else if (line.type === 'exit') {
           if (line.code === 0) {
             addLine('success', `✓ Commande terminée (code: ${line.code})`);
             setCompletedSteps(prev => new Set([...prev, commandId]));
+            if (commandId === 'auto-install') {
+              setAutoInstallProgress(100);
+            }
           } else {
             addLine('error', `✗ Erreur (code: ${line.code})`);
           }
@@ -144,7 +172,7 @@ export default function LocalAgent() {
           setCurrentCommand(null);
           fetchLogFiles();
         } else if (line.type === 'error') {
-          addLine('error', line.message || 'Erreur inconnue');
+          addLine('error', line.message || line.text || 'Erreur inconnue');
           setIsRunning(false);
           setCurrentCommand(null);
         }
@@ -176,6 +204,57 @@ export default function LocalAgent() {
     }
   }, [isRunning, streamCommand, executeCommand, addLine, fetchLogFiles]);
 
+  // Fonctions de téléchargement
+  const downloadServerFile = () => {
+    const link = document.createElement('a');
+    link.href = '/server.cjs';
+    link.download = 'server.cjs';
+    link.click();
+  };
+
+  const downloadStartScript = () => {
+    const scriptContent = `@echo off
+chcp 65001 >nul
+title MediaVault - Serveur Local
+
+echo ══════════════════════════════════════════════════════════════
+echo                    MediaVault - Démarrage
+echo ══════════════════════════════════════════════════════════════
+echo.
+
+:: Vérifier Node.js
+where node >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo [ERREUR] Node.js n'est pas installé!
+    echo.
+    echo Téléchargez Node.js: https://nodejs.org/
+    echo.
+    pause
+    exit /b 1
+)
+
+echo [OK] Node.js détecté
+echo.
+echo Démarrage du serveur...
+echo.
+
+:: Ouvrir le navigateur après 2 secondes
+start "" "http://localhost:3001"
+
+:: Lancer le serveur
+node server.cjs
+
+pause
+`;
+    const blob = new Blob([scriptContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Lancer MediaVault.bat';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const loadLogFile = async (filename: string) => {
     const content = await readLogFile(filename);
     if (content) {
@@ -193,7 +272,7 @@ export default function LocalAgent() {
   };
 
   return (
-    <div className="flex flex-col h-full p-6 gap-6">
+    <div className="flex flex-col h-full p-6 gap-6 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -230,7 +309,166 @@ export default function LocalAgent() {
         </div>
       </div>
 
-      {error && (
+      {/* Avertissement HTTPS */}
+      {isHTTPS && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-500">Connexion bloquée (HTTPS)</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Vous accédez à MediaVault via HTTPS, ce qui bloque la connexion à votre serveur local (HTTP).
+              </p>
+              <div className="flex gap-2 mt-3">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => window.open('http://localhost:3001', '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Ouvrir en local
+                </Button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Section Téléchargement & Configuration (si non connecté) */}
+      <AnimatePresence>
+        {!isConnected && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <Collapsible open={setupOpen} onOpenChange={setSetupOpen}>
+              <Card className="border-dashed border-2">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-primary" />
+                        <div>
+                          <CardTitle className="text-base">Télécharger & Démarrer le serveur</CardTitle>
+                          <CardDescription>Configurez votre serveur local en 3 étapes</CardDescription>
+                        </div>
+                      </div>
+                      <ChevronDown className={cn("w-5 h-5 transition-transform", setupOpen && "rotate-180")} />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Boutons de téléchargement */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadServerFile}>
+                        <Download className="w-4 h-4" />
+                        <div className="text-left">
+                          <div className="font-medium">server.cjs</div>
+                          <div className="text-xs text-muted-foreground">Fichier serveur</div>
+                        </div>
+                      </Button>
+                      <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadStartScript}>
+                        <Download className="w-4 h-4" />
+                        <div className="text-left">
+                          <div className="font-medium">Lancer MediaVault.bat</div>
+                          <div className="text-xs text-muted-foreground">Script de démarrage</div>
+                        </div>
+                      </Button>
+                    </div>
+
+                    {/* Mini-guide */}
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium">Guide rapide :</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
+                          <span>Téléchargez les 2 fichiers ci-dessus</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
+                          <span>Placez-les dans <code className="bg-muted px-1 rounded">C:\MediaVault\</code></span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
+                          <span>Double-cliquez sur <code className="bg-muted px-1 rounded">Lancer MediaVault.bat</code></span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Prérequis : <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Node.js</a> doit être installé.
+                      </p>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bouton Installation 1-Clic (si connecté) */}
+      {isConnected && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <Card className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Rocket className="w-5 h-5 text-green-500" />
+                    Installation Automatique (1 Clic)
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Installe Python, Git, Ollama et tous les services IA automatiquement
+                  </p>
+                  {currentCommand === 'auto-install' && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span>Progression</span>
+                        <span>{autoInstallProgress}%</span>
+                      </div>
+                      <Progress value={autoInstallProgress} className="h-2" />
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  size="lg"
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                  onClick={() => runCommand('auto-install')}
+                  disabled={isRunning || completedSteps.has('auto-install')}
+                >
+                  {currentCommand === 'auto-install' ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Installation...
+                    </>
+                  ) : completedSteps.has('auto-install') ? (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      Installé
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="w-5 h-5" />
+                      Installer Tout
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {error && !isHTTPS && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

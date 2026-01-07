@@ -48,7 +48,7 @@ interface SystemInfo {
 }
 
 interface StreamLine {
-  type: 'stdout' | 'stderr' | 'exit' | 'error';
+  type: 'stdout' | 'stderr' | 'exit' | 'error' | 'info' | 'success';
   text?: string;
   code?: number;
   message?: string;

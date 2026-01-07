@@ -34,7 +34,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'install';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
@@ -155,7 +155,7 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
           <span className="font-medium">Créations IA</span>
         </button>
 
-        {/* Agent Local button */}
+        {/* Agent Local button avec indicateur de connexion */}
         <button
           onClick={() => onViewChange('agent')}
           className={cn(
@@ -167,23 +167,6 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
         >
           <Terminal className="w-5 h-5" />
           <span className="font-medium">Agent Local</span>
-          <span className="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-            Contrôle
-          </span>
-        </button>
-
-        {/* Installation locale button avec indicateur de connexion */}
-        <button
-          onClick={() => onViewChange('install')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-            currentView === 'install'
-              ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/30"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-          )}
-        >
-          <Download className="w-5 h-5" />
-          <span className="font-medium">Installation</span>
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="ml-auto flex items-center gap-1">
@@ -195,7 +178,7 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
               </span>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>{isConnected ? 'Serveur local connecté' : 'Serveur local non connecté'}</p>
+              <p>{isConnected ? 'Serveur connecté' : 'Serveur déconnecté'}</p>
             </TooltipContent>
           </Tooltip>
         </button>
