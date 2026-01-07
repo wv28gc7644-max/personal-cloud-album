@@ -1,0 +1,263 @@
+version: '3.8'
+
+# MediaVault AI Suite - Docker Compose
+# Déploiement unifié de tous les services IA
+
+services:
+  # ============================================
+  # OLLAMA - LLM Local
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mediavault-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # COMFYUI - Image/Video Generation
+  # ============================================
+  comfyui:
+    image: yanwk/comfyui-boot:latest
+    container_name: mediavault-comfyui
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+    volumes:
+      - comfyui_models:/root/ComfyUI/models
+      - comfyui_output:/root/ComfyUI/output
+      - comfyui_input:/root/ComfyUI/input
+      - comfyui_custom_nodes:/root/ComfyUI/custom_nodes
+    environment:
+      - CLI_ARGS=--listen 0.0.0.0 --port 8188
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188/system_stats"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # WHISPER - Speech to Text
+  # ============================================
+  whisper:
+    build:
+      context: ./docker/whisper
+      dockerfile: Dockerfile
+    container_name: mediavault-whisper
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - whisper_cache:/root/.cache
+    environment:
+      - WHISPER_MODEL=base
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # XTTS - Text to Speech
+  # ============================================
+  xtts:
+    build:
+      context: ./docker/xtts
+      dockerfile: Dockerfile
+    container_name: mediavault-xtts
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+    volumes:
+      - xtts_models:/root/.local/share/tts
+      - xtts_speakers:/app/speakers
+    environment:
+      - TTS_MODEL=tts_models/multilingual/multi-dataset/xtts_v2
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # MUSICGEN - Music Generation
+  # ============================================
+  musicgen:
+    build:
+      context: ./docker/musicgen
+      dockerfile: Dockerfile
+    container_name: mediavault-musicgen
+    restart: unless-stopped
+    ports:
+      - "8030:8030"
+    volumes:
+      - musicgen_cache:/root/.cache
+    environment:
+      - MODEL_SIZE=small
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8030/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # DEMUCS - Audio Stem Separation
+  # ============================================
+  demucs:
+    build:
+      context: ./docker/demucs
+      dockerfile: Dockerfile
+    container_name: mediavault-demucs
+    restart: unless-stopped
+    ports:
+      - "8040:8040"
+    volumes:
+      - demucs_cache:/root/.cache
+      - demucs_output:/app/output
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8040/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # CLIP - Image Analysis & Search
+  # ============================================
+  clip:
+    build:
+      context: ./docker/clip
+      dockerfile: Dockerfile
+    container_name: mediavault-clip
+    restart: unless-stopped
+    ports:
+      - "8060:8060"
+    volumes:
+      - clip_cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8060/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # ESRGAN - Image Upscaling
+  # ============================================
+  esrgan:
+    build:
+      context: ./docker/esrgan
+      dockerfile: Dockerfile
+    container_name: mediavault-esrgan
+    restart: unless-stopped
+    ports:
+      - "8070:8070"
+    volumes:
+      - esrgan_models:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8070/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ============================================
+# VOLUMES
+# ============================================
+volumes:
+  ollama_data:
+    name: mediavault_ollama_data
+  comfyui_models:
+    name: mediavault_comfyui_models
+  comfyui_output:
+    name: mediavault_comfyui_output
+  comfyui_input:
+    name: mediavault_comfyui_input
+  comfyui_custom_nodes:
+    name: mediavault_comfyui_custom_nodes
+  whisper_cache:
+    name: mediavault_whisper_cache
+  xtts_models:
+    name: mediavault_xtts_models
+  xtts_speakers:
+    name: mediavault_xtts_speakers
+  musicgen_cache:
+    name: mediavault_musicgen_cache
+  demucs_cache:
+    name: mediavault_demucs_cache
+  demucs_output:
+    name: mediavault_demucs_output
+  clip_cache:
+    name: mediavault_clip_cache
+  esrgan_models:
+    name: mediavault_esrgan_models
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  default:
+    name: mediavault_ai_network
+    driver: bridge
