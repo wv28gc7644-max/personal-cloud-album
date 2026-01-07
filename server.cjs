@@ -789,6 +789,8 @@ const server = http.createServer(async (req, res) => {
       'step-03': path.join(__dirname, 'public', 'scripts', 'step-03-git.bat'),
       'step-04': path.join(__dirname, 'public', 'scripts', 'step-04-ollama.bat'),
       'step-05': path.join(__dirname, 'public', 'scripts', 'step-05-run-complete-installer.bat'),
+      // Installation automatique complète (1 clic)
+      'auto-install': 'AUTO_INSTALL_SEQUENCE',
       // Maintenance
       'diagnose': path.join(__dirname, 'public', 'scripts', 'diagnose-ai-suite.bat'),
       'start-services': path.join(__dirname, 'public', 'scripts', 'start-ai-services.bat'),
@@ -802,6 +804,17 @@ const server = http.createServer(async (req, res) => {
       'pip-version': 'pip --version',
       'tasklist': 'tasklist /FI "IMAGENAME eq python.exe" /FI "IMAGENAME eq ollama.exe" /FO CSV',
     };
+
+    // Séquence d'installation automatique
+    const AUTO_INSTALL_STEPS = [
+      { id: 'step-00', label: 'Préparation des dossiers' },
+      { id: 'step-01', label: 'Vérification des prérequis' },
+      { id: 'step-02', label: 'Installation Python 3.11' },
+      { id: 'step-03', label: 'Installation Git' },
+      { id: 'step-04', label: 'Installation Ollama' },
+      { id: 'step-05', label: 'Installation Suite IA complète' },
+      { id: 'start-services', label: 'Démarrage des services' },
+    ];
 
     // Exécuter une commande de la whitelist
     if (pathname === '/api/agent/exec' && req.method === 'POST') {
@@ -1017,6 +1030,78 @@ const server = http.createServer(async (req, res) => {
         'Connection': 'keep-alive'
       });
 
+      // Gestion spéciale pour auto-install: enchaîner toutes les étapes
+      if (command === 'auto-install') {
+        const runStep = (stepIndex) => {
+          if (stepIndex >= AUTO_INSTALL_STEPS.length) {
+            res.write(`data: ${JSON.stringify({ type: 'success', text: '✅ Installation automatique terminée avec succès!' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'exit', code: 0 })}\n\n`);
+            res.end();
+            return;
+          }
+
+          const step = AUTO_INSTALL_STEPS[stepIndex];
+          const stepCmd = ALLOWED_COMMANDS[step.id];
+          
+          if (!stepCmd || stepCmd === 'AUTO_INSTALL_SEQUENCE') {
+            runStep(stepIndex + 1);
+            return;
+          }
+
+          res.write(`data: ${JSON.stringify({ type: 'info', text: `\n══════════════════════════════════════` })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'info', text: `  Étape ${stepIndex + 1}/${AUTO_INSTALL_STEPS.length}: ${step.label}` })}\n\n`);
+          res.write(`data: ${JSON.stringify({ type: 'info', text: `══════════════════════════════════════\n` })}\n\n`);
+
+          const child = spawn('cmd', ['/c', stepCmd], {
+            cwd: __dirname,
+            shell: true
+          });
+
+          child.stdout.on('data', (data) => {
+            const lines = data.toString().split('\n');
+            for (const line of lines) {
+              if (line.trim()) {
+                res.write(`data: ${JSON.stringify({ type: 'stdout', text: line })}\n\n`);
+              }
+            }
+          });
+
+          child.stderr.on('data', (data) => {
+            const lines = data.toString().split('\n');
+            for (const line of lines) {
+              if (line.trim()) {
+                res.write(`data: ${JSON.stringify({ type: 'stderr', text: line })}\n\n`);
+              }
+            }
+          });
+
+          child.on('close', (code) => {
+            if (code !== 0) {
+              res.write(`data: ${JSON.stringify({ type: 'error', text: `❌ Échec à l'étape: ${step.label} (code: ${code})` })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: 'exit', code })}\n\n`);
+              res.end();
+            } else {
+              res.write(`data: ${JSON.stringify({ type: 'success', text: `✓ ${step.label} terminé` })}\n\n`);
+              // Passer à l'étape suivante
+              runStep(stepIndex + 1);
+            }
+          });
+
+          child.on('error', (err) => {
+            res.write(`data: ${JSON.stringify({ type: 'error', text: `Erreur: ${err.message}` })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'exit', code: 1 })}\n\n`);
+            res.end();
+          });
+        };
+
+        runStep(0);
+        req.on('close', () => {
+          // L'utilisateur a fermé la connexion
+        });
+        return;
+      }
+
+      // Commande simple (non auto-install)
       const cmd = ALLOWED_COMMANDS[command];
       const isScript = cmd.endsWith('.bat') || cmd.endsWith('.ps1');
       const execCmd = isScript ? cmd : cmd;
@@ -1070,7 +1155,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ 
         commands: Object.keys(ALLOWED_COMMANDS),
         categories: {
-          installation: ['step-00', 'step-01', 'step-02', 'step-03', 'step-04', 'step-05'],
+          installation: ['step-00', 'step-01', 'step-02', 'step-03', 'step-04', 'step-05', 'auto-install'],
           maintenance: ['diagnose', 'start-services', 'stop-services', 'uninstall'],
           system: ['ollama-version', 'python-version', 'nvidia-smi', 'git-version', 'pip-version', 'tasklist']
         }
