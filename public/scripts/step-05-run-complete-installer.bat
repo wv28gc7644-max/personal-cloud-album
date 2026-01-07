@@ -35,17 +35,23 @@ if not exist "%PS1_SRC%" (
 )
 
 :: Copier le PS1 dans un chemin SANS accents (evite Telechargements)
-echo [INFO] Copie du script dans %AI_DIR%...
-
-:: Utiliser PowerShell Copy-Item (plus fiable avec chemins OneDrive/accents)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Copy-Item -LiteralPath '%PS1_SRC%' -Destination '%PS1_DST%' -Force" 1>nul 2>"%LOG_DIR%\step-05-copy-error.txt"
-if %errorlevel% neq 0 (
-  echo [ERREUR] Impossible de copier le script.
-  echo Details: %LOG_DIR%\step-05-copy-error.txt
-  echo Source : %PS1_SRC%
-  echo Cible  : %PS1_DST%
-  pause
-  exit /b 1
+:: SAUF si source = cible (deja au bon endroit)
+if /i "%PS1_SRC%"=="%PS1_DST%" (
+  echo [INFO] Script deja dans %AI_DIR%, copie non necessaire.
+) else (
+  echo [INFO] Copie du script dans %AI_DIR%...
+  
+  :: Utiliser PowerShell Copy-Item (plus fiable avec chemins OneDrive/accents)
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Copy-Item -LiteralPath '%PS1_SRC%' -Destination '%PS1_DST%' -Force" 1>nul 2>"%LOG_DIR%\step-05-copy-error.txt"
+  if !errorlevel! neq 0 (
+    echo [ERREUR] Impossible de copier le script.
+    echo Details: %LOG_DIR%\step-05-copy-error.txt
+    echo Source : %PS1_SRC%
+    echo Cible  : %PS1_DST%
+    pause
+    exit /b 1
+  )
+  echo [OK] Script copie.
 )
 
 :: Generer timestamp pour le log
