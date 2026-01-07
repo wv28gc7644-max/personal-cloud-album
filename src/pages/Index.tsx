@@ -20,14 +20,23 @@ const Index = () => {
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const { getFilteredMedia, getFavorites } = useMediaStore();
 
-  // Listen for open-admin-updates event to switch to admin view
+  // Listen for navigation events
   useEffect(() => {
     const handleOpenAdminUpdates = () => {
       setCurrentView('admin');
     };
     
+    const handleNavigate = (e: CustomEvent<ViewType>) => {
+      setCurrentView(e.detail);
+    };
+    
     window.addEventListener('open-admin-updates', handleOpenAdminUpdates);
-    return () => window.removeEventListener('open-admin-updates', handleOpenAdminUpdates);
+    window.addEventListener('mediavault-navigate', handleNavigate as EventListener);
+    
+    return () => {
+      window.removeEventListener('open-admin-updates', handleOpenAdminUpdates);
+      window.removeEventListener('mediavault-navigate', handleNavigate as EventListener);
+    };
   }, []);
 
   const getDisplayMedia = () => {
