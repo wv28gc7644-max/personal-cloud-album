@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, 
@@ -16,10 +16,15 @@ import {
   Play,
   Sparkles,
   Palette,
-  Terminal
+  Terminal,
+  Download,
+  Server,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
+import { useLocalServer } from '@/hooks/useLocalServer';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -29,7 +34,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'install';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
@@ -41,8 +46,16 @@ interface SidebarProps {
 export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSlideshow }: SidebarProps) {
   const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites } = useMediaStore();
   const { hasUpdate, commitsBehind } = useUpdateStatus();
+  const { isConnected, testConnection } = useLocalServer();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
+
+  // Vérifier la connexion au serveur local au chargement
+  useEffect(() => {
+    testConnection();
+    const interval = setInterval(testConnection, 30000); // Vérifier toutes les 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const favoritesCount = getFavorites().length;
 
@@ -157,6 +170,34 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
           <span className="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
             Contrôle
           </span>
+        </button>
+
+        {/* Installation locale button avec indicateur de connexion */}
+        <button
+          onClick={() => onViewChange('install')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+            currentView === 'install'
+              ? "bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/30"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          <Download className="w-5 h-5" />
+          <span className="font-medium">Installation</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="ml-auto flex items-center gap-1">
+                {isConnected ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-red-400" />
+                )}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{isConnected ? 'Serveur local connecté' : 'Serveur local non connecté'}</p>
+            </TooltipContent>
+          </Tooltip>
         </button>
 
         {/* Tags section */}
