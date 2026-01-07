@@ -15,7 +15,8 @@ import {
   BarChart3,
   Play,
   Sparkles,
-  Palette
+  Palette,
+  Terminal
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
@@ -28,7 +29,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
@@ -139,6 +140,23 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
         >
           <Palette className="w-5 h-5" />
           <span className="font-medium">Créations IA</span>
+        </button>
+
+        {/* Agent Local button */}
+        <button
+          onClick={() => onViewChange('agent')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+            currentView === 'agent'
+              ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/30"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          <Terminal className="w-5 h-5" />
+          <span className="font-medium">Agent Local</span>
+          <span className="ml-auto text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+            Contrôle
+          </span>
         </button>
 
         {/* Tags section */}

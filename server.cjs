@@ -777,6 +777,307 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // API: AGENT LOCAL - Contrôle à distance sécurisé
+    // ═══════════════════════════════════════════════════════════════
+
+    // Whitelist des commandes autorisées
+    const ALLOWED_COMMANDS = {
+      // Scripts d'installation
+      'step-00': path.join(__dirname, 'public', 'scripts', 'step-00-prepare.bat'),
+      'step-01': path.join(__dirname, 'public', 'scripts', 'step-01-prereqs.bat'),
+      'step-02': path.join(__dirname, 'public', 'scripts', 'step-02-python311.bat'),
+      'step-03': path.join(__dirname, 'public', 'scripts', 'step-03-git.bat'),
+      'step-04': path.join(__dirname, 'public', 'scripts', 'step-04-ollama.bat'),
+      'step-05': path.join(__dirname, 'public', 'scripts', 'step-05-run-complete-installer.bat'),
+      // Maintenance
+      'diagnose': path.join(__dirname, 'public', 'scripts', 'diagnose-ai-suite.bat'),
+      'start-services': path.join(__dirname, 'public', 'scripts', 'start-ai-services.bat'),
+      'stop-services': path.join(__dirname, 'public', 'scripts', 'stop-ai-services.bat'),
+      'uninstall': path.join(__dirname, 'public', 'scripts', 'uninstall-ai-suite.bat'),
+      // Commandes système simples
+      'ollama-version': 'ollama --version',
+      'python-version': 'python --version',
+      'nvidia-smi': 'nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader',
+      'git-version': 'git --version',
+      'pip-version': 'pip --version',
+      'tasklist': 'tasklist /FI "IMAGENAME eq python.exe" /FI "IMAGENAME eq ollama.exe" /FO CSV',
+    };
+
+    // Exécuter une commande de la whitelist
+    if (pathname === '/api/agent/exec' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { command } = body;
+
+      if (!command || !ALLOWED_COMMANDS[command]) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ 
+          error: 'Commande non autorisée', 
+          allowed: Object.keys(ALLOWED_COMMANDS) 
+        }));
+      }
+
+      const cmd = ALLOWED_COMMANDS[command];
+      const isScript = cmd.endsWith('.bat') || cmd.endsWith('.ps1');
+
+      addLog('info', 'agent', `Exécution: ${command}`);
+
+      // Pour les scripts batch, on les exécute dans une nouvelle fenêtre cmd
+      const execCmd = isScript ? `cmd /c "${cmd}"` : cmd;
+
+      exec(execCmd, { 
+        cwd: __dirname,
+        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+        timeout: 300000 // 5 minutes timeout
+      }, (error, stdout, stderr) => {
+        const result = {
+          command,
+          success: !error,
+          exitCode: error?.code || 0,
+          stdout: stdout?.toString() || '',
+          stderr: stderr?.toString() || '',
+          timestamp: new Date().toISOString()
+        };
+
+        if (error) {
+          addLog('error', 'agent', `Échec ${command}: ${error.message}`);
+        } else {
+          addLog('info', 'agent', `Succès ${command}`);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      });
+      return;
+    }
+
+    // Lecture de fichiers logs (restreint au dossier MediaVault-AI/logs)
+    if (pathname === '/api/agent/read-file' && req.method === 'GET') {
+      const filePath = url.searchParams.get('path');
+      const logsDir = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'logs');
+      
+      if (!filePath) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Chemin requis' }));
+      }
+
+      const fullPath = path.resolve(logsDir, filePath);
+      
+      // Sécurité: vérifier que le chemin est bien dans logs
+      if (!fullPath.startsWith(logsDir)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Accès refusé - hors du dossier logs' }));
+      }
+
+      if (!fs.existsSync(fullPath)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Fichier introuvable' }));
+      }
+
+      try {
+        const stats = fs.statSync(fullPath);
+        const content = fs.readFileSync(fullPath, 'utf8');
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          path: filePath,
+          content,
+          size: stats.size,
+          modified: stats.mtime.toISOString()
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // Liste des fichiers logs disponibles
+    if (pathname === '/api/agent/logs-list' && req.method === 'GET') {
+      const logsDir = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'logs');
+      
+      try {
+        if (!fs.existsSync(logsDir)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ files: [], path: logsDir, exists: false }));
+        }
+
+        const files = fs.readdirSync(logsDir)
+          .filter(f => f.endsWith('.log') || f.endsWith('.txt'))
+          .map(f => {
+            const stats = fs.statSync(path.join(logsDir, f));
+            return {
+              name: f,
+              size: stats.size,
+              modified: stats.mtime.toISOString()
+            };
+          })
+          .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ files, path: logsDir, exists: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // Processus en cours
+    if (pathname === '/api/agent/processes' && req.method === 'GET') {
+      exec('tasklist /FO CSV /NH', (error, stdout) => {
+        if (error) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: error.message }));
+        }
+
+        const lines = stdout.trim().split('\n');
+        const processes = [];
+        const relevantNames = ['python', 'ollama', 'node', 'comfyui', 'whisper'];
+
+        for (const line of lines) {
+          const match = line.match(/"([^"]+)","(\d+)","([^"]+)","(\d+)","([^"]+)"/);
+          if (match) {
+            const [, name, pid, , , memory] = match;
+            const lowerName = name.toLowerCase();
+            if (relevantNames.some(r => lowerName.includes(r))) {
+              processes.push({
+                name,
+                pid: parseInt(pid),
+                memory: memory.trim()
+              });
+            }
+          }
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ processes }));
+      });
+      return;
+    }
+
+    // Informations système
+    if (pathname === '/api/agent/system-info' && req.method === 'GET') {
+      const info = {
+        platform: process.platform,
+        arch: process.arch,
+        nodeVersion: process.version,
+        uptime: process.uptime(),
+        memoryUsage: process.memoryUsage(),
+        cwd: __dirname,
+        mediaFolder: MEDIA_FOLDER,
+        aiDir: path.join(process.env.USERPROFILE || '', 'MediaVault-AI')
+      };
+
+      // Récupérer infos GPU si disponible
+      exec('nvidia-smi --query-gpu=name,memory.total,memory.free,temperature.gpu --format=csv,noheader', (gpuErr, gpuOut) => {
+        if (!gpuErr && gpuOut) {
+          const gpuData = gpuOut.trim().split(',').map(s => s.trim());
+          info.gpu = {
+            name: gpuData[0],
+            memoryTotal: gpuData[1],
+            memoryFree: gpuData[2],
+            temperature: gpuData[3]
+          };
+        }
+
+        // Récupérer espace disque
+        exec('wmic logicaldisk get size,freespace,caption', (diskErr, diskOut) => {
+          if (!diskErr && diskOut) {
+            const lines = diskOut.trim().split('\n').slice(1);
+            info.disks = [];
+            for (const line of lines) {
+              const parts = line.trim().split(/\s+/);
+              if (parts.length >= 3) {
+                info.disks.push({
+                  drive: parts[0],
+                  freeSpace: parseInt(parts[1]) || 0,
+                  totalSize: parseInt(parts[2]) || 0
+                });
+              }
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(info));
+        });
+      });
+      return;
+    }
+
+    // Streaming de commande (Server-Sent Events)
+    if (pathname === '/api/agent/stream' && req.method === 'GET') {
+      const command = url.searchParams.get('command');
+
+      if (!command || !ALLOWED_COMMANDS[command]) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Commande non autorisée' }));
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      });
+
+      const cmd = ALLOWED_COMMANDS[command];
+      const isScript = cmd.endsWith('.bat') || cmd.endsWith('.ps1');
+      const execCmd = isScript ? cmd : cmd;
+
+      const child = spawn('cmd', ['/c', execCmd], {
+        cwd: __dirname,
+        shell: true
+      });
+
+      addLog('info', 'agent', `Stream démarré: ${command}`);
+
+      child.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          if (line.trim()) {
+            res.write(`data: ${JSON.stringify({ type: 'stdout', text: line })}\n\n`);
+          }
+        }
+      });
+
+      child.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n');
+        for (const line of lines) {
+          if (line.trim()) {
+            res.write(`data: ${JSON.stringify({ type: 'stderr', text: line })}\n\n`);
+          }
+        }
+      });
+
+      child.on('close', (code) => {
+        res.write(`data: ${JSON.stringify({ type: 'exit', code })}\n\n`);
+        res.end();
+        addLog('info', 'agent', `Stream terminé: ${command} (code: ${code})`);
+      });
+
+      child.on('error', (err) => {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: err.message })}\n\n`);
+        res.end();
+      });
+
+      req.on('close', () => {
+        child.kill();
+      });
+
+      return;
+    }
+
+    // Liste des commandes disponibles
+    if (pathname === '/api/agent/commands' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ 
+        commands: Object.keys(ALLOWED_COMMANDS),
+        categories: {
+          installation: ['step-00', 'step-01', 'step-02', 'step-03', 'step-04', 'step-05'],
+          maintenance: ['diagnose', 'start-services', 'stop-services', 'uninstall'],
+          system: ['ollama-version', 'python-version', 'nvidia-smi', 'git-version', 'pip-version', 'tasklist']
+        }
+      }));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // Servir les fichiers média
     // ═══════════════════════════════════════════════════════════════
 
