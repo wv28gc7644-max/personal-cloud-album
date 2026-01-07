@@ -60,6 +60,16 @@ import {
 import { LocalAISettings } from './LocalAISettings';
 import { AICharacters } from './AICharacters';
 import { ImageGenerator } from './ImageGenerator';
+import { VideoGenerator } from './VideoGenerator';
+import { VoiceCloner } from './VoiceCloner';
+import { MusicGenerator } from './MusicGenerator';
+import { StemSeparator } from './StemSeparator';
+import { FaceRecognition } from './FaceRecognition';
+import { AutoTagger } from './AutoTagger';
+import { SemanticSearch } from './SemanticSearch';
+import { AIInstaller } from './AIInstaller';
+import { WorkflowBuilder } from './WorkflowBuilder';
+import { BatchScheduler } from './BatchScheduler';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -1138,9 +1148,41 @@ export const AdminPanel = () => {
 
           {/* Local AI Tab */}
           <TabsContent value="local-ai" className="space-y-4 mt-6">
-            <LocalAISettings />
-            <AICharacters />
-            <ImageGenerator />
+            <Tabs defaultValue="config" className="w-full">
+              <TabsList className="grid w-full grid-cols-6">
+                <TabsTrigger value="config">Configuration</TabsTrigger>
+                <TabsTrigger value="image">Image</TabsTrigger>
+                <TabsTrigger value="video">Vidéo</TabsTrigger>
+                <TabsTrigger value="audio">Audio</TabsTrigger>
+                <TabsTrigger value="analysis">Analyse</TabsTrigger>
+                <TabsTrigger value="automation">Automatisation</TabsTrigger>
+              </TabsList>
+              <TabsContent value="config" className="space-y-4 mt-4">
+                <AIInstaller />
+                <LocalAISettings />
+                <AICharacters />
+              </TabsContent>
+              <TabsContent value="image" className="space-y-4 mt-4">
+                <ImageGenerator />
+              </TabsContent>
+              <TabsContent value="video" className="space-y-4 mt-4">
+                <VideoGenerator />
+              </TabsContent>
+              <TabsContent value="audio" className="space-y-4 mt-4">
+                <VoiceCloner />
+                <MusicGenerator />
+                <StemSeparator />
+              </TabsContent>
+              <TabsContent value="analysis" className="space-y-4 mt-4">
+                <SemanticSearch />
+                <FaceRecognition />
+                <AutoTagger />
+              </TabsContent>
+              <TabsContent value="automation" className="space-y-4 mt-4">
+                <WorkflowBuilder />
+                <BatchScheduler />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Security Tab */}
