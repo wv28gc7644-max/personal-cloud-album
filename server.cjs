@@ -180,15 +180,45 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/ai/status') {
+      // Health endpoints per service (matches frontend HEALTH_ENDPOINTS)
+      const HEALTH_ENDPOINTS = {
+        ollama: '/api/tags',
+        comfyui: '/system_stats',
+        whisper: '/health',
+        xtts: '/health',
+        musicgen: '/health',
+        demucs: '/health',
+        clip: '/health',
+        esrgan: '/health'
+      };
+      
       const statuses = {};
-      for (const [name, url] of Object.entries(AI_CONFIG)) {
-        try {
-          const response = await fetch(`${url}/health`).catch(() => null);
-          statuses[name] = response?.ok || false;
-        } catch {
-          statuses[name] = false;
-        }
-      }
+      const checks = Object.entries(AI_CONFIG)
+        .filter(([name]) => HEALTH_ENDPOINTS[name]) // Only check known services
+        .map(async ([name, baseUrl]) => {
+          const endpoint = HEALTH_ENDPOINTS[name] || '/health';
+          const startTime = Date.now();
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch(`${baseUrl}${endpoint}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            const latencyMs = Date.now() - startTime;
+            
+            if (response.ok) {
+              statuses[name] = { ok: true, latencyMs };
+              addLog('info', name, `Service en ligne (${latencyMs}ms)`);
+            } else {
+              statuses[name] = { ok: false, latencyMs, error: `HTTP ${response.status}` };
+            }
+          } catch (err) {
+            const latencyMs = Date.now() - startTime;
+            const error = err.name === 'AbortError' ? 'Timeout' : 'Non accessible';
+            statuses[name] = { ok: false, latencyMs, error };
+          }
+        });
+      
+      await Promise.all(checks);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(statuses));
     }
