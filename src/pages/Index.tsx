@@ -7,9 +7,11 @@ import { CreatePlaylistModal } from '@/components/CreatePlaylistModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { StatsPanel } from '@/components/StatsPanel';
 import { SlideshowModal } from '@/components/SlideshowModal';
+import AIStudioView from '@/components/AIStudioView';
+import AICreationsView from '@/components/AICreationsView';
 import { useMediaStore } from '@/hooks/useMediaStore';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -55,6 +57,10 @@ const Index = () => {
           <AdminPanel />
         ) : currentView === 'stats' ? (
           <StatsPanel />
+        ) : currentView === 'ai-studio' ? (
+          <AIStudioView />
+        ) : currentView === 'ai-creations' ? (
+          <AICreationsView />
         ) : (
           <>
             <MediaHeader 

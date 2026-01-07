@@ -12,7 +12,9 @@ import {
   Settings,
   Heart,
   BarChart3,
-  Play
+  Play,
+  Sparkles,
+  Palette
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
@@ -25,7 +27,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
@@ -97,6 +99,37 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
             <span className="font-medium">Diaporama</span>
           </button>
         )}
+
+        {/* AI Studio button */}
+        <button
+          onClick={() => onViewChange('ai-studio')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 mt-4 ai-studio-button",
+            currentView === 'ai-studio'
+              ? "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50 border border-transparent"
+          )}
+        >
+          <Sparkles className={cn("w-5 h-5", currentView === 'ai-studio' && "animate-pulse")} />
+          <span className="font-medium">Studio IA</span>
+          <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+            Nouveau
+          </span>
+        </button>
+
+        {/* AI Creations button */}
+        <button
+          onClick={() => onViewChange('ai-creations')}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+            currentView === 'ai-creations'
+              ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-pink-400 border border-pink-500/30"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          <Palette className="w-5 h-5" />
+          <span className="font-medium">Créations IA</span>
+        </button>
 
         {/* Tags section */}
         <div className="pt-6">
