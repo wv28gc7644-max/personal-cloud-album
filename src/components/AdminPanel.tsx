@@ -70,6 +70,14 @@ import { SemanticSearch } from './SemanticSearch';
 import { AIInstaller } from './AIInstaller';
 import { WorkflowBuilder } from './WorkflowBuilder';
 import { BatchScheduler } from './BatchScheduler';
+import { LipSync } from './LipSync';
+import { FrameInterpolation } from './FrameInterpolation';
+import { ImageEditor } from './ImageEditor';
+import { ControlNetPanel } from './ControlNetPanel';
+import { ImageUpscaler } from './ImageUpscaler';
+import { DiscordIntegration } from './DiscordIntegration';
+import { TelegramIntegration } from './TelegramIntegration';
+import { HomeAssistantIntegration } from './HomeAssistantIntegration';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -1164,9 +1172,14 @@ export const AdminPanel = () => {
               </TabsContent>
               <TabsContent value="image" className="space-y-4 mt-4">
                 <ImageGenerator />
+                <ImageEditor />
+                <ImageUpscaler />
+                <ControlNetPanel />
               </TabsContent>
               <TabsContent value="video" className="space-y-4 mt-4">
                 <VideoGenerator />
+                <LipSync />
+                <FrameInterpolation />
               </TabsContent>
               <TabsContent value="audio" className="space-y-4 mt-4">
                 <VoiceCloner />
