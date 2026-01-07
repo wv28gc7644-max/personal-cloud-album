@@ -59,22 +59,6 @@ import {
 } from 'lucide-react';
 import { LocalAISettings } from './LocalAISettings';
 import { AICharacters } from './AICharacters';
-import { ImageGenerator } from './ImageGenerator';
-import { VideoGenerator } from './VideoGenerator';
-import { VoiceCloner } from './VoiceCloner';
-import { MusicGenerator } from './MusicGenerator';
-import { StemSeparator } from './StemSeparator';
-import { FaceRecognition } from './FaceRecognition';
-import { AutoTagger } from './AutoTagger';
-import { SemanticSearch } from './SemanticSearch';
-import { AIInstaller } from './AIInstaller';
-import { WorkflowBuilder } from './WorkflowBuilder';
-import { BatchScheduler } from './BatchScheduler';
-import { LipSync } from './LipSync';
-import { FrameInterpolation } from './FrameInterpolation';
-import { ImageEditor } from './ImageEditor';
-import { ControlNetPanel } from './ControlNetPanel';
-import { ImageUpscaler } from './ImageUpscaler';
 import { DiscordIntegration } from './DiscordIntegration';
 import { TelegramIntegration } from './TelegramIntegration';
 import { HomeAssistantIntegration } from './HomeAssistantIntegration';
@@ -1158,48 +1142,39 @@ export const AdminPanel = () => {
             </Card>
           </TabsContent>
 
-          {/* Local AI Tab */}
+          {/* Local AI Tab - Configuration Only */}
           <TabsContent value="local-ai" className="space-y-4 mt-6">
-            <Tabs defaultValue="config" className="w-full">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="config">Configuration</TabsTrigger>
-                <TabsTrigger value="image">Image</TabsTrigger>
-                <TabsTrigger value="video">Vidéo</TabsTrigger>
-                <TabsTrigger value="audio">Audio</TabsTrigger>
-                <TabsTrigger value="analysis">Analyse</TabsTrigger>
-                <TabsTrigger value="automation">Automatisation</TabsTrigger>
-              </TabsList>
-              <TabsContent value="config" className="space-y-4 mt-4">
-                <AIInstaller />
-                <LocalAISettings />
-                <AICharacters />
-              </TabsContent>
-              <TabsContent value="image" className="space-y-4 mt-4">
-                <ImageGenerator />
-                <ImageEditor />
-                <ImageUpscaler />
-                <ControlNetPanel />
-              </TabsContent>
-              <TabsContent value="video" className="space-y-4 mt-4">
-                <VideoGenerator />
-                <LipSync />
-                <FrameInterpolation />
-              </TabsContent>
-              <TabsContent value="audio" className="space-y-4 mt-4">
-                <VoiceCloner />
-                <MusicGenerator />
-                <StemSeparator />
-              </TabsContent>
-              <TabsContent value="analysis" className="space-y-4 mt-4">
-                <SemanticSearch />
-                <FaceRecognition />
-                <AutoTagger />
-              </TabsContent>
-              <TabsContent value="automation" className="space-y-4 mt-4">
-                <WorkflowBuilder />
-                <BatchScheduler />
-              </TabsContent>
-            </Tabs>
+            {/* Info Banner */}
+            <Card className="border-primary/30 bg-gradient-to-r from-primary/10 to-purple-500/10">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/20">
+                      <Brain className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">Configuration IA Locale</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Paramétrez vos services IA. Pour créer du contenu, utilisez l'AI Studio.
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="gap-2"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'ai-studio' }));
+                    }}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Ouvrir AI Studio
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <LocalAISettings />
+            <AICharacters />
           </TabsContent>
 
           {/* Integrations Tab */}
