@@ -14,7 +14,9 @@ REM Vérification droits admin
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Demande des droits administrateur...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    echo [INFO] Une nouvelle fenetre ADMIN va s'ouvrir et RESTERA OUVERTE.
+    echo.
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -Verb RunAs -ArgumentList '/k','\"%~f0\"'"
     exit /b
 )
 
@@ -189,12 +191,30 @@ echo [2/4] Installation des services IA ^(15-30 min^)...
 echo       Ne fermez pas cette fenetre!
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>&1 | findstr /V "^$"
+echo [INFO] Lancement de PowerShell... (si ca se ferme, le log reste ici: %LOG%)
 
+echo ---------------------------------------------->> "%LOG%"
+echo [%date% %time%] START POWERSHELL>> "%LOG%"
+echo ---------------------------------------------->> "%LOG%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>>"%LOG%"
 set "PS_EXIT=%ERRORLEVEL%"
+
 echo.
-echo [INFO] Code retour PowerShell: %PS_EXIT%
+echo [INFO] PowerShell termine. Code retour: %PS_EXIT%
+echo [INFO] Log: %LOG%
 echo.
+
+if not "%PS_EXIT%"=="0" (
+  echo [ERREUR] L'installation a echoue. Regardez les 30 dernieres lignes du log ci-dessus.
+  echo.
+  powershell -NoProfile -Command "Get-Content -Tail 30 '%LOG%'" 
+  echo.
+  echo Appuyez sur une touche pour fermer...
+  pause >nul
+  exit /b %PS_EXIT%
+)
+
 
 REM ============================================================================
 REM  DEMARRER LES SERVICES
