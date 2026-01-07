@@ -37,9 +37,8 @@ REM Creer les dossiers si necessaires
 if not exist "%AI_DIR%" mkdir "%AI_DIR%" 2>nul
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" 2>nul
 
-REM Timestamp pour les logs
-for /f "tokens=2 delims==" %%a in ('wmic os get localdatetime /value') do set "dt=%%a"
-set "TS=%dt:~0,8%-%dt:~8,6%"
+REM Timestamp pour les logs (wmic est parfois absent sur Windows 11)
+for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%a"
 
 set "MAIN_LOG=%LOG_DIR%\install-auto-%TS%.log"
 

@@ -57,10 +57,10 @@ echo [4/6] Ports (services en ligne?)...
   echo ComfyUI: && curl -s -o nul -w "%%{http_code}" http://localhost:8188/system_stats && echo.
   echo Whisper: && curl -s -o nul -w "%%{http_code}" http://localhost:9000/health && echo.
   echo XTTS: && curl -s -o nul -w "%%{http_code}" http://localhost:8020/health && echo.
-  echo MusicGen: && curl -s -o nul -w "%%{http_code}" http://localhost:8030/health && echo.
-  echo Demucs: && curl -s -o nul -w "%%{http_code}" http://localhost:8040/health && echo.
-  echo CLIP: && curl -s -o nul -w "%%{http_code}" http://localhost:8060/health && echo.
-  echo ESRGAN: && curl -s -o nul -w "%%{http_code}" http://localhost:8070/health && echo.
+  echo MusicGen: && curl -s -o nul -w "%%{http_code}" http://localhost:9001/health && echo.
+  echo Demucs: && curl -s -o nul -w "%%{http_code}" http://localhost:9002/health && echo.
+  echo CLIP: && curl -s -o nul -w "%%{http_code}" http://localhost:9003/health && echo.
+  echo ESRGAN: && curl -s -o nul -w "%%{http_code}" http://localhost:9004/health && echo.
 ) >> "%LOG%" 2>&1
 
 echo [5/6] Processus...
