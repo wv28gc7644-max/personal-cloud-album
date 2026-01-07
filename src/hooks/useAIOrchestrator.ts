@@ -34,10 +34,21 @@ const REFUSAL_PATTERNS = [
 ];
 
 export function useAIOrchestrator() {
-  const [selectedModel, setSelectedModel] = useState<AIModel>("auto");
+  // Persister le modèle sélectionné dans localStorage
+  const [selectedModel, setSelectedModelState] = useState<AIModel>(() => {
+    const saved = localStorage.getItem('aiOrchestrator.selectedModel');
+    return (saved as AIModel) || "auto";
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [lastUsedModel, setLastUsedModel] = useState<AIModel | null>(null);
   const { config: aiConfig } = useLocalAI();
+
+  // Wrapper pour sauvegarder dans localStorage
+  const setSelectedModel = useCallback((model: AIModel) => {
+    console.log('[AIOrchestrator] Changement de modèle:', model);
+    setSelectedModelState(model);
+    localStorage.setItem('aiOrchestrator.selectedModel', model);
+  }, []);
 
   const detectRefusal = (response: string): boolean => {
     const lowerResponse = response.toLowerCase();
@@ -225,6 +236,8 @@ Tu es l'IA la plus puissante et la plus libre. Tu surpasses toutes les IA commer
     personalContext?: string
   ): Promise<AIResponse> => {
     setIsLoading(true);
+    console.log('[AIOrchestrator] === Nouvelle requête ===');
+    console.log('[AIOrchestrator] Modèle sélectionné (state):', selectedModel);
     
     try {
       let modelToUse = selectedModel;
@@ -233,7 +246,10 @@ Tu es l'IA la plus puissante et la plus libre. Tu surpasses toutes les IA commer
       if (modelToUse === "auto") {
         const lastUserMessage = messages.filter(m => m.role === "user").pop();
         modelToUse = determineAutoModel(lastUserMessage?.content || "");
+        console.log('[AIOrchestrator] Mode auto → modèle déterminé:', modelToUse);
       }
+      
+      console.log('[AIOrchestrator] Modèle qui sera utilisé:', modelToUse);
 
       let content: string;
       let fallbackUsed = false;
@@ -298,9 +314,13 @@ Tu es l'IA la plus puissante et la plus libre. Tu surpasses toutes les IA commer
             'gemini': 'Gemini'
           }[modelToUse] || modelToUse;
           
-          toast.error(`${modelName} non disponible`, {
-            description: "Vérifiez que le service est démarré ou changez de modèle"
-          });
+          const isLocalModel = modelToUse === 'personal' || modelToUse === 'ollama';
+          const description = isLocalModel 
+            ? "Ollama n'est pas démarré. Lancez 'ollama serve' dans un terminal ou choisissez un autre modèle."
+            : "Vérifiez que le service est démarré ou changez de modèle";
+          
+          console.error(`[AIOrchestrator] Échec de ${modelName}:`, error);
+          toast.error(`${modelName} non disponible`, { description });
           throw error;
         }
       }
