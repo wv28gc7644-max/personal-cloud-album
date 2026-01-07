@@ -1,10 +1,13 @@
 import { useState, useCallback } from 'react';
+import { AI_SERVICE_CONFIGS, getHealthEndpoint, getPortModeLabel } from '@/config/aiServicePorts';
 
 export interface AIServiceStatus {
   id: string;
   name: string;
   url: string;
   port: number;
+  detectedPort?: number; // The port that actually responded
+  portMode?: string | null; // 'Windows', 'Docker', or null
   status: 'online' | 'offline' | 'checking' | 'error' | 'not_installed' | 'blocked';
   latency?: number;
   version?: string;
@@ -41,72 +44,16 @@ export interface InstallationStatus {
   installDir: string;
 }
 
-export const AI_SERVICES: Omit<AIServiceStatus, 'status' | 'latency' | 'error' | 'lastChecked' | 'isInstalled'>[] = [
-  {
-    id: 'ollama',
-    name: 'Ollama (LLM)',
-    url: 'http://localhost:11434',
-    port: 11434,
-    capabilities: ['Chat', 'Génération de texte', 'Embeddings'],
-    installPath: '' // System-wide install
-  },
-  {
-    id: 'comfyui',
-    name: 'ComfyUI (Images)',
-    url: 'http://localhost:8188',
-    port: 8188,
-    capabilities: ['Génération d\'images', 'Inpainting', 'ControlNet', 'AnimateDiff'],
-    installPath: 'ComfyUI'
-  },
-  {
-    id: 'whisper',
-    name: 'Whisper (STT)',
-    url: 'http://localhost:9000',
-    port: 9000,
-    capabilities: ['Transcription audio', 'Détection de langue'],
-    installPath: 'whisper-api'
-  },
-  {
-    id: 'xtts',
-    name: 'XTTS (TTS)',
-    url: 'http://localhost:8020',
-    port: 8020,
-    capabilities: ['Synthèse vocale', 'Clonage de voix'],
-    installPath: 'xtts-api'
-  },
-  {
-    id: 'musicgen',
-    name: 'MusicGen',
-    url: 'http://localhost:9001',
-    port: 9001,
-    capabilities: ['Génération musicale'],
-    installPath: 'musicgen-api'
-  },
-  {
-    id: 'demucs',
-    name: 'Demucs',
-    url: 'http://localhost:9002',
-    port: 9002,
-    capabilities: ['Séparation de stems audio'],
-    installPath: 'demucs-api'
-  },
-  {
-    id: 'clip',
-    name: 'CLIP (Analyse)',
-    url: 'http://localhost:9003',
-    port: 9003,
-    capabilities: ['Analyse d\'images', 'Recherche sémantique'],
-    installPath: 'clip-api'
-  },
-  {
-    id: 'esrgan',
-    name: 'ESRGAN (Upscale)',
-    url: 'http://localhost:9004',
-    port: 9004,
-    capabilities: ['Upscaling d\'images', 'Super-résolution'],
-    installPath: 'esrgan-api'
-  }
-];
+// Build AI_SERVICES from unified config (use first port as default)
+export const AI_SERVICES: Omit<AIServiceStatus, 'status' | 'latency' | 'error' | 'lastChecked' | 'isInstalled' | 'detectedPort' | 'portMode'>[] = 
+  AI_SERVICE_CONFIGS.map(config => ({
+    id: config.id,
+    name: config.name,
+    url: `http://localhost:${config.ports[0]}`,
+    port: config.ports[0],
+    capabilities: config.capabilities,
+    installPath: config.installPath
+  }));
 
 const HEALTH_ENDPOINTS: Record<string, string> = {
   ollama: '/api/tags',
@@ -141,7 +88,7 @@ const getServerUrl = (): string | null => {
 
 export function useLocalAIDiagnostics() {
   const [services, setServices] = useState<AIServiceStatus[]>(() =>
-    AI_SERVICES.map(s => ({ ...s, status: 'offline' as const, isInstalled: undefined }))
+    AI_SERVICES.map(s => ({ ...s, status: 'offline' as const, isInstalled: undefined, detectedPort: undefined, portMode: undefined }))
   );
   const [logs, setLogs] = useState<DiagnosticLog[]>([]);
   const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
@@ -186,7 +133,8 @@ export function useLocalAIDiagnostics() {
   };
 
   // Try to check services via local server proxy (avoids CORS/mixed content issues)
-  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string }> | null> => {
+  // Now returns port and url info from server's multi-port detection
+  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string; port?: number; url?: string }> | null> => {
     const serverUrl = getServerUrl();
     if (!serverUrl) return null;
     
@@ -354,26 +302,35 @@ export function useLocalAIDiagnostics() {
     if (proxyResults) {
       addLog('success', 'System', 'Diagnostic via serveur local (fiable)');
       
-      // Use proxy results
+      // Use proxy results (now includes detected port info)
       updatedServices = services.map(service => {
         const result = proxyResults[service.id];
         if (result) {
+          const detectedPort = result.port || service.port;
+          const detectedUrl = result.url || service.url;
+          const portMode = result.ok ? getPortModeLabel(service.id, detectedPort) : undefined;
+          
           return {
             ...service,
             status: result.ok ? 'online' as const : 'offline' as const,
             latency: result.latencyMs,
             error: result.error,
             lastChecked: new Date(),
-            isInstalled: true
+            isInstalled: true,
+            port: detectedPort,
+            url: detectedUrl,
+            detectedPort: result.ok ? detectedPort : undefined,
+            portMode
           };
         }
         return { ...service, status: 'offline' as const, lastChecked: new Date() };
       });
       
-      // Log each service
+      // Log each service with port info
       updatedServices.forEach(s => {
         if (s.status === 'online') {
-          addLog('success', s.name, `Service en ligne (${s.latency}ms)`);
+          const portInfo = s.portMode ? ` [${s.portMode}]` : '';
+          addLog('success', s.name, `Service en ligne sur :${s.port} (${s.latency}ms)${portInfo}`);
         } else {
           addLog('error', s.name, 'Service hors ligne', s.error);
         }
