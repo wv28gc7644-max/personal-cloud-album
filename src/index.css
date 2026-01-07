@@ -141,6 +141,38 @@
   .animate-cinematic {
     animation: cinematic 1s ease-out forwards;
   }
+
+  /* AI Studio button glow effect */
+  .ai-studio-button {
+    position: relative;
+    background-size: 200% 200%;
+    animation: ai-wave 3s ease infinite;
+  }
+
+  .ai-studio-button::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, 
+      hsl(262 83% 58% / 0.3), 
+      hsl(330 81% 60% / 0.3), 
+      hsl(262 83% 58% / 0.3)
+    );
+    background-size: 200% 100%;
+    animation: ai-glow 2s ease-in-out infinite;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .ai-studio-button:hover::before {
+    opacity: 1;
+  }
+
+  .ai-glow {
+    animation: ai-glow-pulse 2s ease-in-out infinite;
+  }
 }
 
 @keyframes fadeIn {
@@ -193,5 +225,34 @@
     opacity: 1;
     transform: scale(1);
     filter: blur(0);
+  }
+}
+
+@keyframes ai-wave {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes ai-glow {
+  0%, 100% {
+    background-position: 0% 50%;
+    opacity: 0.5;
+  }
+  50% {
+    background-position: 100% 50%;
+    opacity: 1;
+  }
+}
+
+@keyframes ai-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px hsl(262 83% 58% / 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px hsl(330 81% 60% / 0.6);
   }
 }
