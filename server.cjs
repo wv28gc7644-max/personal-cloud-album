@@ -243,6 +243,46 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ success: true }));
     }
 
+    // API: Logs d'installation en temps réel (tail du fichier install-*.log)
+    if (pathname === '/api/ai/install-logs' && req.method === 'GET') {
+      const aiDir = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'logs');
+      const lines = parseInt(url.searchParams.get('lines') || '50');
+      
+      try {
+        if (!fs.existsSync(aiDir)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ logs: [], file: null, status: 'no_dir' }));
+        }
+        
+        // Trouver le fichier install-*.log le plus récent
+        const files = fs.readdirSync(aiDir)
+          .filter(f => f.startsWith('install-') && f.endsWith('.log'))
+          .map(f => ({ name: f, mtime: fs.statSync(path.join(aiDir, f)).mtime }))
+          .sort((a, b) => b.mtime - a.mtime);
+        
+        if (files.length === 0) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ logs: [], file: null, status: 'no_logs' }));
+        }
+        
+        const latestLog = path.join(aiDir, files[0].name);
+        const content = fs.readFileSync(latestLog, 'utf8');
+        const allLines = content.split('\n').filter(l => l.trim());
+        const lastLines = allLines.slice(-lines);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          logs: lastLines,
+          file: files[0].name,
+          totalLines: allLines.length,
+          status: 'ok'
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message, status: 'error' }));
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // API: Webhooks de notification
     // ═══════════════════════════════════════════════════════════════
