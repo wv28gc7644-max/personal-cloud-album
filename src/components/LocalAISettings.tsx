@@ -24,10 +24,16 @@ import {
   Image,
   MessageSquare,
   Gauge,
-  HardDrive
+  HardDrive,
+  Activity,
+  Terminal,
+  Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { AIServiceDiagnostics } from './AIServiceDiagnostics';
+import { AIServiceLogs } from './AIServiceLogs';
+import { WebhookNotifications } from './WebhookNotifications';
 
 export function LocalAISettings() {
   const {
@@ -132,14 +138,26 @@ export function LocalAISettings() {
       </Card>
 
       <Tabs defaultValue="ollama" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="ollama" className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
-            Ollama (Texte)
+            <span className="hidden sm:inline">Ollama</span>
           </TabsTrigger>
           <TabsTrigger value="comfyui" className="flex items-center gap-2">
             <Image className="w-4 h-4" />
-            ComfyUI (Images)
+            <span className="hidden sm:inline">ComfyUI</span>
+          </TabsTrigger>
+          <TabsTrigger value="diagnostic" className="flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            <span className="hidden sm:inline">Diagnostic</span>
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="flex items-center gap-2">
+            <Terminal className="w-4 h-4" />
+            <span className="hidden sm:inline">Logs</span>
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            <span className="hidden sm:inline">Alertes</span>
           </TabsTrigger>
         </TabsList>
 
@@ -479,6 +497,21 @@ export function LocalAISettings() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Diagnostic Tab */}
+        <TabsContent value="diagnostic">
+          <AIServiceDiagnostics />
+        </TabsContent>
+
+        {/* Logs Tab */}
+        <TabsContent value="logs">
+          <AIServiceLogs />
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications">
+          <WebhookNotifications />
         </TabsContent>
       </Tabs>
     </div>

@@ -22,6 +22,26 @@ const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
 const PORT = 3001;
 const DIST_FOLDER = path.join(__dirname, 'dist');
 const DATA_FILE = path.join(__dirname, 'data.json');
+const LOG_FILE = path.join(__dirname, 'ai-logs.json');
+
+// Buffer circulaire pour les logs (max 1000 entrées)
+let logsBuffer = [];
+const MAX_LOGS = 1000;
+
+const addLog = (level, service, message) => {
+  const entry = {
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    timestamp: new Date().toISOString(),
+    level,
+    service,
+    message
+  };
+  logsBuffer.push(entry);
+  if (logsBuffer.length > MAX_LOGS) {
+    logsBuffer = logsBuffer.slice(-MAX_LOGS);
+  }
+  return entry;
+};
 
 // URLs des services IA locaux
 const AI_CONFIG = {
@@ -174,6 +194,54 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // API: Logs des services IA
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/logs' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ logs: logsBuffer }));
+    }
+
+    if (pathname === '/api/ai/logs' && req.method === 'DELETE') {
+      logsBuffer = [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true }));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: Webhooks de notification
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/webhooks/send' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { type, webhookUrl, payload } = body;
+      
+      try {
+        if (type === 'discord') {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } else if (type === 'telegram') {
+          const { botToken, chatId, message } = payload;
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
+          });
+        }
+        addLog('info', 'server', `Webhook ${type} envoyé avec succès`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        addLog('error', 'server', `Erreur webhook ${type}: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // API: Gestion des données (tags, playlists, médias)
     // ═══════════════════════════════════════════════════════════════
 
@@ -276,11 +344,14 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/ai/ollama/generate' && req.method === 'POST') {
       const body = await parseBody(req);
+      addLog('info', 'ollama', `Génération de texte: ${body.prompt?.substring(0, 50)}...`);
       try {
         const result = await proxyRequest(`${AI_CONFIG.ollama}/api/generate`, 'POST', body);
+        addLog('info', 'ollama', 'Génération terminée');
         res.writeHead(result.status, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(result.data));
       } catch (e) {
+        addLog('error', 'ollama', `Erreur: ${e.message}`);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Ollama non disponible', details: e.message }));
       }
@@ -288,6 +359,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/ai/ollama/chat' && req.method === 'POST') {
       const body = await parseBody(req);
+      addLog('info', 'ollama', 'Chat démarré');
       try {
         const result = await proxyRequest(`${AI_CONFIG.ollama}/api/chat`, 'POST', body);
         res.writeHead(result.status, { 'Content-Type': 'application/json' });
