@@ -4,7 +4,7 @@ import { MediaHeader } from '@/components/MediaHeader';
 import { MediaGrid } from '@/components/MediaGrid';
 import { UploadModal } from '@/components/UploadModal';
 import { CreatePlaylistModal } from '@/components/CreatePlaylistModal';
-import { AdminPanel } from '@/components/AdminPanel';
+import { SettingsView } from '@/components/settings/SettingsView';
 import { StatsPanel } from '@/components/StatsPanel';
 import { SlideshowModal } from '@/components/SlideshowModal';
 import AIStudioView from '@/components/AIStudioView';
@@ -64,7 +64,7 @@ const Index = () => {
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentView === 'admin' ? (
-          <AdminPanel />
+          <SettingsView />
         ) : currentView === 'stats' ? (
           <StatsPanel />
         ) : currentView === 'ai-studio' ? (
