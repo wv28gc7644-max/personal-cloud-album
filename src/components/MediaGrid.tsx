@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { useMediaStats } from '@/hooks/useMediaStats';
@@ -105,33 +106,42 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
 
   return (
     <>
-      <div className={cn("p-6 animate-fade-in", getGridClasses())}>
-        {displayMedia.map((item, index) => (
-          <div
-            key={item.id}
-            className={cn(
-              "animate-slide-up",
-              (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
-              viewMode === 'list' && "max-w-3xl mx-auto w-full"
-            )}
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            {viewMode === 'media-only' ? (
-              <MediaCardMinimal
-                item={item}
-                onView={() => handleView(item)}
-              />
-            ) : (
-              <MediaCardTwitter
-                item={item}
-                onView={() => handleView(item)}
-                onDelete={() => handleDelete(item)}
-                onDownload={() => handleDownload(item)}
-                onToggleFavorite={() => handleToggleFavorite(item)}
-              />
-            )}
-          </div>
-        ))}
+      <div className={cn("p-6", getGridClasses())}>
+        <AnimatePresence mode="popLayout">
+          {displayMedia.map((item, index) => (
+            <motion.div
+              key={item.id}
+              layout
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              transition={{ 
+                duration: 0.3, 
+                delay: Math.min(index * 0.03, 0.3),
+                layout: { duration: 0.3 }
+              }}
+              className={cn(
+                (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
+                viewMode === 'list' && "max-w-3xl mx-auto w-full"
+              )}
+            >
+              {viewMode === 'media-only' ? (
+                <MediaCardMinimal
+                  item={item}
+                  onView={() => handleView(item)}
+                />
+              ) : (
+                <MediaCardTwitter
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                />
+              )}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       <MediaViewer
