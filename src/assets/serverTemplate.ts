@@ -21,7 +21,19 @@ const { exec, spawn } = require('child_process');
 // CONFIGURATION - MODIFIEZ CES VALEURS
 // ===================================================================
 
-const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
+// Dossier medias (par defaut: Images/Pictures de l'utilisateur Windows)
+let MEDIA_FOLDER = process.env.MEDIA_FOLDER || '';
+if (!MEDIA_FOLDER) {
+  const home = process.env.USERPROFILE || '';
+  const candidates = [
+    path.join(home, 'Pictures'),
+    path.join(home, 'Images'),
+    path.join(home, 'Videos'),
+    home
+  ].filter(Boolean);
+  MEDIA_FOLDER = candidates.find((p) => fs.existsSync(p)) || home || 'C:/';
+}
+
 const PORT = 3001;
 const DIST_FOLDER = path.join(__dirname, 'dist');
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -67,9 +79,8 @@ const AI_CONFIG = {
 // ===================================================================
 
 if (!fs.existsSync(MEDIA_FOLDER)) {
-  console.error('ERREUR: MEDIA_FOLDER introuvable:', MEDIA_FOLDER);
-  console.log('-> Modifiez MEDIA_FOLDER dans server.cjs puis relancez');
-  process.exit(1);
+  console.warn('ATTENTION: MEDIA_FOLDER introuvable:', MEDIA_FOLDER);
+  console.warn('-> Le serveur demarre quand meme, mais /api/files sera vide.');
 }
 
 // Créer le fichier de données s'il n'existe pas
