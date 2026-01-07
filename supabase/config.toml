@@ -1,1 +1,13 @@
 project_id = "esbungxxqglbckkmujlq"
+
+[functions.ai-assistant]
+verify_jwt = false
+
+[functions.grok-chat]
+verify_jwt = false
+
+[functions.elevenlabs-tts]
+verify_jwt = false
+
+[functions.elevenlabs-scribe-token]
+verify_jwt = false
