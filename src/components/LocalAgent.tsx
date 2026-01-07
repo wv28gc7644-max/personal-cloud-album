@@ -206,10 +206,15 @@ export default function LocalAgent() {
 
   // Fonctions de téléchargement
   const downloadServerFile = () => {
-    const link = document.createElement('a');
-    link.href = '/server.cjs';
-    link.download = 'server.cjs';
-    link.click();
+    import('@/assets/serverTemplate').then(({ serverTemplate }) => {
+      const blob = new Blob([serverTemplate], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'server.cjs';
+      link.click();
+      URL.revokeObjectURL(url);
+    });
   };
 
   const downloadStartScript = () => {
