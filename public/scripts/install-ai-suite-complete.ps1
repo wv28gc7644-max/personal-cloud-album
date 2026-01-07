@@ -15,7 +15,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$ProgressPreference = 'SilentlyContinue'
+$ProgressPreference = 'Continue'  # Show download progress bars
 
 # ============================================
 # CONFIGURATION
@@ -305,7 +305,7 @@ if ($ollamaInstalled -and !$SkipModels) {
 $InstallStatus["ollama"] = $ollamaInstalled
 
 # ============================================
-# HELPER: CREATE PYTHON SERVICE
+# HELPER: CREATE PYTHON SERVICE (avec visibilite)
 # ============================================
 function New-PythonService {
     param(
@@ -321,6 +321,9 @@ function New-PythonService {
     $ServiceDir = "$InstallDir\$DirName"
     $LogFile = "$LogDir\install-$DirName.log"
     
+    # Heartbeat function for long operations
+    $heartbeatJob = $null
+    
     try {
         # Create directory
         if (!(Test-Path $ServiceDir)) {
@@ -331,9 +334,9 @@ function New-PythonService {
         # Create venv
         Write-Log "Creation venv pour $Name..." -Level "INFO"
         if ($Python311Path) {
-            & $Python311Path -m venv venv 2>&1 | Out-File $LogFile -Append
+            & $Python311Path -m venv venv 2>&1 | Tee-Object -FilePath $LogFile -Append
         } else {
-            & py -3.11 -m venv venv 2>&1 | Out-File $LogFile -Append
+            & py -3.11 -m venv venv 2>&1 | Tee-Object -FilePath $LogFile -Append
         }
         
         if (!(Test-Path "$ServiceDir\venv\Scripts\python.exe")) {
@@ -344,28 +347,42 @@ function New-PythonService {
         $pipExe = "$ServiceDir\venv\Scripts\pip.exe"
         $pythonExe = "$ServiceDir\venv\Scripts\python.exe"
         
-        # Upgrade pip
-        & $pythonExe -m pip install --upgrade pip --quiet 2>&1 | Out-File $LogFile -Append
+        # Upgrade pip (visible)
+        Write-Log "  Mise a jour pip..." -Level "INFO"
+        & $pythonExe -m pip install --upgrade pip 2>&1 | Tee-Object -FilePath $LogFile -Append
         
-        # Install packages
+        # Install packages with VISIBLE output
+        $totalPkgs = $Packages.Count
+        $pkgIndex = 0
         foreach ($pkg in $Packages) {
-            Write-Log "  Installation $pkg..." -Level "INFO"
+            $pkgIndex++
+            Write-Log "  [$pkgIndex/$totalPkgs] Installation $pkg (peut prendre plusieurs minutes)..." -Level "INFO"
+            
+            $startTime = Get-Date
             
             if ($pkg -eq "torch" -and $TorchExtra) {
-                & $pipExe install torch $TorchExtra.Split(" ") --quiet 2>&1 | Out-File $LogFile -Append
+                # Torch is large - show progress
+                Write-Host "    >> Telechargement PyTorch (500-2000 MB selon GPU)..." -ForegroundColor DarkYellow
+                & $pipExe install torch $TorchExtra.Split(" ") 2>&1 | Tee-Object -FilePath $LogFile -Append
             } else {
-                & $pipExe install $pkg --quiet 2>&1 | Out-File $LogFile -Append
+                & $pipExe install $pkg 2>&1 | Tee-Object -FilePath $LogFile -Append
             }
+            
+            $elapsed = (Get-Date) - $startTime
+            Write-Log "    $pkg installe en $([math]::Round($elapsed.TotalSeconds))s" -Level "OK"
         }
         
         # Intel Arc specific
         if ($GPUType -eq "intel-arc" -and $Packages -contains "torch") {
             Write-Log "  Installation Intel Extension for PyTorch..." -Level "INFO"
-            & $pipExe install intel-extension-for-pytorch --quiet 2>&1 | Out-File $LogFile -Append
+            Write-Host "    >> IPEX: telechargement en cours..." -ForegroundColor DarkYellow
+            & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath $LogFile -Append
+            Write-Log "    IPEX installe" -Level "OK"
         }
         
         # Write server code
         $ServerCode | Out-File -FilePath "$ServiceDir\server.py" -Encoding UTF8
+        Write-Log "  Fichier server.py cree" -Level "OK"
         
         Set-Location $InstallDir
         return $true
@@ -416,22 +433,28 @@ if (Test-Path "$ComfyUIPath\main.py") {
             $pipExe = "$ComfyUIPath\venv\Scripts\pip.exe"
             $pythonExe = "$ComfyUIPath\venv\Scripts\python.exe"
             
-            & $pythonExe -m pip install --upgrade pip --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+            Write-Log "  Mise a jour pip ComfyUI..." -Level "INFO"
+            & $pythonExe -m pip install --upgrade pip 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             
-            # PyTorch
-            Write-Log "Installation PyTorch pour ComfyUI..." -Level "INFO"
+            # PyTorch (visible progress)
+            Write-Log "Installation PyTorch pour ComfyUI (peut prendre 5-15 min)..." -Level "INFO"
             if ($GPUType -eq "nvidia") {
-                & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+                Write-Host "    >> Telechargement PyTorch CUDA (1-2 GB)..." -ForegroundColor DarkYellow
+                & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } elseif ($GPUType -eq "intel-arc") {
-                & $pipExe install torch torchvision torchaudio --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
-                & $pipExe install intel-extension-for-pytorch --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+                Write-Host "    >> Telechargement PyTorch + IPEX..." -ForegroundColor DarkYellow
+                & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } else {
-                & $pipExe install torch torchvision torchaudio --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+                Write-Host "    >> Telechargement PyTorch CPU..." -ForegroundColor DarkYellow
+                & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             }
+            Write-Log "  PyTorch installe" -Level "OK"
             
-            # Requirements
+            # Requirements (visible)
             Write-Log "Installation requirements ComfyUI..." -Level "INFO"
-            & $pipExe install -r requirements.txt --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+            & $pipExe install -r requirements.txt 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+            Write-Log "  Requirements installes" -Level "OK"
             
             # ComfyUI Manager - aussi avec Start-Process
             Write-Log "Installation ComfyUI Manager..." -Level "INFO"
