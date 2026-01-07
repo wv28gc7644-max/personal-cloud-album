@@ -194,6 +194,41 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // API: Vérification des installations IA
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/check-installed' && req.method === 'GET') {
+      const checkCommand = (cmd) => {
+        return new Promise((resolve) => {
+          exec(cmd, (error, stdout) => {
+            resolve({ installed: !error, version: stdout?.trim() || null });
+          });
+        });
+      };
+
+      const checkPath = (p) => {
+        return { installed: fs.existsSync(p), path: p };
+      };
+
+      const results = {
+        ollama: await checkCommand('ollama --version'),
+        python: await checkCommand('python --version'),
+        pip: await checkCommand('pip --version'),
+        git: await checkCommand('git --version'),
+        comfyui: checkPath(path.join(process.env.USERPROFILE || '', 'ComfyUI')),
+        whisper: checkPath(path.join(__dirname, 'docker', 'whisper')),
+        xtts: checkPath(path.join(__dirname, 'docker', 'xtts')),
+        demucs: checkPath(path.join(__dirname, 'docker', 'demucs')),
+        esrgan: checkPath(path.join(__dirname, 'docker', 'esrgan')),
+        musicgen: checkPath(path.join(__dirname, 'docker', 'musicgen')),
+        clip: checkPath(path.join(__dirname, 'docker', 'clip')),
+      };
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // API: Logs des services IA
     // ═══════════════════════════════════════════════════════════════
 
