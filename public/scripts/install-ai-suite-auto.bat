@@ -1,101 +1,117 @@
 @echo off
 setlocal enableextensions
 
-title MediaVault AI - Installation (One-Click)
+title MediaVault AI - Installation Automatique v4.0
 color 0B
 chcp 65001 >nul 2>&1
 
 echo.
 echo ══════════════════════════════════════════════════════════════════════════════
-echo                 MEDIAVAULT AI - INSTALLATION (MODE ROBUSTE)
-	echo ══════════════════════════════════════════════════════════════════════════════
+echo              MEDIAVAULT AI - INSTALLATION AUTOMATIQUE v4.0
+echo ══════════════════════════════════════════════════════════════════════════════
 echo.
 
 REM ─────────────────────────────────────────────────────────────────────────────
-REM  1) DROITS ADMIN
+REM  1) VERIFICATION ADMIN
 REM ─────────────────────────────────────────────────────────────────────────────
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-  echo [0%%] Demande des droits administrateur...
-  echo Une nouvelle fenetre va s'ouvrir. Cliquez OUI.
-  echo.
-  powershell -NoProfile -Command "Start-Process cmd -Verb RunAs -ArgumentList '/k cd /d \"%~dp0\" ^&^& \"%~f0\"'"
-  exit /b
+    echo [INFO] Demande des droits administrateur...
+    echo        Cliquez OUI dans la fenetre qui va s'ouvrir.
+    echo.
+    powershell -NoProfile -Command "Start-Process cmd -Verb RunAs -ArgumentList '/k cd /d \"%~dp0\" && \"%~f0\"'"
+    exit /b
 )
 
-echo [5%%] Admin OK.
+echo [OK] Droits administrateur obtenus.
+echo.
 
 REM ─────────────────────────────────────────────────────────────────────────────
-REM  2) CHEMINS + LOGS
+REM  2) CONFIGURATION
 REM ─────────────────────────────────────────────────────────────────────────────
-set "DEFAULT_AI_DIR=%USERPROFILE%\MediaVault-AI"
-set "ALT_AI_DIR=C:\MediaVault-AI"
-
-REM Si l'utilisateur a deja une install ailleurs, on la privilegie
-set "AI_DIR=%DEFAULT_AI_DIR%"
-if exist "%ALT_AI_DIR%" set "AI_DIR=%ALT_AI_DIR%"
-if exist "%DEFAULT_AI_DIR%" set "AI_DIR=%DEFAULT_AI_DIR%"
-
+set "AI_DIR=%USERPROFILE%\MediaVault-AI"
 set "LOG_DIR=%AI_DIR%\logs"
-if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+set "PS1_SCRIPT=%~dp0install-ai-suite-complete.ps1"
 
-for /f "tokens=1-3 delims=/ " %%a in ("%date%") do (
-  set "D1=%%a" & set "D2=%%b" & set "D3=%%c"
-)
-set "TS=%D3%%D2%%D1%-%time:~0,2%%time:~3,2%%time:~6,2%"
-set "TS=%TS: =0%"
+REM Creer les dossiers si necessaires
+if not exist "%AI_DIR%" mkdir "%AI_DIR%" 2>nul
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" 2>nul
 
-set "BOOT_LOG=%LOG_DIR%\bootstrap-install-%TS%.log"
-set "PS1=%~dp0install-ai-suite-complete.ps1"
+REM Timestamp pour les logs
+for /f "tokens=2 delims==" %%a in ('wmic os get localdatetime /value') do set "dt=%%a"
+set "TS=%dt:~0,8%-%dt:~8,6%"
 
-echo [10%%] Dossier IA : %AI_DIR%
-echo [10%%] Logs       : %LOG_DIR%
-echo [10%%] Log (bootstrap) : %BOOT_LOG%
+set "MAIN_LOG=%LOG_DIR%\install-auto-%TS%.log"
+
+echo [INFO] Dossier d'installation : %AI_DIR%
+echo [INFO] Logs                   : %LOG_DIR%
+echo [INFO] Log principal          : %MAIN_LOG%
 echo.
-
-if not exist "%PS1%" (
-  echo [ERREUR] Fichier introuvable: %PS1%
-  echo Copiez/retéléchargez le script au même endroit que ce .bat.
-  echo.
-  pause
-  exit /b 1
-)
 
 REM ─────────────────────────────────────────────────────────────────────────────
-REM  3) LANCEMENT INSTALLATEUR POWERSHELL (LOG + RETOUR ERREUR)
+REM  3) VERIFICATION DU SCRIPT PS1
 REM ─────────────────────────────────────────────────────────────────────────────
-echo [15%%] Lancement de l'installateur principal...
-echo.
-echo (Astuce: si ça "plante", le log est deja enregistre dans %BOOT_LOG%)
-echo.
-
-REM On affiche dans la console ET on écrit dans le log (Tee-Object)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%PS1%' -InstallDir '%AI_DIR%' *>&1 | Tee-Object -FilePath '%BOOT_LOG%'; exit $LASTEXITCODE"
-set "RC=%errorlevel%"
-
-echo.
-if not "%RC%"=="0" (
-  echo [ERREUR] Installation terminee avec erreur (code=%RC%).
-  echo Log bootstrap: %BOOT_LOG%
-  echo.
-  echo Dernieres lignes du log:
-  echo ------------------------------------------------------------------------------
-  powershell -NoProfile -Command "Get-Content -Path '%BOOT_LOG%' -Tail 40"
-  echo ------------------------------------------------------------------------------
-  echo.
-  echo Ouvrir le dossier de logs? (O/N)
-  set /p OPENLOGS=
-  if /I "%OPENLOGS%"=="O" start "" "%LOG_DIR%"
-  echo.
-  pause
-  exit /b %RC%
+if not exist "%PS1_SCRIPT%" (
+    echo [ERREUR] Script PowerShell introuvable:
+    echo          %PS1_SCRIPT%
+    echo.
+    echo Assurez-vous que install-ai-suite-complete.ps1 est dans le meme dossier.
+    echo.
+    pause
+    exit /b 1
 )
 
-echo [100%%] Installation terminee.
-echo Logs: %LOG_DIR%
+echo [OK] Script PowerShell trouve.
 echo.
-echo Prochaine etape: lancer "start-ai-services.bat" puis aller dans IA Locale ^> Diagnostic.
+
+REM ─────────────────────────────────────────────────────────────────────────────
+REM  4) LANCEMENT INSTALLATION
+REM ─────────────────────────────────────────────────────────────────────────────
+echo ══════════════════════════════════════════════════════════════════════════════
+echo                    DEMARRAGE DE L'INSTALLATION
+echo ══════════════════════════════════════════════════════════════════════════════
 echo.
-pause
+echo L'installation peut prendre 15-30 minutes selon votre connexion.
+echo NE FERMEZ PAS cette fenetre!
+echo.
+
+REM Executer le script PowerShell avec logging complet
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { & '%PS1_SCRIPT%' -InstallDir '%AI_DIR%' 2>&1 | Tee-Object -FilePath '%MAIN_LOG%'; exit $LASTEXITCODE } catch { $_.Exception.Message | Out-File '%MAIN_LOG%' -Append; Write-Host '[ERREUR] ' + $_.Exception.Message -ForegroundColor Red; exit 1 } }"
+
+set "EXIT_CODE=%errorlevel%"
+
+echo.
+echo ══════════════════════════════════════════════════════════════════════════════
+
+if %EXIT_CODE% neq 0 (
+    echo                         INSTALLATION ECHOUEE
+    echo ══════════════════════════════════════════════════════════════════════════════
+    echo.
+    echo Code erreur: %EXIT_CODE%
+    echo Log complet: %MAIN_LOG%
+    echo.
+    echo --- Dernieres lignes du log ---
+    powershell -NoProfile -Command "if (Test-Path '%MAIN_LOG%') { Get-Content '%MAIN_LOG%' -Tail 25 }"
+    echo.
+    echo ══════════════════════════════════════════════════════════════════════════════
+    echo.
+    echo Ouvrir le dossier de logs? [O/N]
+    set /p OPEN_LOGS=
+    if /I "%OPEN_LOGS%"=="O" start "" "%LOG_DIR%"
+) else (
+    echo                       INSTALLATION REUSSIE!
+    echo ══════════════════════════════════════════════════════════════════════════════
+    echo.
+    echo Prochaine etape:
+    echo   1. Lancez: %AI_DIR%\start-ai-services.bat
+    echo   2. Allez dans MediaVault ^> IA Locale ^> Diagnostic
+    echo.
+    echo Log complet: %MAIN_LOG%
+    echo.
+)
+
+echo.
+echo Appuyez sur une touche pour fermer...
+pause >nul
 endlocal
-
+exit /b %EXIT_CODE%
