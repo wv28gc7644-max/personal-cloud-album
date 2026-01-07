@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { Play, Download, MoreVertical, Trash2, Tag as TagIcon } from 'lucide-react';
-import { MediaItem } from '@/types/media';
+import { Play, Download, MoreVertical, Trash2, ListPlus, ListMusic } from 'lucide-react';
+import { MediaItem, Playlist } from '@/types/media';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TagBadge } from './TagBadge';
+import { useMediaStore } from '@/hooks/useMediaStore';
+import { toast } from 'sonner';
 
 interface MediaCardProps {
   item: MediaItem;
@@ -22,6 +28,7 @@ interface MediaCardProps {
 export function MediaCard({ item, onClick, onDelete, onDownload, viewMode }: MediaCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const { playlists, addToPlaylist } = useMediaStore();
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -34,6 +41,45 @@ export function MediaCard({ item, onClick, onDelete, onDownload, viewMode }: Med
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  const handleAddToPlaylist = (playlist: Playlist) => {
+    addToPlaylist(playlist.id, item.id);
+    toast.success(`Ajouté à "${playlist.name}"`);
+  };
+
+  const renderDropdownContent = () => (
+    <>
+      {playlists.length > 0 && (
+        <>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ListPlus className="w-4 h-4 mr-2" />
+              Ajouter à une playlist
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {playlists.map((playlist) => (
+                <DropdownMenuItem 
+                  key={playlist.id} 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    handleAddToPlaylist(playlist); 
+                  }}
+                >
+                  <ListMusic className="w-4 h-4 mr-2" />
+                  {playlist.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-destructive">
+        <Trash2 className="w-4 h-4 mr-2" />
+        Supprimer
+      </DropdownMenuItem>
+    </>
+  );
 
   if (viewMode === 'list') {
     return (
@@ -81,10 +127,7 @@ export function MediaCard({ item, onClick, onDelete, onDownload, viewMode }: Med
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer
-              </DropdownMenuItem>
+              {renderDropdownContent()}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -177,10 +220,7 @@ export function MediaCard({ item, onClick, onDelete, onDownload, viewMode }: Med
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-destructive">
-              <Trash2 className="w-4 h-4 mr-2" />
-              Supprimer
-            </DropdownMenuItem>
+            {renderDropdownContent()}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
