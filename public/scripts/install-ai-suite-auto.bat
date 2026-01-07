@@ -1,322 +1,357 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
-chcp 65001 >nul
 title MediaVault AI - Installation
 color 0B
+chcp 65001 >nul 2>&1
 
 echo.
-echo ==============================================================================
-echo   MediaVault AI Suite - Installation
-echo ==============================================================================
+echo ══════════════════════════════════════════════════════════════════════════════
+echo                    MEDIAVAULT AI - INSTALLATION
+echo ══════════════════════════════════════════════════════════════════════════════
 echo.
 
-REM Vérification droits admin
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  VERIFICATION DES DROITS ADMIN
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo [ETAPE 1] Verification des droits administrateur...
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] Demande des droits administrateur...
-    echo [INFO] Une nouvelle fenetre ADMIN va s'ouvrir et RESTERA OUVERTE.
     echo.
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd.exe -Verb RunAs -ArgumentList '/k','\"%~f0\"'"
+    echo [!] Cette fenetre n'a pas les droits administrateur.
+    echo [!] Une NOUVELLE FENETRE va s'ouvrir avec les droits.
+    echo [!] Cliquez OUI quand Windows demande l'autorisation.
+    echo.
+    pause
+    
+    REM Relance avec droits admin - utilise cmd /k pour garder la fenetre ouverte
+    powershell -Command "Start-Process cmd -Verb RunAs -ArgumentList '/k cd /d \"%~dp0\" && \"%~f0\"'"
     exit /b
 )
 
 echo [OK] Droits administrateur confirmes.
 echo.
 
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  CONFIGURATION
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo [ETAPE 2] Configuration des chemins...
+
 set "AI_DIR=%USERPROFILE%\MediaVault-AI"
 set "LOG_DIR=%AI_DIR%\logs"
-set "PS1_FILE=%AI_DIR%\installer.ps1"
 
-if not exist "%AI_DIR%" mkdir "%AI_DIR%"
-if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+echo     Dossier IA: %AI_DIR%
+echo     Dossier logs: %LOG_DIR%
 
-for /f "tokens=*" %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%i"
-set "LOG=%LOG_DIR%\install-%TS%.log"
-set "REPORT=%LOG_DIR%\report-%TS%.txt"
-
-echo Dossier: %AI_DIR%
-echo Log: %LOG%
-echo.
-
-REM ============================================================================
-REM  CREER LE SCRIPT POWERSHELL
-REM ============================================================================
-
-echo [1/4] Creation du script d'installation...
-
-(
-  echo $ErrorActionPreference = 'Continue'
-  echo $ProgressPreference = 'SilentlyContinue'
-  echo $AI_DIR = '%AI_DIR%'
-  echo $LOG = '%LOG%'
-  echo.
-  echo function Log { param^($m^) Add-Content -Path $LOG -Value "[$(Get-Date -f 'HH:mm:ss')] $m"; Write-Host $m }
-  echo function Step { param^([int]$p,[string]$m^) ^
-  echo   $barSize = 30; $filled = [Math]::Min($barSize, [Math]::Floor($p * $barSize / 100)); ^
-  echo   $bar = ('#' * $filled) + ('-' * ($barSize - $filled)); ^
-  echo   Log ("[{0}] {1}% - {2}" -f $bar, $p, $m); ^
-  echo }
-  echo.
-  echo Step 0 'Demarrage de l''installation'
-  echo Log '=== INSTALLATION MEDIAVAULT AI ==='
-  echo.
-  echo Step 5 'Verification / installation de Git'
-  echo if ^(!^(Get-Command git -EA SilentlyContinue^)^) {
-  echo     Log 'Installation Git...'
-  echo     winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements --silent 2^>$null
-  echo     $env:Path = [Environment]::GetEnvironmentVariable^('Path','Machine'^) + ';' + [Environment]::GetEnvironmentVariable^('Path','User'^)
-  echo }
-  echo Log 'Git OK'
-  echo.
-  echo Step 10 'Verification / installation de Python'
-  echo $pyOK = $false
-  echo try { $v = python --version 2^>$null; if ^($v^) { $pyOK = $true } } catch {}
-  echo if ^(!$pyOK^) {
-  echo     Log 'Installation Python 3.11...'
-  echo     winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements --silent 2^>$null
-  echo     Start-Sleep 5
-  echo     $env:Path = [Environment]::GetEnvironmentVariable^('Path','Machine'^) + ';' + [Environment]::GetEnvironmentVariable^('Path','User'^)
-  echo }
-  echo Log 'Python OK'
-  echo.
-  echo Step 15 'Verification / installation de Ollama'
-  echo if ^(!^(Get-Command ollama -EA SilentlyContinue^)^) {
-  echo     Log 'Installation Ollama...'
-  echo     winget install --id Ollama.Ollama -e --source winget --accept-package-agreements --accept-source-agreements --silent 2^>$null
-  echo     $env:Path = [Environment]::GetEnvironmentVariable^('Path','Machine'^) + ';' + [Environment]::GetEnvironmentVariable^('Path','User'^)
-  echo }
-  echo Log 'Ollama OK'
-  echo.
-  echo Step 20 'Detection GPU'
-  echo $GPU = 'cpu'
-  echo try { $nv = nvidia-smi 2^>$null; if ^($nv^) { $GPU = 'nvidia' } } catch {}
-  echo if ^($GPU -eq 'cpu'^) { 
-  echo     $arc = Get-CimInstance Win32_VideoController ^| Where { $_.Name -like '*Arc*' }
-  echo     if ^($arc^) { $GPU = 'intel' }
-  echo }
-  echo Log ("GPU: $GPU")
-  echo.
-  echo Set-Location $AI_DIR
-  echo.
-  echo Step 30 'Installation ComfyUI (images/video)'
-  echo if ^(!^(Test-Path 'ComfyUI'^)^) {
-  echo     Log '[2/8] Installation ComfyUI...'
-  echo     git clone https://github.com/comfyanonymous/ComfyUI.git 2^>$null
-  echo     Set-Location ComfyUI
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install torch torchvision torchaudio --quiet 2^>$null
-  echo     .\venv\Scripts\pip install -r requirements.txt --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'ComfyUI OK'
-  echo.
-  echo Step 40 'Installation Whisper (STT)'
-  echo if ^(!^(Test-Path 'whisper-api'^)^) {
-  echo     Log '[3/8] Installation Whisper...'
-  echo     New-Item -ItemType Directory whisper-api -Force ^| Out-Null
-  echo     Set-Location whisper-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install openai-whisper flask flask-cors --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'Whisper OK'
-  echo.
-  echo Step 55 'Installation XTTS (TTS)'
-  echo if ^(!^(Test-Path 'xtts-api'^)^) {
-  echo     Log '[4/8] Installation XTTS...'
-  echo     New-Item -ItemType Directory xtts-api -Force ^| Out-Null
-  echo     Set-Location xtts-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install TTS flask flask-cors --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'XTTS OK'
-  echo.
-  echo Step 70 'Installation MusicGen'
-  echo if ^(!^(Test-Path 'musicgen-api'^)^) {
-  echo     Log '[5/8] Installation MusicGen...'
-  echo     New-Item -ItemType Directory musicgen-api -Force ^| Out-Null
-  echo     Set-Location musicgen-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install audiocraft flask flask-cors --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'MusicGen OK'
-  echo.
-  echo Step 80 'Installation Demucs (stems audio)'
-  echo if ^(!^(Test-Path 'demucs-api'^)^) {
-  echo     Log '[6/8] Installation Demucs...'
-  echo     New-Item -ItemType Directory demucs-api -Force ^| Out-Null
-  echo     Set-Location demucs-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install demucs flask flask-cors --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'Demucs OK'
-  echo.
-  echo Step 90 'Installation CLIP (analyse image)'
-  echo if ^(!^(Test-Path 'clip-api'^)^) {
-  echo     Log '[7/8] Installation CLIP...'
-  echo     New-Item -ItemType Directory clip-api -Force ^| Out-Null
-  echo     Set-Location clip-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install clip-interrogator flask flask-cors pillow --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'CLIP OK'
-  echo.
-  echo Step 95 'Installation ESRGAN (upscale image)'
-  echo if ^(!^(Test-Path 'esrgan-api'^)^) {
-  echo     Log '[8/8] Installation ESRGAN...'
-  echo     New-Item -ItemType Directory esrgan-api -Force ^| Out-Null
-  echo     Set-Location esrgan-api
-  echo     python -m venv venv 2^>$null
-  echo     .\venv\Scripts\pip install realesrgan flask flask-cors pillow opencv-python --quiet 2^>$null
-  echo     Set-Location ..
-  echo }
-  echo Log 'ESRGAN OK'
-  echo.
-  echo Step 100 'Installation terminee'
-  echo Log '=== INSTALLATION TERMINEE ==='
-) > "%PS1_FILE%"
-
-echo [OK] Script cree: %PS1_FILE%
-echo.
-
-REM ============================================================================
-REM  EXECUTER LE SCRIPT POWERSHELL
-REM ============================================================================
-
-echo [2/4] Installation des services IA ^(15-30 min^)...
-echo       Ne fermez pas cette fenetre!
-echo.
-
-echo [INFO] Lancement de PowerShell... (si ca se ferme, le log reste ici: %LOG%)
-
-echo ---------------------------------------------->> "%LOG%"
-echo [%date% %time%] START POWERSHELL>> "%LOG%"
-echo ---------------------------------------------->> "%LOG%"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_FILE%" 2>>"%LOG%"
-set "PS_EXIT=%ERRORLEVEL%"
-
-echo.
-echo [INFO] PowerShell termine. Code retour: %PS_EXIT%
-echo [INFO] Log: %LOG%
-echo.
-
-if not "%PS_EXIT%"=="0" (
-  echo [ERREUR] L'installation a echoue. Regardez les 30 dernieres lignes du log ci-dessus.
-  echo.
-  powershell -NoProfile -Command "Get-Content -Tail 30 '%LOG%'" 
-  echo.
-  echo Appuyez sur une touche pour fermer...
-  pause >nul
-  exit /b %PS_EXIT%
+if not exist "%AI_DIR%" (
+    echo     Creation du dossier IA...
+    mkdir "%AI_DIR%"
+    if errorlevel 1 (
+        echo [ERREUR] Impossible de creer %AI_DIR%
+        pause
+        exit /b 1
+    )
 )
 
-
-REM ============================================================================
-REM  DEMARRER LES SERVICES
-REM ============================================================================
-
-echo [3/4] Demarrage des services...
-
-where ollama >nul 2>&1 && start "Ollama" /min ollama serve
-timeout /t 3 /nobreak >nul
-
-if exist "%AI_DIR%\ComfyUI\venv\Scripts\python.exe" (
-    cd /d "%AI_DIR%\ComfyUI"
-    start "ComfyUI" /min cmd /c "venv\Scripts\python main.py --listen 0.0.0.0 --port 8188"
+if not exist "%LOG_DIR%" (
+    echo     Creation du dossier logs...
+    mkdir "%LOG_DIR%"
 )
 
-echo Attente demarrage ^(15s^)...
-timeout /t 15 /nobreak >nul
-
-REM ============================================================================
-REM  GENERER LE RAPPORT
-REM ============================================================================
-
+echo [OK] Dossiers prets.
 echo.
-echo [4/4] Generation du rapport...
 
-(
-echo ==============================================================================
-echo RAPPORT MEDIAVAULT AI - %date% %time%
-echo ==============================================================================
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  VERIFICATION DES PREREQUIS
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo [ETAPE 3] Verification des prerequis...
 echo.
-echo DOSSIER: %AI_DIR%
-echo EXIT CODE: %PS_EXIT%
-echo.
-echo === PREREQUIS ===
-) > "%REPORT%"
 
-where git >nul 2>&1 && (echo [OK] git>> "%REPORT%") || (echo [X] git>> "%REPORT%")
-python --version >> "%REPORT%" 2>&1
-ollama --version >> "%REPORT%" 2>&1
-
-(
-echo.
-echo === GPU ===
-) >> "%REPORT%"
-powershell -Command "Get-CimInstance Win32_VideoController | Select Name | Format-Table -HideTableHeaders" >> "%REPORT%"
-
-(
-echo.
-echo === DOSSIERS INSTALLES ===
-) >> "%REPORT%"
-if exist "%AI_DIR%\ComfyUI" (echo [OK] ComfyUI>> "%REPORT%") else (echo [X] ComfyUI>> "%REPORT%")
-if exist "%AI_DIR%\whisper-api" (echo [OK] whisper-api>> "%REPORT%") else (echo [X] whisper-api>> "%REPORT%")
-if exist "%AI_DIR%\xtts-api" (echo [OK] xtts-api>> "%REPORT%") else (echo [X] xtts-api>> "%REPORT%")
-if exist "%AI_DIR%\musicgen-api" (echo [OK] musicgen-api>> "%REPORT%") else (echo [X] musicgen-api>> "%REPORT%")
-if exist "%AI_DIR%\demucs-api" (echo [OK] demucs-api>> "%REPORT%") else (echo [X] demucs-api>> "%REPORT%")
-if exist "%AI_DIR%\clip-api" (echo [OK] clip-api>> "%REPORT%") else (echo [X] clip-api>> "%REPORT%")
-if exist "%AI_DIR%\esrgan-api" (echo [OK] esrgan-api>> "%REPORT%") else (echo [X] esrgan-api>> "%REPORT%")
-
-(
-echo.
-echo === SERVICES HTTP ===
-) >> "%REPORT%"
-
-for /f %%a in ('powershell -Command "try{(iwr -Uri 'http://localhost:11434/api/tags' -TimeoutSec 3).StatusCode}catch{0}"') do (
-    if "%%a"=="200" (echo [OK] Ollama :11434>> "%REPORT%") else (echo [X] Ollama :11434>> "%REPORT%")
+echo     Verification de winget...
+where winget >nul 2>&1
+if errorlevel 1 (
+    echo [ERREUR] winget n'est pas installe!
+    echo          Installez "App Installer" depuis le Microsoft Store.
+    pause
+    exit /b 1
 )
-for /f %%a in ('powershell -Command "try{(iwr -Uri 'http://localhost:8188/system_stats' -TimeoutSec 3).StatusCode}catch{0}"') do (
-    if "%%a"=="200" (echo [OK] ComfyUI :8188>> "%REPORT%") else (echo [X] ComfyUI :8188>> "%REPORT%")
-)
+echo     [OK] winget trouve.
 
-(
-echo.
-echo === LOG INSTALLATION ^(20 dernieres lignes^) ===
-) >> "%REPORT%"
-if exist "%LOG%" (
-    powershell -Command "Get-Content -Tail 20 '%LOG%'" >> "%REPORT%"
+echo     Verification de git...
+where git >nul 2>&1
+if errorlevel 1 (
+    echo     [!] Git non trouve, installation...
+    winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements
+    echo     [OK] Git installe.
 ) else (
-    echo [Aucun log]>> "%REPORT%"
+    echo     [OK] git trouve.
 )
 
-(
-echo.
-echo ==============================================================================
-echo Pour relancer: %AI_DIR%\start-ai-services.bat
-echo ==============================================================================
-) >> "%REPORT%"
+echo     Verification de python...
+where python >nul 2>&1
+if errorlevel 1 (
+    echo     [!] Python non trouve, installation de Python 3.11...
+    winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements
+    echo     [OK] Python installe.
+    echo     [!] IMPORTANT: Fermez cette fenetre et relancez le script pour que Python soit detecte.
+    pause
+    exit /b 0
+) else (
+    python --version
+    echo     [OK] Python trouve.
+)
 
-echo.
-echo ==============================================================================
-type "%REPORT%"
-echo ==============================================================================
-echo.
-echo Rapport sauvegarde: %REPORT%
-echo.
-
-choice /C OC /N /M "Ouvrir le rapport (O) ou Copier dans le presse-papiers (C) ? "
-if %ERRORLEVEL%==1 notepad "%REPORT%"
-if %ERRORLEVEL%==2 (
-    powershell -Command "Get-Content -Raw '%REPORT%' | Set-Clipboard"
-    echo [OK] Rapport copie! Collez-le dans MediaVault.
+echo     Verification de ollama...
+where ollama >nul 2>&1
+if errorlevel 1 (
+    echo     [!] Ollama non trouve, installation...
+    winget install --id Ollama.Ollama -e --source winget --accept-package-agreements --accept-source-agreements
+    echo     [OK] Ollama installe.
+) else (
+    echo     [OK] Ollama trouve.
 )
 
 echo.
-echo Installation terminee. Appuyez sur une touche pour fermer.
-pause >nul
+echo [OK] Tous les prerequis sont installes.
+echo.
+
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  DETECTION GPU
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo [ETAPE 4] Detection du GPU...
+
+set "GPU_TYPE=cpu"
+
+nvidia-smi >nul 2>&1
+if not errorlevel 1 (
+    set "GPU_TYPE=nvidia"
+    echo     [OK] GPU NVIDIA detecte - acceleration CUDA activee.
+    goto gpu_done
+)
+
+powershell -Command "if (Get-CimInstance Win32_VideoController | Where-Object {$_.Name -like '*Arc*'}) { exit 0 } else { exit 1 }" >nul 2>&1
+if not errorlevel 1 (
+    set "GPU_TYPE=intel"
+    echo     [OK] GPU Intel Arc detecte.
+    goto gpu_done
+)
+
+echo     [INFO] Aucun GPU compatible detecte, mode CPU utilise.
+
+:gpu_done
+echo.
+
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  INSTALLATION DES SERVICES IA
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo ══════════════════════════════════════════════════════════════════════════════
+echo                    INSTALLATION DES 8 SERVICES IA
+echo ══════════════════════════════════════════════════════════════════════════════
+echo.
+echo [INFO] Cette etape peut prendre 15-30 minutes.
+echo [INFO] NE FERMEZ PAS cette fenetre!
+echo.
+
+cd /d "%AI_DIR%"
+
+REM --- 1. ComfyUI ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [1/8] ComfyUI - Generation d'images et videos                    [0%%]      │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\ComfyUI" (
+    echo     [SKIP] ComfyUI deja installe.
+) else (
+    echo     Clonage de ComfyUI...
+    git clone https://github.com/comfyanonymous/ComfyUI.git
+    if errorlevel 1 (
+        echo     [ERREUR] Echec du clonage ComfyUI
+    ) else (
+        cd ComfyUI
+        echo     Creation de l'environnement virtuel...
+        python -m venv venv
+        echo     Installation de PyTorch (peut prendre plusieurs minutes)...
+        call venv\Scripts\activate.bat
+        pip install torch torchvision torchaudio --quiet
+        echo     Installation des dependances ComfyUI...
+        pip install -r requirements.txt --quiet
+        call venv\Scripts\deactivate.bat
+        cd ..
+        echo     [OK] ComfyUI installe.
+    )
+)
+echo.
+
+REM --- 2. Whisper ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [2/8] Whisper - Transcription audio                              [15%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\whisper-api" (
+    echo     [SKIP] Whisper deja installe.
+) else (
+    mkdir whisper-api
+    cd whisper-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances...
+    call venv\Scripts\activate.bat
+    pip install openai-whisper flask flask-cors --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] Whisper installe.
+)
+echo.
+
+REM --- 3. XTTS ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [3/8] XTTS - Synthese vocale                                     [30%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\xtts-api" (
+    echo     [SKIP] XTTS deja installe.
+) else (
+    mkdir xtts-api
+    cd xtts-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances (peut prendre plusieurs minutes)...
+    call venv\Scripts\activate.bat
+    pip install TTS flask flask-cors --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] XTTS installe.
+)
+echo.
+
+REM --- 4. MusicGen ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [4/8] MusicGen - Generation de musique                           [45%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\musicgen-api" (
+    echo     [SKIP] MusicGen deja installe.
+) else (
+    mkdir musicgen-api
+    cd musicgen-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances (peut prendre plusieurs minutes)...
+    call venv\Scripts\activate.bat
+    pip install audiocraft flask flask-cors --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] MusicGen installe.
+)
+echo.
+
+REM --- 5. Demucs ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [5/8] Demucs - Separation audio                                  [55%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\demucs-api" (
+    echo     [SKIP] Demucs deja installe.
+) else (
+    mkdir demucs-api
+    cd demucs-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances...
+    call venv\Scripts\activate.bat
+    pip install demucs flask flask-cors --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] Demucs installe.
+)
+echo.
+
+REM --- 6. CLIP ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [6/8] CLIP - Analyse d'images                                    [70%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\clip-api" (
+    echo     [SKIP] CLIP deja installe.
+) else (
+    mkdir clip-api
+    cd clip-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances...
+    call venv\Scripts\activate.bat
+    pip install clip-interrogator flask flask-cors pillow --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] CLIP installe.
+)
+echo.
+
+REM --- 7. ESRGAN ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [7/8] ESRGAN - Upscaling d'images                                [85%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+if exist "%AI_DIR%\esrgan-api" (
+    echo     [SKIP] ESRGAN deja installe.
+) else (
+    mkdir esrgan-api
+    cd esrgan-api
+    echo     Creation de l'environnement virtuel...
+    python -m venv venv
+    echo     Installation des dependances...
+    call venv\Scripts\activate.bat
+    pip install realesrgan flask flask-cors pillow opencv-python --quiet
+    call venv\Scripts\deactivate.bat
+    cd ..
+    echo     [OK] ESRGAN installe.
+)
+echo.
+
+REM --- 8. Demarrage Ollama ---
+echo ┌─────────────────────────────────────────────────────────────────────────────┐
+echo │ [8/8] Demarrage de Ollama                                        [95%%]     │
+echo └─────────────────────────────────────────────────────────────────────────────┘
+
+echo     Demarrage de Ollama en arriere-plan...
+start "Ollama" /min ollama serve
+echo     [OK] Ollama demarre.
+echo.
+
+REM ═══════════════════════════════════════════════════════════════════════════════
+REM  RESULTAT FINAL
+REM ═══════════════════════════════════════════════════════════════════════════════
+
+echo ══════════════════════════════════════════════════════════════════════════════
+echo                         INSTALLATION TERMINEE!                    [100%%]
+echo ══════════════════════════════════════════════════════════════════════════════
+echo.
+echo   Dossiers installes:
+echo.
+
+if exist "%AI_DIR%\ComfyUI" (echo     [OK] ComfyUI) else (echo     [X] ComfyUI)
+if exist "%AI_DIR%\whisper-api" (echo     [OK] Whisper) else (echo     [X] Whisper)
+if exist "%AI_DIR%\xtts-api" (echo     [OK] XTTS) else (echo     [X] XTTS)
+if exist "%AI_DIR%\musicgen-api" (echo     [OK] MusicGen) else (echo     [X] MusicGen)
+if exist "%AI_DIR%\demucs-api" (echo     [OK] Demucs) else (echo     [X] Demucs)
+if exist "%AI_DIR%\clip-api" (echo     [OK] CLIP) else (echo     [X] CLIP)
+if exist "%AI_DIR%\esrgan-api" (echo     [OK] ESRGAN) else (echo     [X] ESRGAN)
+
+echo.
+echo   GPU detecte: %GPU_TYPE%
+echo   Dossier IA: %AI_DIR%
+echo.
+echo ══════════════════════════════════════════════════════════════════════════════
+echo.
+echo   Prochaines etapes:
+echo   1. Relancez l'application MediaVault
+echo   2. Allez dans Parametres ^> IA Locale ^> Diagnostic
+echo   3. Verifiez que les services sont en ligne
+echo.
+echo ══════════════════════════════════════════════════════════════════════════════
+echo.
+
+pause
