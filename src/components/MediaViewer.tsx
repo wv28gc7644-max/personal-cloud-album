@@ -3,7 +3,7 @@ import { X, ChevronLeft, ChevronRight, Download, Maximize, Minimize } from 'luci
 import { MediaItem } from '@/types/media';
 import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
-import { VideoHeatmap } from './VideoHeatmap';
+import { VideoHeatmapInteractive } from './VideoHeatmapInteractive';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { cn } from '@/lib/utils';
 
@@ -220,30 +220,38 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
             />
           ) : (
             <div className="flex flex-col w-full max-w-5xl">
-              <video
-                ref={videoRef}
-                src={item.url}
-                controls
-                autoPlay
-                onTimeUpdate={handleTimeUpdate}
-                onSeeked={handleSeeked}
-                className={cn(
-                  "w-full max-h-[calc(100vh-160px)] rounded-lg shadow-2xl transition-all duration-500",
-                  isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-                )}
-              />
-              {/* Video Heatmap */}
+              <div className="relative">
+                <video
+                  ref={videoRef}
+                  src={item.url}
+                  controls
+                  autoPlay
+                  onTimeUpdate={handleTimeUpdate}
+                  onSeeked={handleSeeked}
+                  className={cn(
+                    "w-full max-h-[calc(100vh-160px)] rounded-lg shadow-2xl transition-all duration-500",
+                    isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+                  )}
+                />
+              </div>
+              {/* Interactive Video Heatmap */}
               {item.duration && (
-                <div className="mt-3 px-2">
-                  <VideoHeatmap 
+                <div className="mt-4 px-2 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Passages les plus regardés</span>
+                    <span>Cliquez pour naviguer</span>
+                  </div>
+                  <VideoHeatmapInteractive 
                     stats={stats} 
                     duration={item.duration} 
-                    height={8}
-                    className="rounded-full"
+                    height={12}
+                    className="rounded-lg"
+                    onSeek={(time) => {
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = time;
+                      }
+                    }}
                   />
-                  <p className="text-xs text-muted-foreground mt-1 text-center">
-                    Passages les plus regardés
-                  </p>
                 </div>
               )}
             </div>
