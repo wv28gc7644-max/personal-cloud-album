@@ -14,12 +14,15 @@ echo.
 REM ─────────────────────────────────────────────────────────────────────────────
 REM  1) VERIFICATION ADMIN (relance en admin dans une fenetre qui reste ouverte)
 REM ─────────────────────────────────────────────────────────────────────────────
+set "THIS_DIR=%~dp0"
+set "THIS_SCRIPT=%~f0"
+
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Demande des droits administrateur...
     echo        Cliquez OUI. Une nouvelle fenetre restera ouverte.
     echo.
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -Verb RunAs -ArgumentList '/k','cd /d ""%~dp0"" ^&^& ""%~f0""'"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -Verb RunAs -ArgumentList '/k cd /d ""%THIS_DIR%"" ^&^& call ""%THIS_SCRIPT%""'"
     exit /b
 )
 
