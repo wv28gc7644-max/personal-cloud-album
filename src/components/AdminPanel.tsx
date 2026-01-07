@@ -17,6 +17,8 @@ import { UpdateProgressModal, NotificationSoundType, playNotificationSound } fro
 import { useUpdateHistory, UpdateHistoryItem } from '@/hooks/useUpdateHistory';
 import { useRealtimeUpdateCheck } from '@/hooks/useRealtimeUpdateCheck';
 import { CardDesignEditor } from './CardDesignEditor';
+import { FFmpegManager } from './FFmpegManager';
+import { SecuritySettings } from './SecuritySettings';
 import { 
   Tags, 
   Palette, 
@@ -51,7 +53,8 @@ import {
   RotateCcw,
   Radio,
   Film,
-  Image
+  Image,
+  Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -573,7 +576,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-8 bg-muted/50">
             <TabsTrigger value="general" className="gap-2">
               <Settings className="w-4 h-4" />
               Général
@@ -593,6 +596,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="server" className="gap-2">
               <Server className="w-4 h-4" />
               Serveur
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2">
+              <Shield className="w-4 h-4" />
+              Sécurité
             </TabsTrigger>
             <TabsTrigger value="export" className="gap-2">
               <Package className="w-4 h-4" />
@@ -1061,66 +1068,8 @@ export const AdminPanel = () => {
                   </CardContent>
                 </Card>
 
-                {/* FFmpeg Thumbnail Generation */}
-                <Card className="border-blue-500/30 bg-blue-500/5">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Film className="w-4 h-4 text-blue-500" />
-                      Génération de thumbnails vidéo (FFmpeg)
-                    </CardTitle>
-                    <CardDescription>
-                      Générez des miniatures haute qualité pour vos vidéos via le serveur local
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
-                      <p className="text-muted-foreground">
-                        Le script serveur inclut la génération de thumbnails automatique via FFmpeg.
-                        Assurez-vous que FFmpeg est installé sur votre machine Windows.
-                      </p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <a 
-                          href="https://www.gyan.dev/ffmpeg/builds/" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline flex items-center gap-1"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Télécharger FFmpeg
-                        </a>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Endpoints disponibles :</h4>
-                      <ul className="text-xs text-muted-foreground space-y-1.5">
-                        <li className="flex items-center gap-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/check-ffmpeg</code>
-                          <span>Vérifier l'installation FFmpeg</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/generate-thumbnail</code>
-                          <span>Générer un thumbnail (POST)</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/generate-all-thumbnails</code>
-                          <span>Générer tous les thumbnails</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <code className="bg-muted px-1.5 py-0.5 rounded">/api/thumbnails/:filename</code>
-                          <span>Servir les thumbnails</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                      <p className="text-xs text-green-400 flex items-center gap-2">
-                        <CheckCircle className="w-3 h-3" />
-                        Le script server.cjs ci-dessous inclut déjà le support FFmpeg
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* FFmpeg Thumbnail Generation - Using Component */}
+                <FFmpegManager />
                 <div className="p-4 bg-muted/50 rounded-lg border border-border space-y-3">
                   <Label htmlFor="serverUrl">URL du serveur local</Label>
                   <Input
@@ -1177,6 +1126,11 @@ export const AdminPanel = () => {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Security Tab */}
+          <TabsContent value="security" className="space-y-4 mt-6">
+            <SecuritySettings />
           </TabsContent>
 
           {/* Export Tab */}
