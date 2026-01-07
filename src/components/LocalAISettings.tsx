@@ -138,7 +138,7 @@ export function LocalAISettings() {
       </Card>
 
       <Tabs defaultValue="ollama" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="ollama" className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4" />
             <span className="hidden sm:inline">Ollama</span>
@@ -146,6 +146,10 @@ export function LocalAISettings() {
           <TabsTrigger value="comfyui" className="flex items-center gap-2">
             <Image className="w-4 h-4" />
             <span className="hidden sm:inline">ComfyUI</span>
+          </TabsTrigger>
+          <TabsTrigger value="grok" className="flex items-center gap-2">
+            <span className="font-bold text-sm">𝕏</span>
+            <span className="hidden sm:inline">Grok</span>
           </TabsTrigger>
           <TabsTrigger value="diagnostic" className="flex items-center gap-2">
             <Activity className="w-4 h-4" />
@@ -495,6 +499,49 @@ export function LocalAISettings() {
                 </a>
                 {' '}et placez-les dans le dossier <code className="bg-muted px-1 rounded">models/checkpoints/</code>
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Grok Tab */}
+        <TabsContent value="grok" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="text-xl font-bold">𝕏</span>
+                Grok (xAI)
+              </CardTitle>
+              <CardDescription>
+                Utilisez Grok, l'IA de xAI, pour des réponses alternatives
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
+                <p className="text-sm">
+                  Pour utiliser Grok, vous devez configurer votre clé API xAI :
+                </p>
+                <ol className="text-sm space-y-2 list-decimal list-inside text-muted-foreground">
+                  <li>Créez un compte sur <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.x.ai</a></li>
+                  <li>Générez une clé API</li>
+                  <li>Ajoutez-la dans les secrets Supabase sous le nom <code className="bg-muted px-1 rounded">XAI_API_KEY</code></li>
+                </ol>
+              </div>
+
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  💡 Une fois configuré, sélectionnez "Grok" dans le sélecteur de modèle de l'assistant IA pour l'utiliser.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fonctionnalités Grok</Label>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>✓ Réponses créatives et sans filtre</li>
+                  <li>✓ Accès aux actualités en temps réel</li>
+                  <li>✓ Style conversationnel unique</li>
+                  <li>✓ Fallback automatique si Gemini refuse</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -2,9 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Bot, Send, Mic, MicOff, X, Loader2 } from 'lucide-react';
+import { Bot, Send, Mic, MicOff, X, Loader2, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import AIModelSelector, { AIModel } from './AIModelSelector';
+import { useAIOrchestrator } from '@/hooks/useAIOrchestrator';
+import { supabase } from '@/integrations/supabase/client';
 
 // Type declarations for Web Speech API
 interface SpeechRecognitionEvent extends Event {
@@ -38,18 +42,25 @@ interface AIAssistantProps {
   onCommand?: (command: string) => void;
 }
 
+const MODEL_COLORS: Record<AIModel, string> = {
+  auto: 'bg-yellow-500/20 text-yellow-500',
+  personal: 'bg-purple-500/20 text-purple-500',
+  gemini: 'bg-blue-500/20 text-blue-500',
+  grok: 'bg-foreground/20 text-foreground',
+  ollama: 'bg-orange-500/20 text-orange-500'
+};
+
 export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const { toast } = useToast();
-
-  const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`;
+  
+  const { selectedModel, setSelectedModel, chat, isLoading, lastUsedModel } = useAIOrchestrator();
 
   // Initialize speech recognition
   useEffect(() => {
@@ -64,7 +75,6 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
         const transcript = event.results[0][0].transcript;
         setInput(transcript);
         setIsListening(false);
-        // Auto-send after voice input
         handleSend(transcript);
       };
 
@@ -90,10 +100,46 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
     }
   }, [messages]);
 
-  const speak = (text: string) => {
-    if ('speechSynthesis' in window) {
-      // Remove command tags for speech
-      const cleanText = text.replace(/\[CMD:[^\]]+\]/g, '');
+  const speakWithElevenLabs = async (text: string, voiceId: string = 'JBFqnCBsd6RMkjVDRZzb') => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+          },
+          body: JSON.stringify({ text, voiceId })
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.audioContent) {
+          const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
+          audio.onplay = () => setIsSpeaking(true);
+          audio.onended = () => setIsSpeaking(false);
+          await audio.play();
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      console.log('ElevenLabs TTS failed, using fallback');
+      return false;
+    }
+  };
+
+  const speak = async (text: string) => {
+    const cleanText = text.replace(/\[CMD:[^\]]+\]/g, '');
+    
+    // Try ElevenLabs first
+    const success = await speakWithElevenLabs(cleanText);
+    
+    // Fallback to Web Speech API
+    if (!success && 'speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'fr-FR';
       utterance.rate = 1;
@@ -120,75 +166,28 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
     const userMessage: Message = { role: 'user', content: messageText };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
-    setIsLoading(true);
-
-    let assistantContent = '';
 
     try {
-      const response = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: [...messages, userMessage] }),
-      });
+      const result = await chat([
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: messageText }
+      ]);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur de communication');
-      }
-
-      if (!response.body) throw new Error('No response body');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === 'assistant') {
-                  return prev.map((m, i) => 
-                    i === prev.length - 1 ? { ...m, content: assistantContent } : m
-                  );
-                }
-                return [...prev, { role: 'assistant', content: assistantContent }];
-              });
-            }
-          } catch {
-            buffer = line + '\n' + buffer;
-            break;
-          }
-        }
-      }
+      const assistantMessage: Message = { role: 'assistant', content: result.content };
+      setMessages(prev => [...prev, assistantMessage]);
 
       // Parse commands and speak
-      if (assistantContent) {
-        parseCommands(assistantContent);
-        speak(assistantContent);
+      if (result.content) {
+        parseCommands(result.content);
+        speak(result.content);
+      }
+
+      // Show fallback notification
+      if (result.fallbackUsed) {
+        toast({
+          title: "Modèle alternatif utilisé",
+          description: `Réponse générée par ${result.model === 'personal' ? 'Mon IA' : result.model}`,
+        });
       }
     } catch (error) {
       toast({
@@ -196,8 +195,6 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
         description: error instanceof Error ? error.message : "Erreur inconnue",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -242,14 +239,28 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
       </SheetTrigger>
       <SheetContent className="w-[400px] sm:w-[540px] flex flex-col">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            Assistant IA
-            {isSpeaking && (
-              <Button size="sm" variant="ghost" onClick={stopSpeaking}>
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+          <SheetTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              Assistant IA
+              {lastUsedModel && (
+                <Badge variant="outline" className={MODEL_COLORS[lastUsedModel]}>
+                  {lastUsedModel === 'personal' ? 'Mon IA' : lastUsedModel}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <AIModelSelector 
+                value={selectedModel} 
+                onChange={setSelectedModel}
+                compact
+              />
+              {isSpeaking && (
+                <Button size="sm" variant="ghost" onClick={stopSpeaking}>
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </SheetTitle>
         </SheetHeader>
 
@@ -257,9 +268,15 @@ export const AIAssistant = ({ onCommand }: AIAssistantProps) => {
           <div className="space-y-4">
             {messages.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
-                <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <div className="relative inline-block">
+                  <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <Sparkles className="h-4 w-4 absolute -top-1 -right-1 text-primary animate-pulse" />
+                </div>
                 <p>Salut ! Je suis ton assistant IA.</p>
                 <p className="text-sm mt-2">Parle-moi ou écris-moi pour commencer.</p>
+                <p className="text-xs mt-4 text-muted-foreground/70">
+                  Modèle actuel : {selectedModel === 'auto' ? 'Automatique' : selectedModel === 'personal' ? 'Mon IA' : selectedModel}
+                </p>
               </div>
             )}
             {messages.map((msg, i) => (
