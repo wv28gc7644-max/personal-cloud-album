@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Volume2, VolumeX, Settings } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { X, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Volume2, VolumeX, Box } from 'lucide-react';
 import { MediaItem } from '@/types/media';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-type SlideshowMode = 'classic' | 'kenburns' | 'carousel' | 'cinematic';
+type SlideshowMode = 'classic' | 'kenburns' | 'carousel3d' | 'cinematic';
 
 interface SlideshowModalProps {
   open: boolean;
@@ -24,8 +23,8 @@ export function SlideshowModal({ open, onClose, items }: SlideshowModalProps) {
   const [showControls, setShowControls] = useState(true);
   const [shuffledItems, setShuffledItems] = useState<MediaItem[]>([]);
 
-  // Filter only images for slideshow (videos could be added later with special handling)
-  const mediaItems = items.filter(item => item.type === 'image');
+  // Filter only images for slideshow
+  const mediaItems = useMemo(() => items.filter(item => item.type === 'image'), [items]);
   const displayItems = isShuffle ? shuffledItems : mediaItems;
   const currentItem = displayItems[currentIndex];
 
@@ -99,35 +98,93 @@ export function SlideshowModal({ open, onClose, items }: SlideshowModalProps) {
 
   if (!open || displayItems.length === 0) return null;
 
-  const getModeClasses = () => {
-    switch (mode) {
-      case 'kenburns':
-        return 'animate-kenburns';
-      case 'carousel':
-        return 'perspective-1000';
-      case 'cinematic':
-        return 'animate-cinematic';
-      default:
-        return '';
+  // 3D Carousel renderer
+  const renderCarousel3D = () => {
+    const visibleCount = Math.min(5, displayItems.length);
+    const cards = [];
+    
+    for (let i = -2; i <= 2; i++) {
+      const index = (currentIndex + i + displayItems.length) % displayItems.length;
+      const item = displayItems[index];
+      if (!item) continue;
+      
+      const isCenter = i === 0;
+      const absI = Math.abs(i);
+      
+      // Calculate 3D transforms
+      const rotateY = i * 45;
+      const translateX = i * 250;
+      const translateZ = isCenter ? 100 : -100 * absI;
+      const scale = isCenter ? 1 : 0.7 - absI * 0.1;
+      const opacity = isCenter ? 1 : 0.6 - absI * 0.15;
+      const zIndex = 10 - absI;
+      
+      cards.push(
+        <div
+          key={`${item.id}-${index}`}
+          className="absolute transition-all duration-700 ease-out cursor-pointer"
+          style={{
+            transform: `translateX(${translateX}px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
+            opacity,
+            zIndex,
+          }}
+          onClick={() => {
+            if (!isCenter) setCurrentIndex(index);
+          }}
+        >
+          <div className="relative w-80 h-52 rounded-xl overflow-hidden shadow-2xl">
+            <img
+              src={item.url}
+              alt={item.name}
+              className="w-full h-full object-cover"
+            />
+            {isCenter && (
+              <div className="absolute inset-0 ring-2 ring-primary rounded-xl" />
+            )}
+            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+              <p className="text-white text-sm font-medium truncate">{item.name}</p>
+            </div>
+          </div>
+        </div>
+      );
     }
+    
+    return (
+      <div 
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ perspective: '1200px', perspectiveOrigin: 'center center' }}
+      >
+        <div 
+          className="relative w-full h-full flex items-center justify-center"
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          {cards}
+        </div>
+      </div>
+    );
   };
+
+  // Regular image renderer
+  const renderRegularImage = () => (
+    <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+      <img
+        key={`${currentItem?.id}-${currentIndex}`}
+        src={currentItem?.url}
+        alt={currentItem?.name}
+        className={cn(
+          "max-w-full max-h-full object-contain transition-all duration-1000",
+          mode === 'classic' && "animate-fade-in",
+          mode === 'kenburns' && "w-full h-full object-cover animate-kenburns",
+          mode === 'cinematic' && "animate-slide-up"
+        )}
+      />
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
-      {/* Main image */}
-      <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-        <img
-          key={`${currentItem?.id}-${currentIndex}`}
-          src={currentItem?.url}
-          alt={currentItem?.name}
-          className={cn(
-            "max-w-full max-h-full object-contain transition-all duration-1000",
-            mode === 'classic' && "animate-fade-in",
-            mode === 'kenburns' && "w-full h-full object-cover animate-kenburns",
-            mode === 'cinematic' && "animate-slide-up"
-          )}
-        />
-      </div>
+      {/* Main content */}
+      {mode === 'carousel3d' ? renderCarousel3D() : renderRegularImage()}
 
       {/* Gradient overlays */}
       <div className={cn(
@@ -254,12 +311,18 @@ export function SlideshowModal({ open, onClose, items }: SlideshowModalProps) {
             <div className="flex items-center gap-2">
               <span className="text-white/70 text-sm">Mode:</span>
               <Select value={mode} onValueChange={(v) => setMode(v as SlideshowMode)}>
-                <SelectTrigger className="w-32 bg-white/10 border-white/20 text-white">
+                <SelectTrigger className="w-36 bg-white/10 border-white/20 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="classic">Classique</SelectItem>
                   <SelectItem value="kenburns">Ken Burns</SelectItem>
+                  <SelectItem value="carousel3d">
+                    <span className="flex items-center gap-2">
+                      <Box className="w-4 h-4" />
+                      Carrousel 3D
+                    </span>
+                  </SelectItem>
                   <SelectItem value="cinematic">Cinématique</SelectItem>
                 </SelectContent>
               </Select>

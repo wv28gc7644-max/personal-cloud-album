@@ -6,6 +6,7 @@ import { ViewMode, SortOption } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
 import { NotificationCenter } from './NotificationCenter';
+import { UserMenu } from './UserMenu';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -98,6 +99,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
 
         {/* Notification Center */}
         <NotificationCenter />
+
+        {/* User Menu */}
+        <UserMenu />
 
         {/* Upload button */}
         <Button onClick={onUploadClick} className="gap-2">
