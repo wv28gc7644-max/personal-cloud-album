@@ -290,7 +290,14 @@ export function AIServiceManager() {
                           <div className="flex items-center gap-4">
                             {getStatusIcon(service.status)}
                             <div className="text-left">
-                              <p className="font-medium">{service.name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{service.name}</p>
+                                {service.portMode && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                    {service.portMode}
+                                  </Badge>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground">{service.url}</p>
                             </div>
                           </div>
