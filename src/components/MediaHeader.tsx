@@ -7,6 +7,7 @@ import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
 import { NotificationCenter } from './NotificationCenter';
 import { UserMenu } from './UserMenu';
+import { AIAssistant } from './AIAssistant';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -99,6 +100,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
 
         {/* Notification Center */}
         <NotificationCenter />
+
+        {/* AI Assistant */}
+        <AIAssistant />
 
         {/* User Menu */}
         <UserMenu />
