@@ -213,40 +213,43 @@ export default function LocalAgent() {
   };
 
   const downloadStartScript = () => {
-    const scriptContent = `@echo off
-chcp 65001 >nul
-title MediaVault - Serveur Local
-
-echo ══════════════════════════════════════════════════════════════
-echo                    MediaVault - Démarrage
-echo ══════════════════════════════════════════════════════════════
-echo.
-
-:: Vérifier Node.js
-where node >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo [ERREUR] Node.js n'est pas installé!
-    echo.
-    echo Téléchargez Node.js: https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [OK] Node.js détecté
-echo.
-echo Démarrage du serveur...
-echo.
-
-:: Ouvrir le navigateur après 2 secondes
-start "" "http://localhost:3001"
-
-:: Lancer le serveur
-node server.cjs
-
-pause
-`;
-    const blob = new Blob([scriptContent], { type: 'text/plain' });
+    // Script batch compatible Windows (ASCII uniquement, pas d'Unicode)
+    const scriptContent = [
+      '@echo off',
+      'title MediaVault - Serveur Local',
+      'echo.',
+      'echo ============================================',
+      'echo           MediaVault - Demarrage',
+      'echo ============================================',
+      'echo.',
+      '',
+      'REM Verifier Node.js',
+      'where node >nul 2>nul',
+      'if errorlevel 1 (',
+      '    echo [ERREUR] Node.js non installe!',
+      '    echo.',
+      '    echo Telechargez Node.js: https://nodejs.org/',
+      '    echo.',
+      '    pause',
+      '    exit /b 1',
+      ')',
+      '',
+      'echo [OK] Node.js detecte',
+      'echo.',
+      'echo Demarrage du serveur...',
+      'echo.',
+      '',
+      'REM Ouvrir le navigateur',
+      'start "" "http://localhost:3001"',
+      '',
+      'REM Lancer le serveur',
+      'node server.cjs',
+      '',
+      'pause',
+      ''
+    ].join('\r\n');
+    
+    const blob = new Blob([scriptContent], { type: 'application/x-bat' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
