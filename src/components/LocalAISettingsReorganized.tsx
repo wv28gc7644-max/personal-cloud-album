@@ -201,63 +201,13 @@ export function LocalAISettingsReorganized() {
     toast.success('Copié dans le presse-papier');
   };
 
-  const downloadScript = (script: string, filename: string) => {
-    const blob = new Blob([script], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const currentProfile = gpuProfiles.find(p => p.id === aiConfig.gpuProfile);
   const onlineCount = Object.values(serviceStatuses).filter(s => s === 'online').length;
   const offlineCount = Object.values(serviceStatuses).filter(s => s === 'offline').length;
 
-  const INSTALL_SCRIPT = `@echo off
-title MediaVault AI - Installation Complete
-color 0B
-
-echo ========================================
-echo   MediaVault AI Suite - Installation
-echo ========================================
-echo.
-
-:: Verifier admin
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERREUR: Executez en tant qu'Administrateur!
-    pause
-    exit /b 1
-)
-
-set INSTALL_PATH=C:\\MediaVault\\AI
-mkdir "%INSTALL_PATH%" 2>nul
-cd /d "%INSTALL_PATH%"
-
-echo [1/5] Installation Ollama...
-winget install Ollama.Ollama -h --accept-package-agreements
-
-echo [2/5] Telechargement modeles de base...
-ollama pull mistral
-ollama pull llava
-
-echo [3/5] Installation Python 3.11...
-winget install Python.Python.3.11 -h --accept-package-agreements
-
-echo [4/5] Installation packages Python IA...
-pip install openai-whisper TTS demucs audiocraft insightface ultralytics clip-interrogator realesrgan
-
-echo [5/5] Clonage ComfyUI...
-git clone https://github.com/comfyanonymous/ComfyUI.git
-cd ComfyUI && pip install -r requirements.txt
-
-echo.
-echo ========================================
-echo   Installation terminee !
-echo ========================================
-pause`;
+  // NOTE: l'ancien BAT inline (INSTALL_SCRIPT) est volontairement supprimé.
+  // L'installation automatique est désormais fournie via des fichiers dans public/scripts/
+  // (install-ai-suite-auto.bat + install-ai-suite-complete.ps1).
 
   return (
     <div className="space-y-6">
@@ -416,30 +366,51 @@ pause`;
 
         {/* Installation Tab */}
         <TabsContent value="install" className="space-y-4">
-          {/* Quick Install */}
+          {/* Installation Rapide (unifiée) */}
           <Card className="border-green-500/30 bg-green-500/5">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Rocket className="h-5 w-5 text-green-500" />
-                Installation Rapide
+                Installation Automatique (1 clic)
               </CardTitle>
               <CardDescription>
-                Téléchargez et exécutez ce script pour installer tous les composants
+                Un seul installeur : il installe, démarre et génère un rapport texte (copiable) en fin de procédure.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Button onClick={() => downloadScript(INSTALL_SCRIPT, 'install-mediavault-ai.bat')}>
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/scripts/install-ai-suite-auto.bat';
+                  link.download = 'install-ai-suite-auto.bat';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success('Script install-ai-suite-auto.bat téléchargé');
+                }}>
                   <FileDown className="h-4 w-4 mr-2" />
-                  Télécharger le script
+                  Télécharger l'installeur 1-clic
                 </Button>
-                <Button variant="outline" onClick={() => copyToClipboard(INSTALL_SCRIPT)}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copier
+
+                <Button variant="outline" onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/scripts/install-ai-suite-complete.ps1';
+                  link.download = 'install-ai-suite-complete.ps1';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success('Script install-ai-suite-complete.ps1 téléchargé');
+                }}>
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Télécharger (PowerShell)
                 </Button>
               </div>
+
               <p className="text-xs text-muted-foreground">
-                ⚠️ Exécutez en tant qu'Administrateur (clic droit → Exécuter en tant qu'admin)
+                ⚠️ Clic droit → <strong>Exécuter en tant qu'administrateur</strong>. À la fin, il peut ouvrir/copier le rapport.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                ℹ️ Le rapport est enregistré dans <code>%USERPROFILE%\MediaVault-AI\logs</code>.
               </p>
             </CardContent>
           </Card>
