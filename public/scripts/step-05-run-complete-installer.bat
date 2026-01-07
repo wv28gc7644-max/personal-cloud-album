@@ -1,5 +1,5 @@
 @echo off
-setlocal enableextensions
+setlocal enableextensions enabledelayedexpansion
 
 title MediaVault AI - Etape 05 - Installation Complete
 color 0B
