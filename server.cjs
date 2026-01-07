@@ -180,7 +180,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === '/api/ai/status') {
-      // Health endpoints per service (matches frontend HEALTH_ENDPOINTS)
+      // Multi-port configuration: Windows/BAT ports first, then Docker ports
+      const SERVICE_PORT_CANDIDATES = {
+        ollama: [11434],
+        comfyui: [8188],
+        whisper: [9000],
+        xtts: [8020],
+        musicgen: [9001, 8030], // Windows, Docker
+        demucs: [9002, 8040],
+        clip: [9003, 8060],
+        esrgan: [9004, 8070]
+      };
+
       const HEALTH_ENDPOINTS = {
         ollama: '/api/tags',
         comfyui: '/system_stats',
@@ -193,30 +204,42 @@ const server = http.createServer(async (req, res) => {
       };
       
       const statuses = {};
-      const checks = Object.entries(AI_CONFIG)
-        .filter(([name]) => HEALTH_ENDPOINTS[name]) // Only check known services
-        .map(async ([name, baseUrl]) => {
-          const endpoint = HEALTH_ENDPOINTS[name] || '/health';
+      
+      // Check each service, trying multiple ports
+      const checks = Object.entries(SERVICE_PORT_CANDIDATES).map(async ([name, ports]) => {
+        const endpoint = HEALTH_ENDPOINTS[name] || '/health';
+        
+        for (const port of ports) {
           const startTime = Date.now();
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            const response = await fetch(`${baseUrl}${endpoint}`, { signal: controller.signal });
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const response = await fetch(`http://localhost:${port}${endpoint}`, { signal: controller.signal });
             clearTimeout(timeoutId);
             const latencyMs = Date.now() - startTime;
             
             if (response.ok) {
-              statuses[name] = { ok: true, latencyMs };
-              addLog('info', name, `Service en ligne (${latencyMs}ms)`);
-            } else {
-              statuses[name] = { ok: false, latencyMs, error: `HTTP ${response.status}` };
+              statuses[name] = { 
+                ok: true, 
+                latencyMs, 
+                port,
+                url: `http://localhost:${port}`
+              };
+              addLog('info', name, `Service en ligne sur :${port} (${latencyMs}ms)`);
+              return; // Found working port, stop checking
             }
           } catch (err) {
-            const latencyMs = Date.now() - startTime;
-            const error = err.name === 'AbortError' ? 'Timeout' : 'Non accessible';
-            statuses[name] = { ok: false, latencyMs, error };
+            // Continue to next port
           }
-        });
+        }
+        
+        // All ports failed
+        statuses[name] = { 
+          ok: false, 
+          error: `Aucun port actif (${ports.join('/')})`,
+          ports // Return attempted ports for debugging
+        };
+      });
       
       await Promise.all(checks);
       res.writeHead(200, { 'Content-Type': 'application/json' });
