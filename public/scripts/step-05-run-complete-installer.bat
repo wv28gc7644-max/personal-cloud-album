@@ -5,16 +5,15 @@ title MediaVault AI - Etape 05 - Lancer install-ai-suite-complete.ps1
 color 0B
 chcp 65001 >nul 2>&1
 
-set "THIS_DIR=%~dp0"
-if "%THIS_DIR:~-1%"=="\" set "THIS_DIR=%THIS_DIR:~0,-1%"
 set "THIS_SCRIPT=%~f0"
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (
   echo [INFO] Demande admin...
-  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -Verb RunAs -ArgumentList '/k cd /d ""%THIS_DIR%"" ^&^& call ""%THIS_SCRIPT%""'"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -Verb RunAs -ArgumentList '/k','call ""%THIS_SCRIPT%""'"
   exit /b
 )
+
 
 set "AI_DIR=%USERPROFILE%\MediaVault-AI"
 set "LOG_DIR=%AI_DIR%\logs"
