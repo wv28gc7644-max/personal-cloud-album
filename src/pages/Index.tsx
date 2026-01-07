@@ -10,9 +10,10 @@ import { SlideshowModal } from '@/components/SlideshowModal';
 import AIStudioView from '@/components/AIStudioView';
 import AICreationsView from '@/components/AICreationsView';
 import LocalAgent from '@/components/LocalAgent';
+import LocalServerDownload from '@/components/LocalServerDownload';
 import { useMediaStore } from '@/hooks/useMediaStore';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'install';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -73,6 +74,8 @@ const Index = () => {
           <AICreationsView />
         ) : currentView === 'agent' ? (
           <LocalAgent />
+        ) : currentView === 'install' ? (
+          <LocalServerDownload />
         ) : (
           <>
             <MediaHeader 
