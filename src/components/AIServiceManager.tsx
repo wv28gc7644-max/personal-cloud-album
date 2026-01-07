@@ -438,7 +438,7 @@ export function AIServiceManager() {
                 </Button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button 
                   size="lg" 
                   variant="outline"
@@ -452,13 +452,49 @@ export function AIServiceManager() {
                 
                 <Button 
                   size="lg" 
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 border-amber-500/50 hover:bg-amber-500/10"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('http://localhost:3001/api/ai/install-logs');
+                      if (!response.ok) {
+                        const err = await response.json();
+                        toast.error(err.error || 'Impossible de récupérer les logs');
+                        return;
+                      }
+                      const data = await response.json();
+                      
+                      // Télécharger le fichier
+                      const blob = new Blob([data.content], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = data.filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      
+                      toast.success(`Log téléchargé: ${data.filename}`);
+                    } catch (e) {
+                      toast.error('Serveur local non accessible. Lancez server.cjs d\'abord.');
+                    }
+                  }}
+                >
+                  <FileText className="w-6 h-6 text-amber-500" />
+                  <span className="font-semibold">Dernier log d'installation</span>
+                  <span className="text-xs opacity-80">Télécharger automatiquement</span>
+                </Button>
+                
+                <Button 
+                  size="lg" 
                   variant="destructive"
                   className="h-auto py-4 flex-col gap-2"
-                  onClick={() => downloadScript('uninstall-ai-suite.ps1')}
+                  onClick={() => downloadScript('uninstall-ai-suite.bat')}
                 >
                   <Trash2 className="w-6 h-6" />
                   <span className="font-semibold">Désinstallation</span>
-                  <span className="text-xs opacity-80">uninstall-ai-suite.ps1</span>
+                  <span className="text-xs opacity-80">uninstall-ai-suite.bat</span>
                 </Button>
               </div>
               

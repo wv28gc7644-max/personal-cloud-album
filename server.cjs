@@ -243,6 +243,52 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ success: true }));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // API: Dernier log d'installation (pour diagnostic)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/install-logs' && req.method === 'GET') {
+      const logsDir = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'logs');
+      
+      try {
+        if (!fs.existsSync(logsDir)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Dossier logs introuvable', path: logsDir }));
+        }
+        
+        // Trouver tous les fichiers log
+        const logFiles = fs.readdirSync(logsDir)
+          .filter(f => f.endsWith('.log') || f.endsWith('.txt'))
+          .map(f => ({
+            name: f,
+            path: path.join(logsDir, f),
+            mtime: fs.statSync(path.join(logsDir, f)).mtime
+          }))
+          .sort((a, b) => b.mtime - a.mtime);
+        
+        if (logFiles.length === 0) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Aucun fichier log trouvé', path: logsDir }));
+        }
+        
+        // Retourner le dernier log
+        const latestLog = logFiles[0];
+        const content = fs.readFileSync(latestLog.path, 'utf8');
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          filename: latestLog.name,
+          path: latestLog.path,
+          modified: latestLog.mtime.toISOString(),
+          content: content,
+          allLogs: logFiles.map(f => ({ name: f.name, modified: f.mtime.toISOString() }))
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
 
     // ═══════════════════════════════════════════════════════════════
     // API: Webhooks de notification
