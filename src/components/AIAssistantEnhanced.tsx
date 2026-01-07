@@ -91,7 +91,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [activeTab, setActiveTab] = useState('chat');
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const { toast } = useToast();
   
@@ -149,9 +149,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
 
   // Scroll to bottom on new messages
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const speakWithElevenLabs = async (text: string, voiceId: string = 'JBFqnCBsd6RMkjVDRZzb') => {
@@ -405,7 +403,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
               </div>
             )}
 
-            <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+            <ScrollArea className="flex-1 px-4">
               <div className="space-y-4 py-4">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
@@ -459,6 +457,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
                     </div>
                   </div>
                 )}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
@@ -483,9 +482,15 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
                   size="icon"
                   onClick={toggleListening}
                   disabled={isLoading}
-                  className="shrink-0"
+                  className={cn(
+                    "shrink-0 relative",
+                    isListening && "animate-pulse ring-2 ring-red-500"
+                  )}
                 >
                   {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  {isListening && (
+                    <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full animate-ping" />
+                  )}
                 </Button>
                 <Input
                   value={input}
