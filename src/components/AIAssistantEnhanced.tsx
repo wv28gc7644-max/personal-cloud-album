@@ -227,15 +227,61 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
   };
 
   const parseAndExecuteCommands = (text: string) => {
-    const cmdMatches = text.matchAll(/\[CMD:([^\]]+)\]/g);
+    const cmdMatches = text.matchAll(/\[CMD:([^\]:]+)(?::([^\]]+))?\]/g);
     for (const match of cmdMatches) {
       const command = match[1];
-      if (onCommand) {
-        onCommand(command);
-        toast({
-          title: "Commande exécutée",
-          description: COMMANDS.find(c => c.cmd === command)?.description || command
-        });
+      const param = match[2];
+      
+      // Commandes étendues pour Mon IA
+      switch (command) {
+        case 'GENERATE_IMAGE':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Génération d'image", description: param || "Ouverture du studio..." });
+          break;
+        case 'GENERATE_VIDEO':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Génération vidéo", description: param || "Ouverture du studio..." });
+          break;
+        case 'AUTO_MONTAGE':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Montage automatique", description: "Ouverture du studio..." });
+          break;
+        case 'MUSIC_GEN':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Génération de musique", description: param || "Ouverture du studio..." });
+          break;
+        case 'VOICE_CLONE':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Clonage vocal", description: "Ouverture du studio..." });
+          break;
+        case 'UPSCALE':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Upscaling", description: "Ouverture du studio..." });
+          break;
+        case 'STEM_SEPARATE':
+          window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'studio' }));
+          toast({ title: "Séparation de pistes", description: "Ouverture du studio..." });
+          break;
+        case 'NAVIGATE':
+          if (param) {
+            const viewMap: Record<string, string> = {
+              'photos': 'photos', 'videos': 'videos', 'studio': 'studio',
+              'settings': 'admin', 'admin': 'admin', 'creations': 'creations'
+            };
+            const view = viewMap[param.toLowerCase()] || param;
+            window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: view }));
+            toast({ title: "Navigation", description: `Vers ${param}` });
+          }
+          break;
+        default:
+          // Commandes classiques
+          if (onCommand) {
+            onCommand(command);
+            toast({
+              title: "Commande exécutée",
+              description: COMMANDS.find(c => c.cmd === command)?.description || command
+            });
+          }
       }
     }
   };
