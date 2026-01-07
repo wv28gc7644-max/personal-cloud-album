@@ -45,35 +45,61 @@ export function useAIOrchestrator() {
   };
 
   const callGemini = async (messages: Message[]): Promise<string> => {
-    const response = await supabase.functions.invoke("ai-assistant", {
-      body: { messages, action: "chat" }
-    });
+    // Use fetch directly for streaming support
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+        },
+        body: JSON.stringify({ messages, action: "chat" })
+      }
+    );
 
-    if (response.error) throw new Error(response.error.message);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI assistant error:", response.status, errorText);
+      throw new Error(`Erreur IA: ${response.status}`);
+    }
+
+    // Handle SSE streaming response
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error("Pas de stream disponible");
+    }
+
+    let fullContent = "";
+    const decoder = new TextDecoder();
     
-    // Handle streaming response
-    const reader = response.data.getReader?.();
-    if (reader) {
-      let fullContent = "";
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && !line.includes("[DONE]")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              fullContent += data.choices?.[0]?.delta?.content || "";
-            } catch {}
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+      
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+          
+          try {
+            const data = JSON.parse(jsonStr);
+            const content = data.choices?.[0]?.delta?.content;
+            if (content) {
+              fullContent += content;
+            }
+          } catch {
+            // Incomplete JSON, skip
           }
         }
       }
-      return fullContent;
     }
-    
-    return response.data?.content || "";
+
+    return fullContent || "Désolé, je n'ai pas pu générer de réponse.";
   };
 
   const callGrok = async (messages: Message[]): Promise<string> => {
