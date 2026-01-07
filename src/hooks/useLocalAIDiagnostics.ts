@@ -5,7 +5,7 @@ export interface AIServiceStatus {
   name: string;
   url: string;
   port: number;
-  status: 'online' | 'offline' | 'checking' | 'error' | 'not_installed';
+  status: 'online' | 'offline' | 'checking' | 'error' | 'not_installed' | 'blocked';
   latency?: number;
   version?: string;
   error?: string;
@@ -119,6 +119,26 @@ const HEALTH_ENDPOINTS: Record<string, string> = {
   esrgan: '/health'
 };
 
+// Detect if we're in a context where localhost checks will be blocked
+const isMixedContentBlocked = () => {
+  return typeof window !== 'undefined' && 
+         window.location.protocol === 'https:';
+};
+
+// Get local server URL from settings
+const getServerUrl = (): string | null => {
+  try {
+    const settings = localStorage.getItem('mediavault-admin-settings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.serverUrl || null;
+    }
+  } catch {
+    // ignore
+  }
+  return 'http://localhost:3001';
+};
+
 export function useLocalAIDiagnostics() {
   const [services, setServices] = useState<AIServiceStatus[]>(() =>
     AI_SERVICES.map(s => ({ ...s, status: 'offline' as const, isInstalled: undefined }))
@@ -165,9 +185,30 @@ export function useLocalAIDiagnostics() {
     return 'unknown';
   };
 
+  // Try to check services via local server proxy (avoids CORS/mixed content issues)
+  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string }> | null> => {
+    const serverUrl = getServerUrl();
+    if (!serverUrl) return null;
+    
+    try {
+      const response = await fetch(`${serverUrl}/api/ai/status`, { 
+        signal: AbortSignal.timeout(8000) 
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch {
+      // Server not available
+    }
+    return null;
+  }, []);
+
   const checkService = useCallback(async (service: AIServiceStatus): Promise<AIServiceStatus> => {
     const startTime = Date.now();
     const healthEndpoint = HEALTH_ENDPOINTS[service.id] || '/health';
+    
+    // Check if we're in HTTPS context trying to access localhost
+    const willBeBlocked = isMixedContentBlocked() && service.url.startsWith('http://localhost');
     
     try {
       addLog('info', service.name, `Vérification de ${service.url}${healthEndpoint}...`);
@@ -225,8 +266,14 @@ export function useLocalAIDiagnostics() {
         if (err.name === 'AbortError') {
           errorMsg = 'Timeout après 5 secondes - Service peut être en cours de chargement';
         } else if (err.message.includes('Failed to fetch')) {
-          // Could be CORS or not running
-          errorMsg = 'Service non démarré ou bloqué par CORS';
+          // If HTTPS → HTTP localhost, it's blocked, not offline
+          if (willBeBlocked) {
+            status = 'blocked';
+            errorMsg = 'Vérification bloquée (HTTPS → localhost). Ouvrez http://localhost:3001';
+            addLog('warning', service.name, 'Bloqué par le navigateur', 'Accédez via http://localhost:3001 pour un diagnostic fiable');
+          } else {
+            errorMsg = 'Service non démarré';
+          }
         } else {
           errorMsg = err.message;
         }
@@ -234,7 +281,9 @@ export function useLocalAIDiagnostics() {
         errorMsg = 'Erreur inconnue';
       }
       
-      addLog('error', service.name, `Service hors ligne`, errorMsg);
+      if (status !== 'blocked') {
+        addLog('error', service.name, `Service hors ligne`, errorMsg);
+      }
       
       return {
         ...service,
@@ -292,24 +341,69 @@ export function useLocalAIDiagnostics() {
     
     addLog('info', 'System', `OS: ${sysInfo.os}`, [gpuInfo, gpuTypeMsg].filter(Boolean).join(' | '));
     
-    // Check all services in parallel
-    const updatedServices = await Promise.all(
-      services.map(async (service) => {
-        setServices(prev => 
-          prev.map(s => s.id === service.id ? { ...s, status: 'checking' } : s)
-        );
-        return checkService(service);
-      })
-    );
+    // Try proxy-based check first (reliable when local server is running)
+    const proxyResults = await checkViaProxy();
+    
+    let updatedServices: AIServiceStatus[];
+    
+    if (proxyResults) {
+      addLog('success', 'System', 'Diagnostic via serveur local (fiable)');
+      
+      // Use proxy results
+      updatedServices = services.map(service => {
+        const result = proxyResults[service.id];
+        if (result) {
+          return {
+            ...service,
+            status: result.ok ? 'online' as const : 'offline' as const,
+            latency: result.latencyMs,
+            error: result.error,
+            lastChecked: new Date(),
+            isInstalled: true
+          };
+        }
+        return { ...service, status: 'offline' as const, lastChecked: new Date() };
+      });
+      
+      // Log each service
+      updatedServices.forEach(s => {
+        if (s.status === 'online') {
+          addLog('success', s.name, `Service en ligne (${s.latency}ms)`);
+        } else {
+          addLog('error', s.name, 'Service hors ligne', s.error);
+        }
+      });
+    } else {
+      // Fallback to direct checks (may show "blocked" in HTTPS context)
+      if (isMixedContentBlocked()) {
+        addLog('warning', 'System', 'Mode HTTPS détecté - les checks directs seront bloqués', 
+          'Lancez node server.cjs et ouvrez http://localhost:3001 pour un diagnostic fiable');
+      }
+      
+      updatedServices = await Promise.all(
+        services.map(async (service) => {
+          setServices(prev => 
+            prev.map(s => s.id === service.id ? { ...s, status: 'checking' } : s)
+          );
+          return checkService(service);
+        })
+      );
+    }
     
     setServices(updatedServices);
     
     // Summary
     const online = updatedServices.filter(s => s.status === 'online').length;
     const offline = updatedServices.filter(s => s.status === 'offline').length;
+    const blocked = updatedServices.filter(s => s.status === 'blocked').length;
     const errors = updatedServices.filter(s => s.status === 'error').length;
     
     // Provide recommendations
+    if (blocked > 0) {
+      addLog('warning', 'System', `${blocked} services non vérifiables (HTTPS → localhost bloqué)`,
+        'Ouvrez l\'application via http://localhost:3001 pour un diagnostic fiable');
+    }
+    
     if (offline > 0) {
       const offlineServices = updatedServices.filter(s => s.status === 'offline').map(s => s.name).join(', ');
       addLog('warning', 'System', `Services hors ligne: ${offlineServices}`, 
@@ -321,16 +415,21 @@ export function useLocalAIDiagnostics() {
         'Utilisez le script d\'installation avec support Intel OneAPI pour de meilleures performances');
     }
     
+    const total = updatedServices.length;
+    const statusMsg = blocked > 0 
+      ? `${online} en ligne | ${offline} hors ligne | ${blocked} bloqués | ${errors} erreurs`
+      : `${online}/${total} services en ligne | ${offline} hors ligne | ${errors} erreurs`;
+    
     addLog(
-      online === updatedServices.length ? 'success' : online > 0 ? 'warning' : 'error',
+      online === total ? 'success' : online > 0 ? 'warning' : 'error',
       'System',
       `═══ DIAGNOSTIC TERMINÉ ═══`,
-      `${online}/${updatedServices.length} services en ligne | ${offline} hors ligne | ${errors} erreurs`
+      statusMsg
     );
     
     setIsRunningDiagnostics(false);
     return updatedServices;
-  }, [services, checkService, addLog]);
+  }, [services, checkService, checkViaProxy, addLog]);
 
   const checkSingleService = useCallback(async (serviceId: string) => {
     const service = services.find(s => s.id === serviceId);
@@ -376,6 +475,7 @@ Dossier d'installation: ${systemInfo.installDir}
 ${services.map(s => {
   const status = s.status === 'online' ? '✓ EN LIGNE' : 
                  s.status === 'offline' ? '✗ HORS LIGNE' : 
+                 s.status === 'blocked' ? '⊘ BLOQUÉ' :
                  s.status === 'not_installed' ? '⊘ NON INSTALLÉ' : '⚠ ERREUR';
   const latency = s.latency ? `(${s.latency}ms)` : '';
   const error = s.error ? `\n    Erreur: ${s.error}` : '';

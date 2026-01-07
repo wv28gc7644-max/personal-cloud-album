@@ -28,7 +28,7 @@ interface ServiceStatus {
   id: string;
   icon: React.ElementType;
   port: number;
-  status: 'unknown' | 'checking' | 'online' | 'offline';
+  status: 'unknown' | 'checking' | 'online' | 'offline' | 'blocked';
   latency?: number;
   version?: string;
   error?: string;
@@ -45,13 +45,52 @@ const SERVICES: ServiceStatus[] = [
   { name: 'ESRGAN', id: 'esrgan', icon: Zap, port: 9004, status: 'unknown' },
 ];
 
+// Detect if we're in HTTPS context (mixed content will be blocked)
+const isMixedContentBlocked = () => {
+  return typeof window !== 'undefined' && window.location.protocol === 'https:';
+};
+
+// Get local server URL
+const getServerUrl = (): string => {
+  try {
+    const settings = localStorage.getItem('mediavault-admin-settings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.serverUrl || 'http://localhost:3001';
+    }
+  } catch {
+    // ignore
+  }
+  return 'http://localhost:3001';
+};
+
 export function AIServiceDiagnostics() {
   const [services, setServices] = useState<ServiceStatus[]>(SERVICES);
   const [isTesting, setIsTesting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [useProxy, setUseProxy] = useState(false);
+
+  // Try to check via local server proxy first
+  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string }> | null> => {
+    const serverUrl = getServerUrl();
+    try {
+      const response = await fetch(`${serverUrl}/api/ai/status`, { 
+        signal: AbortSignal.timeout(8000) 
+      });
+      if (response.ok) {
+        setUseProxy(true);
+        return await response.json();
+      }
+    } catch {
+      // Server not available
+    }
+    setUseProxy(false);
+    return null;
+  }, []);
 
   const testService = useCallback(async (service: ServiceStatus): Promise<ServiceStatus> => {
     const startTime = Date.now();
+    const willBeBlocked = isMixedContentBlocked() && service.port !== 0;
     
     try {
       const controller = new AbortController();
@@ -84,8 +123,18 @@ export function AIServiceDiagnostics() {
       }
     } catch (error: any) {
       const latency = Date.now() - startTime;
-      let errorMsg = 'Connexion refusée';
       
+      // Check if this is a mixed content block
+      if (willBeBlocked && (error.message?.includes('Failed to fetch') || error.name === 'TypeError')) {
+        return { 
+          ...service, 
+          status: 'blocked', 
+          latency, 
+          error: 'Bloqué (HTTPS)' 
+        };
+      }
+      
+      let errorMsg = 'Connexion refusée';
       if (error.name === 'AbortError') {
         errorMsg = 'Timeout (5s)';
       } else if (error.message) {
@@ -103,20 +152,46 @@ export function AIServiceDiagnostics() {
     // Mark all as checking
     setServices(prev => prev.map(s => ({ ...s, status: 'checking' as const })));
     
-    const results: ServiceStatus[] = [];
+    // Try proxy first (reliable)
+    const proxyResults = await checkViaProxy();
     
-    for (let i = 0; i < services.length; i++) {
-      const result = await testService(services[i]);
-      results.push(result);
-      setProgress(((i + 1) / services.length) * 100);
-      setServices(prev => prev.map(s => s.id === result.id ? result : s));
+    let results: ServiceStatus[];
+    
+    if (proxyResults) {
+      // Use proxy results
+      results = SERVICES.map(service => {
+        const result = proxyResults[service.id];
+        if (result) {
+          return {
+            ...service,
+            status: result.ok ? 'online' as const : 'offline' as const,
+            latency: result.latencyMs,
+            error: result.error
+          };
+        }
+        return { ...service, status: 'offline' as const };
+      });
+      setServices(results);
+      setProgress(100);
+    } else {
+      // Fallback to direct checks
+      results = [];
+      for (let i = 0; i < SERVICES.length; i++) {
+        const result = await testService(SERVICES[i]);
+        results.push(result);
+        setProgress(((i + 1) / SERVICES.length) * 100);
+        setServices(prev => prev.map(s => s.id === result.id ? result : s));
+      }
     }
     
     const online = results.filter(s => s.status === 'online').length;
     const offline = results.filter(s => s.status === 'offline').length;
+    const blocked = results.filter(s => s.status === 'blocked').length;
     
     if (online === results.length) {
       toast.success('Tous les services sont en ligne !');
+    } else if (blocked > 0) {
+      toast.warning(`${blocked} services non vérifiables (ouvrez localhost:3001)`);
     } else if (offline === results.length) {
       toast.error('Aucun service disponible');
     } else {
@@ -124,7 +199,7 @@ export function AIServiceDiagnostics() {
     }
     
     setIsTesting(false);
-  }, [services, testService]);
+  }, [testService, checkViaProxy]);
 
   const testSingleService = useCallback(async (id: string) => {
     const service = services.find(s => s.id === id);
@@ -136,6 +211,8 @@ export function AIServiceDiagnostics() {
     
     if (result.status === 'online') {
       toast.success(`${service.name} est en ligne`);
+    } else if (result.status === 'blocked') {
+      toast.warning(`${service.name}: vérification bloquée (HTTPS)`);
     } else {
       toast.error(`${service.name} non disponible: ${result.error}`);
     }
@@ -143,6 +220,7 @@ export function AIServiceDiagnostics() {
 
   const onlineCount = services.filter(s => s.status === 'online').length;
   const offlineCount = services.filter(s => s.status === 'offline').length;
+  const blockedCount = services.filter(s => s.status === 'blocked').length;
 
   return (
     <Card>
@@ -183,19 +261,33 @@ export function AIServiceDiagnostics() {
         )}
 
         {/* Summary */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Badge variant="secondary" className="gap-1">
             <CheckCircle className="w-3 h-3 text-green-500" />
             {onlineCount} en ligne
           </Badge>
-          <Badge variant="secondary" className="gap-1">
-            <XCircle className="w-3 h-3 text-red-500" />
-            {offlineCount} hors ligne
-          </Badge>
+          {offlineCount > 0 && (
+            <Badge variant="secondary" className="gap-1">
+              <XCircle className="w-3 h-3 text-red-500" />
+              {offlineCount} hors ligne
+            </Badge>
+          )}
+          {blockedCount > 0 && (
+            <Badge variant="secondary" className="gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              {blockedCount} bloqués
+            </Badge>
+          )}
           <Badge variant="outline" className="gap-1 ml-auto">
             <Server className="w-3 h-3" />
             {services.length} services
           </Badge>
+          {useProxy && (
+            <Badge variant="outline" className="gap-1 text-green-600">
+              <CheckCircle className="w-3 h-3" />
+              via serveur local
+            </Badge>
+          )}
         </div>
 
         {/* Services Grid */}
@@ -207,6 +299,7 @@ export function AIServiceDiagnostics() {
                 "flex items-center gap-3 p-3 rounded-lg border transition-colors",
                 service.status === 'online' && "bg-green-500/5 border-green-500/30",
                 service.status === 'offline' && "bg-red-500/5 border-red-500/30",
+                service.status === 'blocked' && "bg-amber-500/5 border-amber-500/30",
                 service.status === 'checking' && "bg-blue-500/5 border-blue-500/30",
                 service.status === 'unknown' && "bg-muted/30 border-border"
               )}
@@ -215,6 +308,7 @@ export function AIServiceDiagnostics() {
                 "p-2 rounded-lg",
                 service.status === 'online' && "bg-green-500/20",
                 service.status === 'offline' && "bg-red-500/20",
+                service.status === 'blocked' && "bg-amber-500/20",
                 service.status === 'checking' && "bg-blue-500/20",
                 service.status === 'unknown' && "bg-muted"
               )}>
@@ -222,6 +316,7 @@ export function AIServiceDiagnostics() {
                   "w-5 h-5",
                   service.status === 'online' && "text-green-500",
                   service.status === 'offline' && "text-red-500",
+                  service.status === 'blocked' && "text-amber-500",
                   service.status === 'checking' && "text-blue-500 animate-pulse",
                   service.status === 'unknown' && "text-muted-foreground"
                 )} />
@@ -253,6 +348,12 @@ export function AIServiceDiagnostics() {
                       {service.error}
                     </span>
                   )}
+                  {service.status === 'blocked' && (
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <AlertTriangle className="w-3 h-3" />
+                      Bloqué (HTTPS → localhost)
+                    </span>
+                  )}
                   {service.status === 'unknown' && 'Non testé'}
                 </div>
               </div>
@@ -274,11 +375,28 @@ export function AIServiceDiagnostics() {
           ))}
         </div>
 
-        {/* Troubleshooting Tips */}
-        {offlineCount > 0 && (
+        {/* Blocked services warning */}
+        {blockedCount > 0 && (
           <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
             <h4 className="font-medium flex items-center gap-2 mb-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
+              Diagnostic limité (contexte HTTPS)
+            </h4>
+            <p className="text-sm text-muted-foreground mb-2">
+              Les vérifications directes vers localhost sont bloquées par votre navigateur (mixed content).
+            </p>
+            <p className="text-sm font-medium">
+              Pour un diagnostic fiable, lancez <code className="bg-muted px-1 rounded">node server.cjs</code> puis ouvrez{' '}
+              <a href="http://localhost:3001" className="text-primary underline">http://localhost:3001</a>
+            </p>
+          </div>
+        )}
+
+        {/* Troubleshooting Tips */}
+        {offlineCount > 0 && blockedCount === 0 && (
+          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+            <h4 className="font-medium flex items-center gap-2 mb-2">
+              <XCircle className="w-4 h-4 text-red-500" />
               Conseils de dépannage
             </h4>
             <ul className="text-sm space-y-1 text-muted-foreground">

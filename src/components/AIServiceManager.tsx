@@ -111,14 +111,16 @@ export function AIServiceManager() {
       offline: 'bg-red-500/20 text-red-400 border-red-500/30',
       not_installed: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
       error: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      checking: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      checking: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      blocked: 'bg-amber-500/20 text-amber-400 border-amber-500/30'
     };
     const labels: Record<typeof status, string> = {
       online: 'En ligne',
       offline: 'Hors ligne',
       not_installed: 'Non installé',
       error: 'Erreur',
-      checking: 'Vérification...'
+      checking: 'Vérification...',
+      blocked: 'Bloqué (HTTPS)'
     };
     return (
       <Badge variant="outline" className={cn('text-xs', variants[status])}>
