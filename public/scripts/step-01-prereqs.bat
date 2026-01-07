@@ -30,7 +30,8 @@ echo.
 echo === ETAPE 01 - PREREQUIS ===
 echo.
 
-echo [CHECK] winget... | tee "%LOG%" >nul
+echo [CHECK] winget...
+echo [CHECK] winget... >> "%LOG%"
 where winget >> "%LOG%" 2>&1
 if %errorlevel% neq 0 (
   echo [ERREUR] winget introuvable. Installe "App Installer" depuis Microsoft Store.>> "%LOG%"
