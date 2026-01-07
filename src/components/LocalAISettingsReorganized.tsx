@@ -40,13 +40,15 @@ import {
   Search,
   AlertTriangle,
   FileDown,
-  FolderOpen
+  FolderOpen,
+  Wrench
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { AIServiceDiagnostics } from './AIServiceDiagnostics';
 import { AIServiceLogs } from './AIServiceLogs';
 import { WebhookNotifications } from './WebhookNotifications';
+import { AIServiceManager } from './AIServiceManager';
 
 // Service configuration
 interface AIService {
@@ -302,8 +304,12 @@ pause`;
       </Card>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="dashboard" className="space-y-4">
+      <Tabs defaultValue="manager" className="space-y-4">
         <TabsList className="w-full justify-start bg-muted/50 p-1 h-auto flex-wrap">
+          <TabsTrigger value="manager" className="gap-2 data-[state=active]:bg-background">
+            <Wrench className="h-4 w-4" />
+            Gestionnaire
+          </TabsTrigger>
           <TabsTrigger value="dashboard" className="gap-2 data-[state=active]:bg-background">
             <Activity className="h-4 w-4" />
             Dashboard
@@ -325,6 +331,11 @@ pause`;
             Logs
           </TabsTrigger>
         </TabsList>
+
+        {/* New Service Manager Tab */}
+        <TabsContent value="manager">
+          <AIServiceManager />
+        </TabsContent>
 
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-4">
