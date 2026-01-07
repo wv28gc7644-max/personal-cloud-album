@@ -49,14 +49,14 @@ const AI_CONFIG = {
   comfyui: 'http://localhost:8188',
   whisper: 'http://localhost:9000',
   xtts: 'http://localhost:8020',
-  musicgen: 'http://localhost:8030',
-  demucs: 'http://localhost:8040',
+  musicgen: 'http://localhost:9001',
+  demucs: 'http://localhost:9002',
+  clip: 'http://localhost:9003',
+  esrgan: 'http://localhost:9004',
   insightface: 'http://localhost:8050',
-  clip: 'http://localhost:8060',
   animatediff: 'http://localhost:8070',
   lipsync: 'http://localhost:8080',
   rife: 'http://localhost:8090',
-  esrgan: 'http://localhost:8100',
 };
 
 // ═══════════════════════════════════════════════════════════════════

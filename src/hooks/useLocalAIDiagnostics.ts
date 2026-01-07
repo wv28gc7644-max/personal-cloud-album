@@ -77,32 +77,32 @@ export const AI_SERVICES: Omit<AIServiceStatus, 'status' | 'latency' | 'error' |
   {
     id: 'musicgen',
     name: 'MusicGen',
-    url: 'http://localhost:8030',
-    port: 8030,
+    url: 'http://localhost:9001',
+    port: 9001,
     capabilities: ['Génération musicale'],
     installPath: 'musicgen-api'
   },
   {
     id: 'demucs',
     name: 'Demucs',
-    url: 'http://localhost:8040',
-    port: 8040,
+    url: 'http://localhost:9002',
+    port: 9002,
     capabilities: ['Séparation de stems audio'],
     installPath: 'demucs-api'
   },
   {
     id: 'clip',
     name: 'CLIP (Analyse)',
-    url: 'http://localhost:8060',
-    port: 8060,
+    url: 'http://localhost:9003',
+    port: 9003,
     capabilities: ['Analyse d\'images', 'Recherche sémantique'],
     installPath: 'clip-api'
   },
   {
     id: 'esrgan',
     name: 'ESRGAN (Upscale)',
-    url: 'http://localhost:8070',
-    port: 8070,
+    url: 'http://localhost:9004',
+    port: 9004,
     capabilities: ['Upscaling d\'images', 'Super-résolution'],
     installPath: 'esrgan-api'
   }

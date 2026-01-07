@@ -39,10 +39,10 @@ const SERVICES: ServiceStatus[] = [
   { name: 'ComfyUI', id: 'comfyui', icon: Image, port: 8188, status: 'unknown' },
   { name: 'Whisper', id: 'whisper', icon: Mic, port: 9000, status: 'unknown' },
   { name: 'XTTS', id: 'xtts', icon: Music, port: 8020, status: 'unknown' },
-  { name: 'MusicGen', id: 'musicgen', icon: Music, port: 8030, status: 'unknown' },
-  { name: 'Demucs', id: 'demucs', icon: Music, port: 8040, status: 'unknown' },
-  { name: 'CLIP', id: 'clip', icon: Search, port: 8060, status: 'unknown' },
-  { name: 'ESRGAN', id: 'esrgan', icon: Zap, port: 8070, status: 'unknown' },
+  { name: 'MusicGen', id: 'musicgen', icon: Music, port: 9001, status: 'unknown' },
+  { name: 'Demucs', id: 'demucs', icon: Music, port: 9002, status: 'unknown' },
+  { name: 'CLIP', id: 'clip', icon: Search, port: 9003, status: 'unknown' },
+  { name: 'ESRGAN', id: 'esrgan', icon: Zap, port: 9004, status: 'unknown' },
 ];
 
 export function AIServiceDiagnostics() {
