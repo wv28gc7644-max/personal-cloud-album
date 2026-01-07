@@ -1,7 +1,7 @@
 @echo off
 setlocal enableextensions
 
-title MediaVault AI - Etape 05 - Lancer install-ai-suite-complete.ps1
+title MediaVault AI - Etape 05 - Installation Complete
 color 0B
 chcp 65001 >nul 2>&1
 
@@ -14,32 +14,45 @@ if %errorlevel% neq 0 (
   exit /b
 )
 
-
 set "AI_DIR=%USERPROFILE%\MediaVault-AI"
 set "LOG_DIR=%AI_DIR%\logs"
-set "PS1=%~dp0install-ai-suite-complete.ps1"
+set "PS1_SRC=%~dp0install-ai-suite-complete.ps1"
+set "PS1_DST=%AI_DIR%\install-ai-suite-complete.ps1"
 
+echo.
+echo === ETAPE 05 - INSTALLATION COMPLETE ===
+echo.
+
+:: Creer les dossiers
 if not exist "%AI_DIR%" mkdir "%AI_DIR%" 2>nul
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" 2>nul
 
-for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%a"
-set "LOG=%LOG_DIR%\step-05-complete-%TS%.log"
-
-if not exist "%PS1%" (
-  echo [ERREUR] install-ai-suite-complete.ps1 introuvable: %PS1%
-  echo [ERREUR] install-ai-suite-complete.ps1 introuvable.> "%LOG%"
+:: Verifier que le script source existe
+if not exist "%PS1_SRC%" (
+  echo [ERREUR] install-ai-suite-complete.ps1 introuvable: %PS1_SRC%
   pause
   exit /b 1
 )
 
-echo.
-echo === ETAPE 05 - INSTALLATION COMPLETE (PowerShell) ===
-echo.
-echo Le log complet sera dans:
-echo   %LOG%
+:: Copier le PS1 dans un chemin SANS accents (evite Telechargements)
+echo [INFO] Copie du script dans %AI_DIR%...
+copy /Y "%PS1_SRC%" "%PS1_DST%" >nul
+if %errorlevel% neq 0 (
+  echo [ERREUR] Impossible de copier le script.
+  pause
+  exit /b 1
+)
+
+:: Generer timestamp pour le log
+for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"') do set "TS=%%a"
+set "LOG=%LOG_DIR%\step-05-complete-%TS%.log"
+
+echo [INFO] Log: %LOG%
 echo.
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { & '%PS1%' -InstallDir '%AI_DIR%' 2>&1 | Tee-Object -FilePath '%LOG%'; exit $LASTEXITCODE }"
+:: Executer depuis le chemin sur (sans accents)
+cd /d "%AI_DIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_DST%" -InstallDir "%AI_DIR%" 2>&1 >> "%LOG%"
 set "RC=%errorlevel%"
 
 echo.

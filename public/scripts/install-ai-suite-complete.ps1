@@ -125,18 +125,24 @@ $GPUName = "CPU Only"
 $TorchExtra = ""
 
 if (!$CPUOnly) {
-    # NVIDIA
+    # NVIDIA - verification robuste du driver
     try {
-        $nvidiaInfo = & nvidia-smi --query-gpu=name --format=csv,noheader 2>$null
-        if ($nvidiaInfo -and $LASTEXITCODE -eq 0) {
+        $nvidiaResult = & nvidia-smi --query-gpu=name --format=csv,noheader 2>&1
+        $nvidiaExitCode = $LASTEXITCODE
+        
+        if ($nvidiaExitCode -eq 0 -and $nvidiaResult -notmatch "failed|error|could not") {
             $GPUType = "nvidia"
-            $GPUName = $nvidiaInfo.Trim()
+            $GPUName = ($nvidiaResult | Select-Object -First 1).ToString().Trim()
             $TorchExtra = "--index-url https://download.pytorch.org/whl/cu121"
             Write-Log "GPU NVIDIA detecte: $GPUName" -Level "OK"
+        } else {
+            Write-Log "Driver NVIDIA non fonctionnel (code $nvidiaExitCode) - Mode CPU" -Level "ATTENTION"
         }
-    } catch {}
+    } catch {
+        Write-Log "Erreur detection NVIDIA: $($_.Exception.Message)" -Level "ATTENTION"
+    }
     
-    # Intel Arc
+    # Intel Arc (si pas NVIDIA)
     if ($GPUType -eq "cpu") {
         try {
             $intelGPU = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match "Intel.*Arc|Intel.*A[357][58]0" }
@@ -150,7 +156,7 @@ if (!$CPUOnly) {
     }
     
     if ($GPUType -eq "cpu") {
-        Write-Log "Aucun GPU compatible - Mode CPU" -Level "ATTENTION"
+        Write-Log "Aucun GPU compatible detecte - Mode CPU uniquement" -Level "ATTENTION"
     }
 }
 
@@ -260,18 +266,39 @@ if (Get-Command ollama -ErrorAction SilentlyContinue) {
 }
 
 if ($ollamaInstalled -and !$SkipModels) {
-    Write-Log "Demarrage Ollama et telechargement modeles..." -Level "INFO"
+    Write-Log "Demarrage Ollama..." -Level "INFO"
     Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
     
-    foreach ($model in @("llama3.2:3b", "nomic-embed-text")) {
-        Write-Log "Telechargement $model..." -Level "INFO"
+    # Attendre qu'Ollama soit vraiment pret (max 30 secondes)
+    $ollamaReady = $false
+    Write-Log "Attente demarrage Ollama (max 30s)..." -Level "INFO"
+    for ($i = 0; $i -lt 10; $i++) {
         try {
-            $pullResult = & ollama pull $model 2>&1
-            Write-Log "Modele $model telecharge" -Level "OK"
+            $response = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 3 -ErrorAction Stop
+            $ollamaReady = $true
+            Write-Log "Ollama pret" -Level "OK"
+            break
         } catch {
-            Write-Log "Impossible de telecharger $model" -Level "ATTENTION"
+            Start-Sleep -Seconds 3
         }
+    }
+    
+    if ($ollamaReady) {
+        foreach ($model in @("llama3.2:3b", "nomic-embed-text")) {
+            Write-Log "Telechargement $model..." -Level "INFO"
+            try {
+                $pullResult = & ollama pull $model 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "Modele $model telecharge" -Level "OK"
+                } else {
+                    Write-Log "Echec telechargement $model (code $LASTEXITCODE)" -Level "ATTENTION"
+                }
+            } catch {
+                Write-Log "Impossible de telecharger $model : $($_.Exception.Message)" -Level "ATTENTION"
+            }
+        }
+    } else {
+        Write-Log "Ollama non pret apres 30s - modeles non telecharges" -Level "ATTENTION"
     }
 }
 
@@ -365,7 +392,15 @@ if (Test-Path "$ComfyUIPath\main.py") {
 } else {
     try {
         Write-Log "Clonage de ComfyUI..." -Level "INFO"
-        git clone https://github.com/comfyanonymous/ComfyUI.git "$ComfyUIPath" 2>&1 | Out-File "$LogDir\install-comfyui.log"
+        
+        # Utiliser Start-Process pour eviter les erreurs stderr de git
+        $gitLogFile = "$LogDir\comfyui-git.log"
+        $gitProcess = Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/comfyanonymous/ComfyUI.git", "`"$ComfyUIPath`"" -Wait -PassThru -NoNewWindow -RedirectStandardError $gitLogFile -RedirectStandardOutput "$LogDir\comfyui-git-out.log"
+        
+        if ($gitProcess.ExitCode -ne 0 -and !(Test-Path "$ComfyUIPath\main.py")) {
+            $gitError = Get-Content $gitLogFile -Raw -ErrorAction SilentlyContinue
+            Write-Log "Erreur git clone (code $($gitProcess.ExitCode)) - voir $gitLogFile" -Level "ERREUR"
+        }
         
         if (Test-Path "$ComfyUIPath\main.py") {
             Set-Location $ComfyUIPath
@@ -398,18 +433,19 @@ if (Test-Path "$ComfyUIPath\main.py") {
             Write-Log "Installation requirements ComfyUI..." -Level "INFO"
             & $pipExe install -r requirements.txt --quiet 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
             
-            # ComfyUI Manager
+            # ComfyUI Manager - aussi avec Start-Process
             Write-Log "Installation ComfyUI Manager..." -Level "INFO"
             if (!(Test-Path "$ComfyUIPath\custom_nodes")) {
                 New-Item -ItemType Directory -Path "$ComfyUIPath\custom_nodes" -Force | Out-Null
             }
-            git clone https://github.com/ltdrdata/ComfyUI-Manager.git "$ComfyUIPath\custom_nodes\ComfyUI-Manager" 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
+            $managerPath = "$ComfyUIPath\custom_nodes\ComfyUI-Manager"
+            Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/ltdrdata/ComfyUI-Manager.git", "`"$managerPath`"" -Wait -NoNewWindow -RedirectStandardError "$LogDir\comfyui-manager-git.log"
             
             Set-Location $InstallDir
             $comfyInstalled = $true
             Write-Log "ComfyUI installe" -Level "OK"
         } else {
-            throw "Clonage echoue"
+            throw "Clonage echoue - main.py introuvable"
         }
     } catch {
         Write-Log "Echec ComfyUI: $($_.Exception.Message)" -Level "ERREUR"
