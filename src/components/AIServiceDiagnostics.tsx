@@ -15,35 +15,47 @@ import {
   Mic,
   Music,
   Image,
-  Video,
   Search,
   Zap,
   AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { AI_SERVICE_CONFIGS, getPortModeLabel, getHealthEndpoint } from '@/config/aiServicePorts';
 
 interface ServiceStatus {
   name: string;
   id: string;
   icon: React.ElementType;
   port: number;
+  detectedPort?: number; // The port that actually responded
+  portMode?: string | null; // 'Windows', 'Docker', or null
   status: 'unknown' | 'checking' | 'online' | 'offline' | 'blocked';
   latency?: number;
   version?: string;
   error?: string;
 }
 
-const SERVICES: ServiceStatus[] = [
-  { name: 'Ollama', id: 'ollama', icon: Cpu, port: 11434, status: 'unknown' },
-  { name: 'ComfyUI', id: 'comfyui', icon: Image, port: 8188, status: 'unknown' },
-  { name: 'Whisper', id: 'whisper', icon: Mic, port: 9000, status: 'unknown' },
-  { name: 'XTTS', id: 'xtts', icon: Music, port: 8020, status: 'unknown' },
-  { name: 'MusicGen', id: 'musicgen', icon: Music, port: 9001, status: 'unknown' },
-  { name: 'Demucs', id: 'demucs', icon: Music, port: 9002, status: 'unknown' },
-  { name: 'CLIP', id: 'clip', icon: Search, port: 9003, status: 'unknown' },
-  { name: 'ESRGAN', id: 'esrgan', icon: Zap, port: 9004, status: 'unknown' },
-];
+// Icon mapping for services
+const SERVICE_ICONS: Record<string, React.ElementType> = {
+  ollama: Cpu,
+  comfyui: Image,
+  whisper: Mic,
+  xtts: Music,
+  musicgen: Music,
+  demucs: Music,
+  clip: Search,
+  esrgan: Zap
+};
+
+// Build initial services from config (use first port as default)
+const SERVICES: ServiceStatus[] = AI_SERVICE_CONFIGS.map(config => ({
+  name: config.name.split(' ')[0], // Short name
+  id: config.id,
+  icon: SERVICE_ICONS[config.id] || Server,
+  port: config.ports[0],
+  status: 'unknown' as const
+}));
 
 // Detect if we're in HTTPS context (mixed content will be blocked)
 const isMixedContentBlocked = () => {
@@ -71,7 +83,7 @@ export function AIServiceDiagnostics() {
   const [useProxy, setUseProxy] = useState(false);
 
   // Try to check via local server proxy first
-  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string }> | null> => {
+  const checkViaProxy = useCallback(async (): Promise<Record<string, { ok: boolean; latencyMs?: number; error?: string; port?: number; url?: string }> | null> => {
     const serverUrl = getServerUrl();
     try {
       const response = await fetch(`${serverUrl}/api/ai/status`, { 
@@ -88,61 +100,68 @@ export function AIServiceDiagnostics() {
     return null;
   }, []);
 
-  const testService = useCallback(async (service: ServiceStatus): Promise<ServiceStatus> => {
-    const startTime = Date.now();
-    const willBeBlocked = isMixedContentBlocked() && service.port !== 0;
-    
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      let endpoint = '/health';
-      if (service.id === 'ollama') endpoint = '/api/tags';
-      if (service.id === 'comfyui') endpoint = '/system_stats';
-      
-      const response = await fetch(`http://localhost:${service.port}${endpoint}`, {
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      const latency = Date.now() - startTime;
-      
-      if (response.ok) {
-        let version = undefined;
-        try {
-          const data = await response.json();
-          if (service.id === 'ollama' && data.models) {
-            version = `${data.models.length} modèles`;
-          }
-          if (data.version) version = data.version;
-        } catch {}
+  // Try multiple ports for a service until one responds
+  const testServiceMultiPort = useCallback(async (service: ServiceStatus): Promise<ServiceStatus> => {
+    const config = AI_SERVICE_CONFIGS.find(c => c.id === service.id);
+    const candidatePorts = config?.ports || [service.port];
+    const endpoint = getHealthEndpoint(service.id);
+    const willBeBlocked = isMixedContentBlocked();
+
+    for (const port of candidatePorts) {
+      const startTime = Date.now();
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // Shorter timeout per port
         
-        return { ...service, status: 'online', latency, version, error: undefined };
-      } else {
-        return { ...service, status: 'offline', latency, error: `HTTP ${response.status}` };
+        const response = await fetch(`http://localhost:${port}${endpoint}`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        const latency = Date.now() - startTime;
+        
+        if (response.ok) {
+          let version = undefined;
+          try {
+            const data = await response.json();
+            if (service.id === 'ollama' && data.models) {
+              version = `${data.models.length} modèles`;
+            }
+            if (data.version) version = data.version;
+          } catch {}
+          
+          const portMode = getPortModeLabel(service.id, port);
+          return { 
+            ...service, 
+            status: 'online', 
+            latency, 
+            version, 
+            error: undefined,
+            port, // Update to the working port
+            detectedPort: port,
+            portMode
+          };
+        }
+      } catch (error: any) {
+        // If blocked by mixed content, mark and stop trying
+        if (willBeBlocked && (error.message?.includes('Failed to fetch') || error.name === 'TypeError')) {
+          return { 
+            ...service, 
+            status: 'blocked', 
+            latency: Date.now() - startTime, 
+            error: 'Bloqué (HTTPS)' 
+          };
+        }
+        // Otherwise continue to next port
       }
-    } catch (error: any) {
-      const latency = Date.now() - startTime;
-      
-      // Check if this is a mixed content block
-      if (willBeBlocked && (error.message?.includes('Failed to fetch') || error.name === 'TypeError')) {
-        return { 
-          ...service, 
-          status: 'blocked', 
-          latency, 
-          error: 'Bloqué (HTTPS)' 
-        };
-      }
-      
-      let errorMsg = 'Connexion refusée';
-      if (error.name === 'AbortError') {
-        errorMsg = 'Timeout (5s)';
-      } else if (error.message) {
-        errorMsg = error.message;
-      }
-      
-      return { ...service, status: 'offline', latency, error: errorMsg };
     }
+
+    // All ports failed
+    return { 
+      ...service, 
+      status: 'offline', 
+      error: `Aucun port actif (${candidatePorts.join('/')})` 
+    };
   }, []);
 
   const testAllServices = useCallback(async () => {
@@ -158,15 +177,20 @@ export function AIServiceDiagnostics() {
     let results: ServiceStatus[];
     
     if (proxyResults) {
-      // Use proxy results
+      // Use proxy results (includes detected port info)
       results = SERVICES.map(service => {
         const result = proxyResults[service.id];
         if (result) {
+          const detectedPort = result.port || service.port;
+          const portMode = getPortModeLabel(service.id, detectedPort);
           return {
             ...service,
             status: result.ok ? 'online' as const : 'offline' as const,
             latency: result.latencyMs,
-            error: result.error
+            error: result.error,
+            port: detectedPort,
+            detectedPort: result.ok ? detectedPort : undefined,
+            portMode: result.ok ? portMode : undefined
           };
         }
         return { ...service, status: 'offline' as const };
@@ -174,10 +198,10 @@ export function AIServiceDiagnostics() {
       setServices(results);
       setProgress(100);
     } else {
-      // Fallback to direct checks
+      // Fallback to direct multi-port checks
       results = [];
       for (let i = 0; i < SERVICES.length; i++) {
-        const result = await testService(SERVICES[i]);
+        const result = await testServiceMultiPort(SERVICES[i]);
         results.push(result);
         setProgress(((i + 1) / SERVICES.length) * 100);
         setServices(prev => prev.map(s => s.id === result.id ? result : s));
@@ -199,24 +223,25 @@ export function AIServiceDiagnostics() {
     }
     
     setIsTesting(false);
-  }, [testService, checkViaProxy]);
+  }, [testServiceMultiPort, checkViaProxy]);
 
   const testSingleService = useCallback(async (id: string) => {
     const service = services.find(s => s.id === id);
     if (!service) return;
     
     setServices(prev => prev.map(s => s.id === id ? { ...s, status: 'checking' as const } : s));
-    const result = await testService(service);
+    const result = await testServiceMultiPort(service);
     setServices(prev => prev.map(s => s.id === id ? result : s));
     
     if (result.status === 'online') {
-      toast.success(`${service.name} est en ligne`);
+      const portInfo = result.portMode ? ` (${result.portMode})` : '';
+      toast.success(`${service.name} en ligne sur :${result.port}${portInfo}`);
     } else if (result.status === 'blocked') {
       toast.warning(`${service.name}: vérification bloquée (HTTPS)`);
     } else {
       toast.error(`${service.name} non disponible: ${result.error}`);
     }
-  }, [services, testService]);
+  }, [services, testServiceMultiPort]);
 
   const onlineCount = services.filter(s => s.status === 'online').length;
   const offlineCount = services.filter(s => s.status === 'offline').length;
@@ -328,6 +353,11 @@ export function AIServiceDiagnostics() {
                   <Badge variant="outline" className="text-[10px] px-1">
                     :{service.port}
                   </Badge>
+                  {service.portMode && (
+                    <Badge variant="secondary" className="text-[10px] px-1">
+                      {service.portMode}
+                    </Badge>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {service.status === 'checking' && 'Vérification...'}
