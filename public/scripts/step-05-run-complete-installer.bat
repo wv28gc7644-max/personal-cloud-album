@@ -60,21 +60,38 @@ set "LOG=%LOG_DIR%\step-05-complete-%TS%.log"
 
 echo [INFO] Log: %LOG%
 echo.
+echo ============================================================
+echo   L'installation peut prendre 15-45 minutes selon le reseau
+echo   Les paquets Python (torch, whisper...) sont volumineux
+echo   La progression s'affiche EN TEMPS REEL ci-dessous
+echo ============================================================
+echo.
 
-:: Executer depuis le chemin sur (sans accents)
+:: Executer depuis le chemin sur (sans accents) - SANS redirection pour voir le progres
 cd /d "%AI_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_DST%" -InstallDir "%AI_DIR%" 2>&1 >> "%LOG%"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1_DST%" -InstallDir "%AI_DIR%" 2>&1 | powershell -NoProfile -Command "$input | Tee-Object -FilePath '%LOG%' -Append"
 set "RC=%errorlevel%"
 
 echo.
+echo ============================================================
 if not "%RC%"=="0" (
   echo [ERREUR] Etape 05 echouee (code=%RC%).
-  echo Ouvre le log: %LOG%
-  pause
-  exit /b %RC%
+  echo.
+  echo Log complet: %LOG%
+  echo.
+  echo Pour diagnostiquer, ouvre PowerShell et tape:
+  echo   Get-Content "%LOG%" -Tail 50
+  echo.
+) else (
+  echo [OK] INSTALLATION TERMINEE AVEC SUCCES!
+  echo.
+  echo Prochaine etape: Lance les services avec:
+  echo   %AI_DIR%\start-ai-services.bat
+  echo.
+  echo Log complet: %LOG%
 )
 
-echo [OK] Etape 05 terminee.
-echo Log: %LOG%
-pause
+echo ============================================================
+echo Appuie sur une touche pour fermer...
+pause >nul
 endlocal
