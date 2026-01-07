@@ -33,6 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { InstallTerminal } from '@/components/InstallTerminal';
 
 const SERVICE_INSTALL_COMMANDS: Record<string, { windows: string; docker: string }> = {
   ollama: {
@@ -491,6 +492,9 @@ export function AIServiceManager() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Terminal de logs en temps réel */}
+          <InstallTerminal autoRefresh={true} refreshInterval={2000} />
 
           {/* Manual Installation */}
           <Card>
