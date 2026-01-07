@@ -89,10 +89,14 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [autoSpeak, setAutoSpeak] = useState(true);
+  const [autoSpeak, setAutoSpeak] = useState(() => {
+    const saved = localStorage.getItem('aiAssistant.autoSpeak');
+    return saved !== null ? saved === 'true' : false;
+  });
   const [activeTab, setActiveTab] = useState('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   
   const { selectedModel, setSelectedModel, chat, isLoading, lastUsedModel } = useAIOrchestrator();
@@ -154,6 +158,13 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
 
   const speakWithElevenLabs = async (text: string, voiceId: string = 'JBFqnCBsd6RMkjVDRZzb') => {
     try {
+      // Stop any previous audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-tts`,
         {
@@ -171,8 +182,16 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
         const data = await response.json();
         if (data.audioContent) {
           const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
+          audioRef.current = audio;
           audio.onplay = () => setIsSpeaking(true);
-          audio.onended = () => setIsSpeaking(false);
+          audio.onended = () => {
+            setIsSpeaking(false);
+            audioRef.current = null;
+          };
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            audioRef.current = null;
+          };
           await audio.play();
           return true;
         }
@@ -228,7 +247,8 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
     const userMessage: Message = { 
       role: 'user', 
       content: messageText,
-      timestamp: new Date()
+      timestamp: new Date(),
+      model: selectedModel
     };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -298,10 +318,34 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
     }
   };
 
-  const stopSpeaking = () => {
+  const stopSpeaking = useCallback(() => {
     speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
     setIsSpeaking(false);
-  };
+  }, []);
+
+  // Stop audio when panel closes
+  useEffect(() => {
+    if (!open) {
+      stopSpeaking();
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    }
+  }, [open, stopSpeaking]);
+
+  // Handle autoSpeak toggle with immediate stop and persistence
+  const handleAutoSpeakToggle = useCallback(() => {
+    const newValue = !autoSpeak;
+    setAutoSpeak(newValue);
+    localStorage.setItem('aiAssistant.autoSpeak', String(newValue));
+    if (!newValue) {
+      stopSpeaking();
+    }
+  }, [autoSpeak, stopSpeaking]);
 
   const clearHistory = () => {
     setMessages([]);
@@ -345,7 +389,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8"
-                onClick={() => setAutoSpeak(!autoSpeak)}
+                onClick={handleAutoSpeakToggle}
                 title={autoSpeak ? "Désactiver la voix" : "Activer la voix"}
               >
                 {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
@@ -365,8 +409,8 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
         </SheetHeader>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 px-4 py-2 bg-card/30">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="grid w-full grid-cols-3 px-4 py-2 bg-card/30 shrink-0">
             <TabsTrigger value="chat" className="gap-1 text-xs">
               <Bot className="h-3 w-3" />
               Chat
@@ -382,7 +426,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
           </TabsList>
 
           {/* Chat Tab */}
-          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 data-[state=active]:flex">
+          <TabsContent value="chat" className="flex-1 flex flex-col mt-0 min-h-0 data-[state=active]:flex">
             {/* Quick Prompts */}
             {messages.length === 0 && (
               <div className="px-4 py-3 border-b">
@@ -403,7 +447,7 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
               </div>
             )}
 
-            <ScrollArea className="flex-1 px-4">
+            <ScrollArea className="flex-1 min-h-0 px-4">
               <div className="space-y-4 py-4">
                 {messages.length === 0 && (
                   <div className="text-center text-muted-foreground py-8">
@@ -437,13 +481,24 @@ export const AIAssistantEnhanced = ({ onCommand, mediaStats }: AIAssistantEnhanc
                       <p className="whitespace-pre-wrap text-sm">
                         {msg.content.replace(/\[CMD:[^\]]+\]/g, '')}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className="text-[10px] opacity-60">
                           {msg.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {msg.model && (
-                          <Badge variant="outline" className="text-[10px] h-4 px-1">
-                            {msg.model}
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-[10px] h-5 px-1.5 gap-1",
+                              MODEL_COLORS[msg.model as AIModel] || 'bg-muted'
+                            )}
+                          >
+                            <Brain className="h-2.5 w-2.5" />
+                            {msg.model === 'personal' ? 'Mon IA' : 
+                             msg.model === 'gemini' ? 'Gemini' :
+                             msg.model === 'grok' ? 'Grok' :
+                             msg.model === 'ollama' ? 'Ollama' : 
+                             msg.model === 'auto' ? 'Auto' : msg.model}
                           </Badge>
                         )}
                       </div>
