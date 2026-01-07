@@ -390,34 +390,45 @@ export function AIServiceManager() {
           </div>
         </TabsContent>
 
-        {/* Installation Tab */}
+          {/* Installation Tab */}
         <TabsContent value="install" className="space-y-4">
           {/* Quick Download Scripts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Scripts d'installation en un clic
+                Installation (Auto + Manuelle)
               </CardTitle>
               <CardDescription>
-                Téléchargez et exécutez ces scripts PowerShell pour installer automatiquement tous les services
+                Option recommandée : l'installeur automatique génère un rapport texte prêt à nous envoyer.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  size="lg" 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  size="lg"
+                  className="h-auto py-4 flex-col gap-2"
+                  onClick={() => downloadScript('install-ai-suite-auto.bat')}
+                >
+                  <Download className="w-6 h-6" />
+                  <span className="font-semibold">Installation + diagnostic</span>
+                  <span className="text-xs opacity-80">install-ai-suite-auto.bat</span>
+                </Button>
+
+                <Button
+                  size="lg"
+                  variant="secondary"
                   className="h-auto py-4 flex-col gap-2"
                   onClick={() => downloadScript('install-ai-suite-complete.ps1')}
                 >
                   <Download className="w-6 h-6" />
-                  <span className="font-semibold">Installation complète</span>
+                  <span className="font-semibold">Installation PowerShell</span>
                   <span className="text-xs opacity-80">install-ai-suite-complete.ps1</span>
                 </Button>
-                
-                <Button 
-                  size="lg" 
-                  variant="secondary"
+
+                <Button
+                  size="lg"
+                  variant="outline"
                   className="h-auto py-4 flex-col gap-2"
                   onClick={() => downloadScript('start-ai-services.bat')}
                 >
