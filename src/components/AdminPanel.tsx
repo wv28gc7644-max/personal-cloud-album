@@ -54,8 +54,12 @@ import {
   Radio,
   Film,
   Image,
-  Shield
+  Shield,
+  Brain
 } from 'lucide-react';
+import { LocalAISettings } from './LocalAISettings';
+import { AICharacters } from './AICharacters';
+import { ImageGenerator } from './ImageGenerator';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -576,7 +580,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-8 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-9 bg-muted/50">
             <TabsTrigger value="general" className="gap-2">
               <Settings className="w-4 h-4" />
               Général
@@ -596,6 +600,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="server" className="gap-2">
               <Server className="w-4 h-4" />
               Serveur
+            </TabsTrigger>
+            <TabsTrigger value="local-ai" className="gap-2">
+              <Brain className="w-4 h-4" />
+              IA Locale
             </TabsTrigger>
             <TabsTrigger value="security" className="gap-2">
               <Shield className="w-4 h-4" />
@@ -1126,6 +1134,13 @@ export const AdminPanel = () => {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Local AI Tab */}
+          <TabsContent value="local-ai" className="space-y-4 mt-6">
+            <LocalAISettings />
+            <AICharacters />
+            <ImageGenerator />
           </TabsContent>
 
           {/* Security Tab */}
