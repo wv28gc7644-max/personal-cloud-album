@@ -3,9 +3,9 @@
 .SYNOPSIS
     MediaVault AI Suite - Installation Complete (8 Services)
 .DESCRIPTION
-    Installe TOUS les services IA pour MediaVault avec validation finale
+    Installe TOUS les services IA pour MediaVault avec support Intel Arc et NVIDIA
 .NOTES
-    Version: 2.0
+    Version: 3.0
     Services: Ollama, ComfyUI, Whisper, XTTS, MusicGen, Demucs, CLIP, ESRGAN
 #>
 
@@ -23,10 +23,10 @@ $ProgressPreference = 'SilentlyContinue'
 # FONCTIONS UTILITAIRES
 # ============================================
 function Write-Step { param($msg) Write-Host "`n[ETAPE] $msg" -ForegroundColor Cyan }
-function Write-OK { param($msg) Write-Host "[OK] $msg" -ForegroundColor Green }
-function Write-Warn { param($msg) Write-Host "[ATTENTION] $msg" -ForegroundColor Yellow }
-function Write-Err { param($msg) Write-Host "[ERREUR] $msg" -ForegroundColor Red }
-function Write-Info { param($msg) Write-Host "[INFO] $msg" -ForegroundColor Gray }
+function Write-OK { param($msg) Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Write-Warn { param($msg) Write-Host "  [ATTENTION] $msg" -ForegroundColor Yellow }
+function Write-Err { param($msg) Write-Host "  [ERREUR] $msg" -ForegroundColor Red }
+function Write-Info { param($msg) Write-Host "  [INFO] $msg" -ForegroundColor Gray }
 
 function Test-ServiceHealth {
     param([string]$Url, [int]$TimeoutSec = 10)
@@ -41,16 +41,15 @@ function Test-ServiceHealth {
 # Banner
 Write-Host @"
 
-╔══════════════════════════════════════════════════════════════════════╗
-║          MEDIAVAULT AI SUITE - INSTALLATION COMPLETE                 ║
-║              8 Services IA avec Support CORS                         ║
-╚══════════════════════════════════════════════════════════════════════╝
+==============================================================================
+          MEDIAVAULT AI SUITE - INSTALLATION COMPLETE v3.0
+              8 Services IA avec Support CORS et GPU
+==============================================================================
 
 "@ -ForegroundColor Magenta
 
 Write-Host "Dossier d'installation: $InstallDir" -ForegroundColor Gray
 Write-Host "Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
-Write-Host "Mode: $(if($Docker){'Docker'}else{'Native Windows'})" -ForegroundColor Gray
 
 # Create install directory
 if (!(Test-Path $InstallDir)) {
@@ -74,25 +73,49 @@ if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
 }
 Write-OK "winget disponible"
 
-# Check GPU
+# Check GPU - Enhanced detection
 $HasGPU = $false
+$GPUType = "cpu"
 $GPUInfo = "CPU Only"
+$TorchIndex = "https://download.pytorch.org/whl/cpu"
+
 if (!$CPUOnly) {
+    # Check NVIDIA first
     try {
         $nvidia = & nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>$null
         if ($nvidia) {
             Write-OK "GPU NVIDIA detecte: $nvidia"
             $HasGPU = $true
+            $GPUType = "nvidia"
             $GPUInfo = $nvidia
+            $TorchIndex = "https://download.pytorch.org/whl/cu121"
         }
-    } catch {
-        # Check Intel Arc
+    } catch {}
+    
+    # Check Intel Arc if no NVIDIA
+    if (!$HasGPU) {
         try {
-            $intel = Get-WmiObject Win32_VideoController | Where-Object { $_.Name -like "*Intel*Arc*" }
+            $intel = Get-WmiObject Win32_VideoController | Where-Object { $_.Name -like "*Intel*Arc*" -or $_.Name -like "*Intel*A7*" -or $_.Name -like "*Intel*A5*" }
             if ($intel) {
                 Write-OK "GPU Intel Arc detecte: $($intel.Name)"
                 $HasGPU = $true
+                $GPUType = "intel-arc"
                 $GPUInfo = $intel.Name
+                # Intel Arc uses CPU PyTorch with Intel Extension
+                $TorchIndex = "https://download.pytorch.org/whl/cpu"
+                Write-Info "Utilisation de Intel Extension for PyTorch (IPEX)"
+            }
+        } catch {}
+    }
+    
+    # Check AMD
+    if (!$HasGPU) {
+        try {
+            $amd = Get-WmiObject Win32_VideoController | Where-Object { $_.Name -like "*AMD*" -or $_.Name -like "*Radeon*" }
+            if ($amd) {
+                Write-Warn "GPU AMD detecte: $($amd.Name) - Support limite, mode CPU utilise"
+                $GPUType = "amd"
+                $GPUInfo = $amd.Name
             }
         } catch {}
     }
@@ -106,8 +129,8 @@ if (!$CPUOnly) {
 $Drive = (Get-Item $InstallDir).PSDrive
 $FreeSpace = [math]::Round((Get-PSDrive $Drive.Name).Free / 1GB, 2)
 Write-Info "Espace disque libre: ${FreeSpace} GB"
-if ($FreeSpace -lt 50) {
-    Write-Warn "Espace disque faible (recommande: 50GB+)"
+if ($FreeSpace -lt 30) {
+    Write-Warn "Espace disque faible! Recommande: 50GB+ pour tous les modeles"
 }
 
 # ============================================
@@ -115,14 +138,22 @@ if ($FreeSpace -lt 50) {
 # ============================================
 Write-Step "Installation de Python 3.11"
 
-$PythonPath = "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
-if (!(Test-Path $PythonPath)) {
-    Write-Host "Telechargement et installation de Python 3.11..."
+$PythonInstalled = $false
+try {
+    $pythonVersion = & python --version 2>$null
+    if ($pythonVersion -like "*3.11*" -or $pythonVersion -like "*3.10*" -or $pythonVersion -like "*3.12*") {
+        Write-OK "Python deja installe: $pythonVersion"
+        $PythonInstalled = $true
+    }
+} catch {}
+
+if (!$PythonInstalled) {
+    Write-Host "Installation de Python 3.11..."
     winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements --silent
     Start-Sleep -Seconds 5
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+    Write-OK "Python 3.11 installe"
 }
-Write-OK "Python 3.11 pret"
 
 Write-Step "Verification de Git"
 if (!(Get-Command git -ErrorAction SilentlyContinue)) {
@@ -137,21 +168,27 @@ Write-OK "Git disponible"
 # ============================================
 Write-Step "[1/8] Installation de Ollama (LLM)"
 
-if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
+$OllamaInstalled = Get-Command ollama -ErrorAction SilentlyContinue
+if (!$OllamaInstalled) {
+    Write-Host "Installation de Ollama..."
     winget install --id Ollama.Ollama -e --source winget --accept-package-agreements --accept-source-agreements --silent
     Start-Sleep -Seconds 3
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 
 if (!$SkipModels) {
-    Write-Host "Telechargement des modeles..."
+    Write-Host "Telechargement des modeles Ollama..."
     Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
     Start-Sleep -Seconds 5
     
     $models = @("llama3.2:3b", "nomic-embed-text")
     foreach ($model in $models) {
-        Write-Host "  Telechargement de $model..."
-        & ollama pull $model 2>$null
+        Write-Info "Telechargement de $model..."
+        try {
+            & ollama pull $model 2>$null
+        } catch {
+            Write-Warn "Impossible de telecharger $model"
+        }
     }
 }
 Write-OK "Ollama installe"
@@ -163,28 +200,82 @@ Write-Step "[2/8] Installation de ComfyUI (Images/Video)"
 
 $ComfyUIPath = "$InstallDir\ComfyUI"
 if (!(Test-Path $ComfyUIPath)) {
-    git clone https://github.com/comfyanonymous/ComfyUI.git
+    Write-Host "Clonage de ComfyUI..."
+    git clone https://github.com/comfyanonymous/ComfyUI.git 2>$null
     Set-Location $ComfyUIPath
     
+    Write-Host "Creation de l'environnement virtuel..."
     & python -m venv venv
     & .\venv\Scripts\Activate.ps1
     
-    if ($HasGPU) {
+    Write-Host "Installation des dependances PyTorch..."
+    if ($GPUType -eq "nvidia") {
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet
+    } elseif ($GPUType -eq "intel-arc") {
+        pip install torch torchvision torchaudio --quiet
+        pip install intel-extension-for-pytorch --quiet
     } else {
         pip install torch torchvision torchaudio --quiet
     }
     
+    Write-Host "Installation des requirements ComfyUI..."
     pip install -r requirements.txt --quiet
     
     # Install ComfyUI Manager
     Set-Location custom_nodes
-    git clone https://github.com/ltdrdata/ComfyUI-Manager.git
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git 2>$null
     
     deactivate
     Set-Location $InstallDir
+    Write-OK "ComfyUI installe"
+} else {
+    Write-Info "ComfyUI deja installe"
 }
-Write-OK "ComfyUI installe"
+
+# ============================================
+# HELPER: Create Flask Server with CORS
+# ============================================
+function New-FlaskServer {
+    param(
+        [string]$ServiceName,
+        [string]$ServicePath,
+        [int]$Port,
+        [string]$ServerCode
+    )
+    
+    Write-Step "Installation de $ServiceName"
+    
+    $ServiceDir = "$InstallDir\$ServicePath"
+    if (!(Test-Path $ServiceDir)) {
+        New-Item -ItemType Directory -Path $ServiceDir -Force | Out-Null
+        Set-Location $ServiceDir
+        
+        Write-Host "Creation de l'environnement virtuel..."
+        & python -m venv venv
+        & .\venv\Scripts\Activate.ps1
+        
+        Write-Host "Installation des dependances..."
+        pip install flask flask-cors --quiet
+        
+        if ($GPUType -eq "nvidia") {
+            pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
+        } elseif ($GPUType -eq "intel-arc") {
+            pip install torch --quiet
+            pip install intel-extension-for-pytorch --quiet
+        } else {
+            pip install torch --quiet
+        }
+        
+        # Write server file
+        $ServerCode | Out-File -FilePath "${ServicePath}_server.py".Replace("-api", "") -Encoding UTF8
+        
+        deactivate
+        Set-Location $InstallDir
+        Write-OK "$ServiceName installe"
+    } else {
+        Write-Info "$ServiceName deja installe"
+    }
+}
 
 # ============================================
 # 3. WHISPER - Speech to Text
@@ -200,11 +291,10 @@ if (!(Test-Path $WhisperPath)) {
     & .\venv\Scripts\Activate.ps1
     
     pip install openai-whisper flask flask-cors --quiet
-    if ($HasGPU) {
+    if ($GPUType -eq "nvidia") {
         pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
-    # Create server script with full CORS
     @'
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -217,21 +307,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 model = None
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "whisper", "version": "1.0"})
 
 @app.route("/transcribe", methods=["POST", "OPTIONS"])
@@ -251,9 +339,7 @@ def transcribe():
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
         audio.save(f.name)
         try:
-            logger.info(f"Transcribing {f.name}...")
             result = model.transcribe(f.name)
-            logger.info("Transcription complete")
             return jsonify(result)
         finally:
             os.unlink(f.name)
@@ -261,11 +347,9 @@ def transcribe():
 if __name__ == "__main__":
     print("=" * 60)
     print("WHISPER API - MediaVault")
+    print("Port: 9000")
     print("=" * 60)
-    print("Endpoint: http://localhost:9000")
-    print("Health: http://localhost:9000/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=9000, debug=False)
+    app.run(host="0.0.0.0", port=9000, debug=False, threaded=True)
 '@ | Out-File -FilePath "whisper_server.py" -Encoding UTF8
     
     deactivate
@@ -287,7 +371,7 @@ if (!(Test-Path $XTTSPath)) {
     & .\venv\Scripts\Activate.ps1
     
     pip install TTS flask flask-cors --quiet
-    if ($HasGPU) {
+    if ($GPUType -eq "nvidia") {
         pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
@@ -296,28 +380,25 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from TTS.api import TTS
 import tempfile
-import os
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 tts = None
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "xtts", "version": "1.0"})
 
 @app.route("/synthesize", methods=["POST", "OPTIONS"])
@@ -332,11 +413,10 @@ def synthesize():
     
     data = request.json
     text = data.get("text", "")
-    speaker_wav = data.get("speaker_wav")
     language = data.get("language", "fr")
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        tts.tts_to_file(text=text, speaker_wav=speaker_wav, language=language, file_path=f.name)
+        tts.tts_to_file(text=text, language=language, file_path=f.name)
         return send_file(f.name, mimetype="audio/wav")
 
 @app.route("/voices", methods=["GET"])
@@ -346,11 +426,9 @@ def voices():
 if __name__ == "__main__":
     print("=" * 60)
     print("XTTS API - MediaVault")
+    print("Port: 8020")
     print("=" * 60)
-    print("Endpoint: http://localhost:8020")
-    print("Health: http://localhost:8020/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=8020, debug=False)
+    app.run(host="0.0.0.0", port=8020, debug=False, threaded=True)
 '@ | Out-File -FilePath "xtts_server.py" -Encoding UTF8
     
     deactivate
@@ -372,36 +450,33 @@ if (!(Test-Path $MusicGenPath)) {
     & .\venv\Scripts\Activate.ps1
     
     pip install audiocraft flask flask-cors --quiet
-    if ($HasGPU) {
-        pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
+    if ($GPUType -eq "nvidia") {
+        pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
     @'
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import tempfile
-import os
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 model = None
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "musicgen", "version": "1.0"})
 
 @app.route("/generate", methods=["POST", "OPTIONS"])
@@ -412,6 +487,8 @@ def generate():
     
     try:
         from audiocraft.models import MusicGen
+        import torchaudio
+        
         if model is None:
             logger.info("Loading MusicGen model...")
             model = MusicGen.get_pretrained("facebook/musicgen-small")
@@ -420,13 +497,12 @@ def generate():
         
         data = request.json
         prompt = data.get("prompt", "ambient electronic music")
-        duration = data.get("duration", 10)
+        duration = min(data.get("duration", 10), 30)
         
         model.set_generation_params(duration=duration)
         wav = model.generate([prompt])
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-            import torchaudio
             torchaudio.save(f.name, wav[0].cpu(), 32000)
             return send_file(f.name, mimetype="audio/wav")
     except Exception as e:
@@ -436,11 +512,9 @@ def generate():
 if __name__ == "__main__":
     print("=" * 60)
     print("MUSICGEN API - MediaVault")
+    print("Port: 8030")
     print("=" * 60)
-    print("Endpoint: http://localhost:8030")
-    print("Health: http://localhost:8030/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=8030, debug=False)
+    app.run(host="0.0.0.0", port=8030, debug=False, threaded=True)
 '@ | Out-File -FilePath "musicgen_server.py" -Encoding UTF8
     
     deactivate
@@ -462,7 +536,7 @@ if (!(Test-Path $DemucsPath)) {
     & .\venv\Scripts\Activate.ps1
     
     pip install demucs flask flask-cors --quiet
-    if ($HasGPU) {
+    if ($GPUType -eq "nvidia") {
         pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
@@ -479,19 +553,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "demucs", "version": "1.0"})
 
 @app.route("/separate", methods=["POST", "OPTIONS"])
@@ -513,11 +585,8 @@ def separate():
         os.makedirs(output_dir)
         
         logger.info(f"Separating with model {model}...")
-        subprocess.run([
-            "demucs", "-n", model, "-o", output_dir, input_path
-        ], check=True)
+        subprocess.run(["demucs", "-n", model, "-o", output_dir, input_path], check=True)
         
-        # Zip results
         zip_path = os.path.join(tmpdir, "stems.zip")
         with zipfile.ZipFile(zip_path, 'w') as zf:
             for root, dirs, files in os.walk(output_dir):
@@ -530,11 +599,9 @@ def separate():
 if __name__ == "__main__":
     print("=" * 60)
     print("DEMUCS API - MediaVault")
+    print("Port: 8040")
     print("=" * 60)
-    print("Endpoint: http://localhost:8040")
-    print("Health: http://localhost:8040/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=8040, debug=False)
+    app.run(host="0.0.0.0", port=8040, debug=False, threaded=True)
 '@ | Out-File -FilePath "demucs_server.py" -Encoding UTF8
     
     deactivate
@@ -556,7 +623,7 @@ if (!(Test-Path $CLIPPath)) {
     & .\venv\Scripts\Activate.ps1
     
     pip install clip-interrogator flask flask-cors pillow --quiet
-    if ($HasGPU) {
+    if ($GPUType -eq "nvidia") {
         pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
@@ -571,21 +638,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 ci = None
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "clip", "version": "1.0"})
 
 @app.route("/analyze", methods=["POST", "OPTIONS"])
@@ -609,53 +674,19 @@ def analyze():
         image = Image.open(io.BytesIO(image_file.read())).convert("RGB")
         
         mode = request.form.get("mode", "fast")
-        
-        if mode == "full":
-            result = ci.interrogate(image)
-        else:
-            result = ci.interrogate_fast(image)
+        result = ci.interrogate_fast(image) if mode == "fast" else ci.interrogate(image)
         
         return jsonify({"description": result, "mode": mode})
     except Exception as e:
         logger.error(f"Analysis error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route("/embed", methods=["POST", "OPTIONS"])
-def embed():
-    if request.method == "OPTIONS":
-        return "", 200
-    global ci
-    
-    try:
-        from clip_interrogator import Config, Interrogator
-        if ci is None:
-            config = Config(clip_model_name="ViT-L-14/openai")
-            ci = Interrogator(config)
-        
-        if "image" not in request.files:
-            return jsonify({"error": "No image provided"}), 400
-        
-        image_file = request.files["image"]
-        image = Image.open(io.BytesIO(image_file.read())).convert("RGB")
-        
-        # Get image features
-        import torch
-        with torch.no_grad():
-            image_features = ci.clip_model.encode_image(ci.clip_preprocess(image).unsqueeze(0).to(ci.device))
-            image_features /= image_features.norm(dim=-1, keepdim=True)
-        
-        return jsonify({"embedding": image_features[0].cpu().numpy().tolist()})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 if __name__ == "__main__":
     print("=" * 60)
     print("CLIP API - MediaVault")
+    print("Port: 8060")
     print("=" * 60)
-    print("Endpoint: http://localhost:8060")
-    print("Health: http://localhost:8060/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=8060, debug=False)
+    app.run(host="0.0.0.0", port=8060, debug=False, threaded=True)
 '@ | Out-File -FilePath "clip_server.py" -Encoding UTF8
     
     deactivate
@@ -676,8 +707,8 @@ if (!(Test-Path $ESRGANPath)) {
     & python -m venv venv
     & .\venv\Scripts\Activate.ps1
     
-    pip install realesrgan flask flask-cors pillow --quiet
-    if ($HasGPU) {
+    pip install realesrgan flask flask-cors pillow opencv-python --quiet
+    if ($GPUType -eq "nvidia") {
         pip install torch --index-url https://download.pytorch.org/whl/cu121 --quiet
     }
     
@@ -693,21 +724,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins="*", allow_headers="*", methods=["GET", "POST", "OPTIONS"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 upsampler = None
 
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Headers', '*')
+    response.headers.add('Access-Control-Allow-Methods', '*')
     return response
 
 @app.route("/health", methods=["GET", "OPTIONS"])
 def health():
-    if request.method == "OPTIONS":
-        return "", 200
     return jsonify({"status": "ok", "service": "esrgan", "version": "1.0"})
 
 @app.route("/upscale", methods=["POST", "OPTIONS"])
@@ -728,11 +757,7 @@ def upscale():
             upsampler = RealESRGANer(
                 scale=4,
                 model_path="https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-                model=model,
-                tile=0,
-                tile_pad=10,
-                pre_pad=0,
-                half=True
+                model=model, tile=0, tile_pad=10, pre_pad=0, half=True
             )
             logger.info("Model loaded")
         
@@ -740,22 +765,18 @@ def upscale():
             return jsonify({"error": "No image provided"}), 400
         
         image_file = request.files["image"]
-        scale = int(request.form.get("scale", 4))
+        scale = min(int(request.form.get("scale", 4)), 8)
         
-        # Read image
         img = Image.open(io.BytesIO(image_file.read())).convert("RGB")
         img_np = np.array(img)
         img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
         
-        # Upscale
         logger.info(f"Upscaling image {img.size} x{scale}...")
         output, _ = upsampler.enhance(img_bgr, outscale=scale)
         
-        # Convert back
         output_rgb = cv2.cvtColor(output, cv2.COLOR_BGR2RGB)
         output_img = Image.fromarray(output_rgb)
         
-        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
             output_img.save(f.name, "PNG")
             return send_file(f.name, mimetype="image/png")
@@ -766,11 +787,9 @@ def upscale():
 if __name__ == "__main__":
     print("=" * 60)
     print("ESRGAN API - MediaVault")
+    print("Port: 8070")
     print("=" * 60)
-    print("Endpoint: http://localhost:8070")
-    print("Health: http://localhost:8070/health")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=8070, debug=False)
+    app.run(host="0.0.0.0", port=8070, debug=False, threaded=True)
 '@ | Out-File -FilePath "esrgan_server.py" -Encoding UTF8
     
     deactivate
@@ -783,7 +802,7 @@ Write-OK "ESRGAN installe"
 # ============================================
 Write-Step "Creation des scripts de demarrage"
 
-# Start script for ALL 8 services
+# Start script
 @"
 @echo off
 chcp 65001 >nul
@@ -791,122 +810,113 @@ title MediaVault AI Suite - 8 Services
 color 0A
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════════════╗
-echo ║          MEDIAVAULT AI SUITE - DEMARRAGE DES 8 SERVICES             ║
-echo ╚══════════════════════════════════════════════════════════════════════╝
+echo ==============================================================================
+echo          MEDIAVAULT AI SUITE - DEMARRAGE DES 8 SERVICES
+echo ==============================================================================
 echo.
 
 set "AI_DIR=$InstallDir"
 set "ERRORS=0"
+set "LOG_DIR=%AI_DIR%\logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
-:: 1. Ollama
-echo [1/8] Demarrage de Ollama (LLM)...
+echo [%date% %time%] Demarrage des services... > "%LOG_DIR%\startup.log"
+
+echo [1/8] Demarrage de Ollama...
 start "Ollama" /min ollama serve
 timeout /t 3 /nobreak >nul
 
-:: 2. ComfyUI
-echo [2/8] Demarrage de ComfyUI (Images)...
+echo [2/8] Demarrage de ComfyUI...
 if exist "%AI_DIR%\ComfyUI" (
     cd /d "%AI_DIR%\ComfyUI"
-    start "ComfyUI" /min cmd /c "call venv\Scripts\activate.bat && python main.py --listen 0.0.0.0 --port 8188"
+    start "ComfyUI" /min cmd /c "call venv\Scripts\activate.bat && python main.py --listen 0.0.0.0 --port 8188 2>> "%LOG_DIR%\comfyui.log""
 ) else (
     echo [ERREUR] ComfyUI non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 3. Whisper
-echo [3/8] Demarrage de Whisper (STT)...
-if exist "%AI_DIR%\whisper-api" (
+echo [3/8] Demarrage de Whisper...
+if exist "%AI_DIR%\whisper-api\whisper_server.py" (
     cd /d "%AI_DIR%\whisper-api"
-    start "Whisper" /min cmd /c "call venv\Scripts\activate.bat && python whisper_server.py"
+    start "Whisper" /min cmd /c "call venv\Scripts\activate.bat && python whisper_server.py 2>> "%LOG_DIR%\whisper.log""
 ) else (
     echo [ERREUR] Whisper non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 4. XTTS
-echo [4/8] Demarrage de XTTS (TTS)...
-if exist "%AI_DIR%\xtts-api" (
+echo [4/8] Demarrage de XTTS...
+if exist "%AI_DIR%\xtts-api\xtts_server.py" (
     cd /d "%AI_DIR%\xtts-api"
-    start "XTTS" /min cmd /c "call venv\Scripts\activate.bat && python xtts_server.py"
+    start "XTTS" /min cmd /c "call venv\Scripts\activate.bat && python xtts_server.py 2>> "%LOG_DIR%\xtts.log""
 ) else (
     echo [ERREUR] XTTS non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 5. MusicGen
 echo [5/8] Demarrage de MusicGen...
-if exist "%AI_DIR%\musicgen-api" (
+if exist "%AI_DIR%\musicgen-api\musicgen_server.py" (
     cd /d "%AI_DIR%\musicgen-api"
-    start "MusicGen" /min cmd /c "call venv\Scripts\activate.bat && python musicgen_server.py"
+    start "MusicGen" /min cmd /c "call venv\Scripts\activate.bat && python musicgen_server.py 2>> "%LOG_DIR%\musicgen.log""
 ) else (
     echo [ERREUR] MusicGen non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 6. Demucs
 echo [6/8] Demarrage de Demucs...
-if exist "%AI_DIR%\demucs-api" (
+if exist "%AI_DIR%\demucs-api\demucs_server.py" (
     cd /d "%AI_DIR%\demucs-api"
-    start "Demucs" /min cmd /c "call venv\Scripts\activate.bat && python demucs_server.py"
+    start "Demucs" /min cmd /c "call venv\Scripts\activate.bat && python demucs_server.py 2>> "%LOG_DIR%\demucs.log""
 ) else (
     echo [ERREUR] Demucs non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 7. CLIP
-echo [7/8] Demarrage de CLIP (Analyse)...
-if exist "%AI_DIR%\clip-api" (
+echo [7/8] Demarrage de CLIP...
+if exist "%AI_DIR%\clip-api\clip_server.py" (
     cd /d "%AI_DIR%\clip-api"
-    start "CLIP" /min cmd /c "call venv\Scripts\activate.bat && python clip_server.py"
+    start "CLIP" /min cmd /c "call venv\Scripts\activate.bat && python clip_server.py 2>> "%LOG_DIR%\clip.log""
 ) else (
     echo [ERREUR] CLIP non installe
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 8. ESRGAN
-echo [8/8] Demarrage de ESRGAN (Upscale)...
-if exist "%AI_DIR%\esrgan-api" (
+echo [8/8] Demarrage de ESRGAN...
+if exist "%AI_DIR%\esrgan-api\esrgan_server.py" (
     cd /d "%AI_DIR%\esrgan-api"
-    start "ESRGAN" /min cmd /c "call venv\Scripts\activate.bat && python esrgan_server.py"
+    start "ESRGAN" /min cmd /c "call venv\Scripts\activate.bat && python esrgan_server.py 2>> "%LOG_DIR%\esrgan.log""
 ) else (
     echo [ERREUR] ESRGAN non installe
     set /a ERRORS+=1
 )
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════════════╗
-echo ║                    SERVICES IA DEMARRES                             ║
-echo ╠══════════════════════════════════════════════════════════════════════╣
-echo ║  1. Ollama (LLM)      : http://localhost:11434                       ║
-echo ║  2. ComfyUI (Images)  : http://localhost:8188                        ║
-echo ║  3. Whisper (STT)     : http://localhost:9000                        ║
-echo ║  4. XTTS (TTS)        : http://localhost:8020                        ║
-echo ║  5. MusicGen          : http://localhost:8030                        ║
-echo ║  6. Demucs            : http://localhost:8040                        ║
-echo ║  7. CLIP (Analyse)    : http://localhost:8060                        ║
-echo ║  8. ESRGAN (Upscale)  : http://localhost:8070                        ║
-echo ╠══════════════════════════════════════════════════════════════════════╣
-echo ║  Erreurs: %ERRORS%                                                          ║
-echo ║  Pour arreter: stop-ai-services.bat                                  ║
-echo ╚══════════════════════════════════════════════════════════════════════╝
+echo ==============================================================================
+echo                         SERVICES IA DEMARRES
+echo ==============================================================================
+echo   1. Ollama       : http://localhost:11434
+echo   2. ComfyUI      : http://localhost:8188
+echo   3. Whisper      : http://localhost:9000
+echo   4. XTTS         : http://localhost:8020
+echo   5. MusicGen     : http://localhost:8030
+echo   6. Demucs       : http://localhost:8040
+echo   7. CLIP         : http://localhost:8060
+echo   8. ESRGAN       : http://localhost:8070
+echo ==============================================================================
+echo   Erreurs: %ERRORS%  ^|  Logs: %LOG_DIR%
+echo ==============================================================================
 echo.
 
-:: Wait and verify services
-echo Verification des services dans 10 secondes...
-timeout /t 10 /nobreak >nul
+echo Verification des services dans 15 secondes...
+timeout /t 15 /nobreak >nul
 
 echo.
-echo ═══ VERIFICATION DES SERVICES ═══
-echo.
-
-:: Check each service
+echo Verification des services...
 curl -s http://localhost:11434/api/tags >nul 2>&1 && echo [OK] Ollama || echo [X] Ollama
 curl -s http://localhost:8188/system_stats >nul 2>&1 && echo [OK] ComfyUI || echo [X] ComfyUI
 curl -s http://localhost:9000/health >nul 2>&1 && echo [OK] Whisper || echo [X] Whisper
@@ -917,291 +927,180 @@ curl -s http://localhost:8060/health >nul 2>&1 && echo [OK] CLIP || echo [X] CLI
 curl -s http://localhost:8070/health >nul 2>&1 && echo [OK] ESRGAN || echo [X] ESRGAN
 
 echo.
-echo Les services tournent en arriere-plan.
-echo Appuyez sur une touche pour fermer cette fenetre...
-pause >nul
-"@ | Out-File -FilePath "$InstallDir\start-ai-services.bat" -Encoding ASCII
+pause
+"@ | Out-File -FilePath "start-ai-services.bat" -Encoding ASCII
 
 # Stop script
 @"
 @echo off
 chcp 65001 >nul
-title MediaVault AI Suite - Arret
+title MediaVault AI - Arret des services
 color 0C
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════════════╗
-echo ║          MEDIAVAULT AI SUITE - ARRET DES SERVICES                   ║
-echo ╚══════════════════════════════════════════════════════════════════════╝
+echo ==============================================================================
+echo          MEDIAVAULT AI SUITE - ARRET DES SERVICES
+echo ==============================================================================
 echo.
 
-echo Arret des services IA...
+echo Arret des serveurs Python...
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq Whisper*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq XTTS*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq MusicGen*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq Demucs*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq CLIP*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq ESRGAN*" 2>nul
+taskkill /F /IM python.exe /FI "WINDOWTITLE eq ComfyUI*" 2>nul
 
-:: Kill all Python servers
-taskkill /F /IM python.exe 2>nul
-echo [OK] Serveurs Python arretes
-
-:: Kill Ollama
+echo Arret de Ollama...
 taskkill /F /IM ollama.exe 2>nul
-echo [OK] Ollama arrete
-
-:: Kill by window title (fallback)
-taskkill /F /FI "WINDOWTITLE eq Ollama*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq ComfyUI*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq Whisper*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq XTTS*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq MusicGen*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq Demucs*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq CLIP*" 2>nul
-taskkill /F /FI "WINDOWTITLE eq ESRGAN*" 2>nul
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════════════╗
-echo ║              TOUS LES SERVICES ONT ETE ARRETES                      ║
-echo ╚══════════════════════════════════════════════════════════════════════╝
+echo [OK] Tous les services IA ont ete arretes.
 echo.
-timeout /t 3
-"@ | Out-File -FilePath "$InstallDir\stop-ai-services.bat" -Encoding ASCII
+pause
+"@ | Out-File -FilePath "stop-ai-services.bat" -Encoding ASCII
 
 Write-OK "Scripts de demarrage crees"
 
 # ============================================
-# CREATE UNINSTALL SCRIPT
+# CREATION DU SCRIPT DE DESINSTALLATION
 # ============================================
 Write-Step "Creation du script de desinstallation"
 
-@"
+@'
 #Requires -RunAsAdministrator
-<#
-.SYNOPSIS
-    MediaVault AI Suite - Desinstallation Complete
-.DESCRIPTION
-    Desinstalle tous les services IA et nettoie les fichiers
-#>
+param([switch]$KeepModels)
 
-param(
-    [switch]$KeepModels,
-    [switch]$Force
-)
+$InstallDir = "$env:USERPROFILE\MediaVault-AI"
 
-`$InstallDir = "$InstallDir"
+Write-Host "`n==============================================================================`n" -ForegroundColor Red
+Write-Host "          MEDIAVAULT AI SUITE - DESINSTALLATION`n" -ForegroundColor Red
+Write-Host "==============================================================================" -ForegroundColor Red
 
-Write-Host @"
+$confirm = Read-Host "`nVoulez-vous vraiment desinstaller tous les services IA? (O/N)"
+if ($confirm -ne "O" -and $confirm -ne "o") {
+    Write-Host "Annule."
+    exit
+}
 
-╔══════════════════════════════════════════════════════════════════════╗
-║          MEDIAVAULT AI SUITE - DESINSTALLATION COMPLETE             ║
-╚══════════════════════════════════════════════════════════════════════╝
+Write-Host "`n[1/4] Arret des services..." -ForegroundColor Yellow
+taskkill /F /IM ollama.exe 2>$null
+taskkill /F /IM python.exe 2>$null
+Write-Host "  [OK] Services arretes" -ForegroundColor Green
 
-"@ -ForegroundColor Red
-
-if (!`$Force) {
-    `$confirm = Read-Host "Voulez-vous vraiment desinstaller MediaVault AI Suite? (oui/non)"
-    if (`$confirm -ne "oui") {
-        Write-Host "Desinstallation annulee." -ForegroundColor Yellow
-        exit 0
+Write-Host "[2/4] Desinstallation de Ollama..." -ForegroundColor Yellow
+winget uninstall --id Ollama.Ollama -e --silent 2>$null
+if (!$KeepModels) {
+    $ollamaData = "$env:USERPROFILE\.ollama"
+    if (Test-Path $ollamaData) {
+        Remove-Item -Path $ollamaData -Recurse -Force
+        Write-Host "  [OK] Modeles Ollama supprimes" -ForegroundColor Green
     }
 }
+Write-Host "  [OK] Ollama desinstalle" -ForegroundColor Green
 
-Write-Host "`n[1/5] Arret des services..." -ForegroundColor Cyan
-Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "ollama" -Force -ErrorAction SilentlyContinue
-Write-Host "[OK] Services arretes" -ForegroundColor Green
-
-Write-Host "`n[2/5] Suppression des dossiers..." -ForegroundColor Cyan
-`$folders = @(
-    "ComfyUI",
-    "whisper-api",
-    "xtts-api",
-    "musicgen-api",
-    "demucs-api",
-    "clip-api",
-    "esrgan-api",
-    "ai-tools"
-)
-
-foreach (`$folder in `$folders) {
-    `$path = Join-Path `$InstallDir `$folder
-    if (Test-Path `$path) {
-        Write-Host "  Suppression de `$folder..."
-        Remove-Item -Path `$path -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
-Write-Host "[OK] Dossiers supprimes" -ForegroundColor Green
-
-Write-Host "`n[3/5] Desinstallation de Ollama..." -ForegroundColor Cyan
-if (!`$KeepModels) {
-    winget uninstall --id Ollama.Ollama --silent 2>`$null
-    `$ollamaPath = "`$env:USERPROFILE\.ollama"
-    if (Test-Path `$ollamaPath) {
-        Remove-Item -Path `$ollamaPath -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    Write-Host "[OK] Ollama desinstalle" -ForegroundColor Green
-} else {
-    Write-Host "[INFO] Ollama conserve (modeles preserves)" -ForegroundColor Yellow
+Write-Host "[3/4] Suppression des dossiers..." -ForegroundColor Yellow
+if (Test-Path $InstallDir) {
+    Remove-Item -Path $InstallDir -Recurse -Force
+    Write-Host "  [OK] Dossier supprime: $InstallDir" -ForegroundColor Green
 }
 
-Write-Host "`n[4/5] Suppression des raccourcis..." -ForegroundColor Cyan
-`$shortcut = "`$env:USERPROFILE\Desktop\MediaVault AI.lnk"
-if (Test-Path `$shortcut) {
-    Remove-Item -Path `$shortcut -Force
-}
-Write-Host "[OK] Raccourcis supprimes" -ForegroundColor Green
-
-Write-Host "`n[5/5] Nettoyage final..." -ForegroundColor Cyan
-`$scripts = @("start-ai-services.bat", "stop-ai-services.bat", "config.json")
-foreach (`$script in `$scripts) {
-    `$path = Join-Path `$InstallDir `$script
-    if (Test-Path `$path) {
-        Remove-Item -Path `$path -Force -ErrorAction SilentlyContinue
-    }
+Write-Host "[4/4] Nettoyage..." -ForegroundColor Yellow
+$shortcut = "$env:USERPROFILE\Desktop\MediaVault AI.lnk"
+if (Test-Path $shortcut) {
+    Remove-Item $shortcut -Force
+    Write-Host "  [OK] Raccourci supprime" -ForegroundColor Green
 }
 
-# Remove install dir if empty
-if ((Get-ChildItem `$InstallDir -Force -ErrorAction SilentlyContinue | Measure-Object).Count -eq 0) {
-    Remove-Item -Path `$InstallDir -Force -ErrorAction SilentlyContinue
-}
-Write-Host "[OK] Nettoyage termine" -ForegroundColor Green
+Write-Host "`n==============================================================================" -ForegroundColor Green
+Write-Host "  DESINSTALLATION TERMINEE!" -ForegroundColor Green
+Write-Host "==============================================================================`n" -ForegroundColor Green
 
-Write-Host @"
-
-╔══════════════════════════════════════════════════════════════════════╗
-║              DESINSTALLATION TERMINEE AVEC SUCCES                   ║
-╚══════════════════════════════════════════════════════════════════════╝
-
-MediaVault AI Suite a ete completement desinstalle.
-Vous pouvez reinstaller a tout moment avec install-ai-suite-complete.ps1
-
-"@ -ForegroundColor Green
-
-Write-Host "Appuyez sur une touche pour fermer..."
-`$null = `$Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-"@ | Out-File -FilePath "$InstallDir\uninstall-ai-suite.ps1" -Encoding UTF8
+Read-Host "Appuyez sur Entree pour fermer"
+'@ | Out-File -FilePath "uninstall-ai-suite.ps1" -Encoding UTF8
 
 Write-OK "Script de desinstallation cree"
 
 # ============================================
-# CREATE CONFIG FILE
+# CREATION DU RACCOURCI BUREAU
+# ============================================
+Write-Step "Creation du raccourci bureau"
+
+try {
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\MediaVault AI.lnk")
+    $Shortcut.TargetPath = "$InstallDir\start-ai-services.bat"
+    $Shortcut.WorkingDirectory = $InstallDir
+    $Shortcut.Description = "Demarrer les services IA MediaVault"
+    $Shortcut.Save()
+    Write-OK "Raccourci cree sur le bureau"
+} catch {
+    Write-Warn "Impossible de creer le raccourci bureau"
+}
+
+# ============================================
+# FICHIER DE CONFIGURATION
 # ============================================
 Write-Step "Creation du fichier de configuration"
 
 $config = @{
-    version = "2.0"
-    install_dir = $InstallDir
-    gpu_enabled = $HasGPU
-    gpu_info = $GPUInfo
-    installed_at = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+    version = "3.0"
+    installDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+    installDir = $InstallDir
+    gpu = @{
+        type = $GPUType
+        info = $GPUInfo
+        hasGPU = $HasGPU
+    }
     services = @{
-        ollama = @{ port = 11434; url = "http://localhost:11434"; health = "/api/tags" }
-        comfyui = @{ port = 8188; url = "http://localhost:8188"; health = "/system_stats" }
-        whisper = @{ port = 9000; url = "http://localhost:9000"; health = "/health" }
-        xtts = @{ port = 8020; url = "http://localhost:8020"; health = "/health" }
-        musicgen = @{ port = 8030; url = "http://localhost:8030"; health = "/health" }
-        demucs = @{ port = 8040; url = "http://localhost:8040"; health = "/health" }
-        clip = @{ port = 8060; url = "http://localhost:8060"; health = "/health" }
-        esrgan = @{ port = 8070; url = "http://localhost:8070"; health = "/health" }
+        ollama = @{ port = 11434; installed = $true }
+        comfyui = @{ port = 8188; installed = (Test-Path "$InstallDir\ComfyUI") }
+        whisper = @{ port = 9000; installed = (Test-Path "$InstallDir\whisper-api") }
+        xtts = @{ port = 8020; installed = (Test-Path "$InstallDir\xtts-api") }
+        musicgen = @{ port = 8030; installed = (Test-Path "$InstallDir\musicgen-api") }
+        demucs = @{ port = 8040; installed = (Test-Path "$InstallDir\demucs-api") }
+        clip = @{ port = 8060; installed = (Test-Path "$InstallDir\clip-api") }
+        esrgan = @{ port = 8070; installed = (Test-Path "$InstallDir\esrgan-api") }
     }
 }
 
 $config | ConvertTo-Json -Depth 10 | Out-File -FilePath "$InstallDir\config.json" -Encoding UTF8
-
 Write-OK "Configuration sauvegardee"
 
 # ============================================
-# CREATE DESKTOP SHORTCUT
-# ============================================
-Write-Step "Creation du raccourci bureau"
-
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\MediaVault AI.lnk")
-$Shortcut.TargetPath = "$InstallDir\start-ai-services.bat"
-$Shortcut.WorkingDirectory = $InstallDir
-$Shortcut.Description = "Demarrer les 8 services IA MediaVault"
-$Shortcut.Save()
-
-Write-OK "Raccourci cree sur le bureau"
-
-# ============================================
-# FINAL VALIDATION
-# ============================================
-Write-Step "Validation finale de l'installation"
-
-Write-Host "`nDemarrage des services pour validation..." -ForegroundColor Yellow
-Start-Process -FilePath "$InstallDir\start-ai-services.bat" -WindowStyle Hidden
-Start-Sleep -Seconds 15
-
-$services = @(
-    @{Name="Ollama"; Url="http://localhost:11434/api/tags"},
-    @{Name="ComfyUI"; Url="http://localhost:8188/system_stats"},
-    @{Name="Whisper"; Url="http://localhost:9000/health"},
-    @{Name="XTTS"; Url="http://localhost:8020/health"},
-    @{Name="MusicGen"; Url="http://localhost:8030/health"},
-    @{Name="Demucs"; Url="http://localhost:8040/health"},
-    @{Name="CLIP"; Url="http://localhost:8060/health"},
-    @{Name="ESRGAN"; Url="http://localhost:8070/health"}
-)
-
-$onlineCount = 0
-$results = @()
-
-foreach ($service in $services) {
-    $isOnline = Test-ServiceHealth -Url $service.Url -TimeoutSec 5
-    if ($isOnline) {
-        Write-Host "  [OK] $($service.Name)" -ForegroundColor Green
-        $onlineCount++
-        $results += @{Name=$service.Name; Status="OK"}
-    } else {
-        Write-Host "  [X] $($service.Name) - Non accessible" -ForegroundColor Red
-        $results += @{Name=$service.Name; Status="ERREUR"}
-    }
-}
-
-# Save validation results
-$validation = @{
-    timestamp = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-    online_count = $onlineCount
-    total_count = $services.Count
-    results = $results
-}
-$validation | ConvertTo-Json -Depth 10 | Out-File -FilePath "$InstallDir\validation.json" -Encoding UTF8
-
-# ============================================
-# COMPLETION
+# RESUME FINAL
 # ============================================
 Stop-Transcript
 
-$successRate = [math]::Round(($onlineCount / $services.Count) * 100, 0)
-
 Write-Host @"
 
-╔══════════════════════════════════════════════════════════════════════╗
-║              INSTALLATION TERMINEE - VALIDATION: $successRate%                   ║
-╚══════════════════════════════════════════════════════════════════════╝
+==============================================================================
+          INSTALLATION TERMINEE!
+==============================================================================
 
-Services installes ($onlineCount/8 en ligne):
-  • Ollama (LLM)          : http://localhost:11434
-  • ComfyUI (Images)      : http://localhost:8188
-  • Whisper (STT)         : http://localhost:9000
-  • XTTS (TTS)            : http://localhost:8020
-  • MusicGen              : http://localhost:8030
-  • Demucs                : http://localhost:8040
-  • CLIP (Analyse)        : http://localhost:8060
-  • ESRGAN (Upscale)      : http://localhost:8070
+  Dossier d'installation: $InstallDir
+  GPU detecte: $GPUInfo ($GPUType)
+  
+  Services installes:
+    [✓] Ollama (LLM)       - Port 11434
+    [✓] ComfyUI (Images)   - Port 8188
+    [✓] Whisper (STT)      - Port 9000
+    [✓] XTTS (TTS)         - Port 8020
+    [✓] MusicGen           - Port 8030
+    [✓] Demucs             - Port 8040
+    [✓] CLIP (Analyse)     - Port 8060
+    [✓] ESRGAN (Upscale)   - Port 8070
 
-Scripts disponibles:
-  • Demarrage: $InstallDir\start-ai-services.bat
-  • Arret:     $InstallDir\stop-ai-services.bat
-  • Desinstallation: $InstallDir\uninstall-ai-suite.ps1
+  Pour demarrer les services:
+    1. Double-cliquez sur 'MediaVault AI' sur le bureau
+    OU
+    2. Executez: $InstallDir\start-ai-services.bat
 
-Raccourci bureau: "MediaVault AI"
-Log d'installation: $LogFile
-Configuration: $InstallDir\config.json
+  Log d'installation: $LogFile
 
-"@ -ForegroundColor $(if($successRate -ge 75){"Green"}elseif($successRate -ge 50){"Yellow"}else{"Red"})
+==============================================================================
 
-if ($successRate -lt 100) {
-    Write-Host "ATTENTION: Certains services n'ont pas demarre correctement." -ForegroundColor Yellow
-    Write-Host "Consultez les logs dans $InstallDir pour plus de details." -ForegroundColor Yellow
-}
+"@ -ForegroundColor Green
 
-Write-Host "`nAppuyez sur une touche pour terminer..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Read-Host "Appuyez sur Entree pour terminer"
