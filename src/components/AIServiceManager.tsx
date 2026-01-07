@@ -17,12 +17,11 @@ import {
   HardDrive,
   Cpu,
   Zap,
-  Settings,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FolderOpen,
-  Package
+  Package,
+  FolderOpen
 } from 'lucide-react';
 import { useLocalAIDiagnostics, AIServiceStatus, DiagnosticLog } from '@/hooks/useLocalAIDiagnostics';
 import { useLocalAI } from '@/hooks/useLocalAI';
@@ -31,7 +30,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -79,17 +77,15 @@ export function AIServiceManager() {
     isRunningDiagnostics,
     runFullDiagnostics,
     checkSingleService,
-    addLog,
     clearLogs,
     downloadLogs,
     copyLogsToClipboard
   } = useLocalAIDiagnostics();
   
-  const { config, updateConfig } = useLocalAI();
+  const { config } = useLocalAI();
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [installMethod, setInstallMethod] = useState<'windows' | 'docker'>('windows');
 
-  // Run diagnostics on mount
   useEffect(() => {
     runFullDiagnostics();
   }, []);
@@ -100,6 +96,8 @@ export function AIServiceManager() {
         return <CheckCircle2 className="w-5 h-5 text-green-500" />;
       case 'offline':
         return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'not_installed':
+        return <AlertCircle className="w-5 h-5 text-orange-500" />;
       case 'error':
         return <AlertCircle className="w-5 h-5 text-yellow-500" />;
       case 'checking':
@@ -111,12 +109,14 @@ export function AIServiceManager() {
     const variants: Record<typeof status, string> = {
       online: 'bg-green-500/20 text-green-400 border-green-500/30',
       offline: 'bg-red-500/20 text-red-400 border-red-500/30',
+      not_installed: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
       error: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
       checking: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
     };
     const labels: Record<typeof status, string> = {
       online: 'En ligne',
       offline: 'Hors ligne',
+      not_installed: 'Non installé',
       error: 'Erreur',
       checking: 'Vérification...'
     };
@@ -149,180 +149,23 @@ export function AIServiceManager() {
     }
   };
 
-  const handleDownloadInstallScript = (type: 'full' | 'uninstall') => {
-    let scriptContent: string;
-    const filename = type === 'full' ? 'install-mediavault-ai.ps1' : 'uninstall-mediavault-ai.ps1';
-    
-    if (type === 'full') {
-      scriptContent = `#Requires -RunAsAdministrator
-# MediaVault AI Suite - Installation Complete
-# Exécuter avec: powershell -ExecutionPolicy Bypass -File install-mediavault-ai.ps1
-
-$ErrorActionPreference = "Continue"
-$InstallDir = "$env:USERPROFILE\\MediaVault-AI"
-
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  MEDIAVAULT AI SUITE - INSTALLATION EN UN CLIC" -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host ""
-
-# Create install directory
-if (!(Test-Path $InstallDir)) {
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-}
-
-$LogFile = "$InstallDir\\install.log"
-Start-Transcript -Path $LogFile -Append
-
-# Install Ollama
-Write-Host "[1/4] Installation de Ollama..." -ForegroundColor Yellow
-try {
-    winget install --id Ollama.Ollama -e --accept-package-agreements --accept-source-agreements --silent
-    Write-Host "  ✓ Ollama installé" -ForegroundColor Green
-} catch {
-    Write-Host "  ✗ Erreur Ollama: $_" -ForegroundColor Red
-}
-
-# Install Python if needed
-Write-Host "[2/4] Vérification de Python..." -ForegroundColor Yellow
-if (!(Get-Command python -ErrorAction SilentlyContinue)) {
-    winget install --id Python.Python.3.11 -e --accept-package-agreements --accept-source-agreements --silent
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-}
-Write-Host "  ✓ Python disponible" -ForegroundColor Green
-
-# Install Git if needed
-Write-Host "[3/4] Vérification de Git..." -ForegroundColor Yellow
-if (!(Get-Command git -ErrorAction SilentlyContinue)) {
-    winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements --silent
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-}
-Write-Host "  ✓ Git disponible" -ForegroundColor Green
-
-# Install ComfyUI
-Write-Host "[4/4] Installation de ComfyUI..." -ForegroundColor Yellow
-$ComfyPath = "$InstallDir\\ComfyUI"
-if (!(Test-Path $ComfyPath)) {
-    Set-Location $InstallDir
-    git clone https://github.com/comfyanonymous/ComfyUI.git
-    Set-Location $ComfyPath
-    python -m venv venv
-    .\\venv\\Scripts\\Activate.ps1
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet
-    pip install -r requirements.txt --quiet
-    deactivate
-}
-Write-Host "  ✓ ComfyUI installé" -ForegroundColor Green
-
-# Create start script
-@"
-@echo off
-echo Démarrage des services IA MediaVault...
-start "Ollama" /min ollama serve
-timeout /t 3 /nobreak >nul
-cd /d "$InstallDir\\ComfyUI"
-start "ComfyUI" /min cmd /c "venv\\Scripts\\activate.bat && python main.py --listen 0.0.0.0"
-echo Services démarrés!
-echo Ollama: http://localhost:11434
-echo ComfyUI: http://localhost:8188
-pause
-"@ | Out-File -FilePath "$InstallDir\\start-ai.bat" -Encoding ASCII
-
-# Create desktop shortcut
-$WshShell = New-Object -ComObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\\Desktop\\MediaVault AI.lnk")
-$Shortcut.TargetPath = "$InstallDir\\start-ai.bat"
-$Shortcut.Save()
-
-Stop-Transcript
-
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  INSTALLATION TERMINÉE!" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host ""
-Write-Host "Raccourci créé sur le Bureau: 'MediaVault AI'"
-Write-Host "Log d'installation: $LogFile"
-Write-Host ""
-Write-Host "Appuyez sur une touche pour terminer..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-`;
-    } else {
-      scriptContent = `#Requires -RunAsAdministrator
-# MediaVault AI Suite - Désinstallation Complete
-# Exécuter avec: powershell -ExecutionPolicy Bypass -File uninstall-mediavault-ai.ps1
-
-$ErrorActionPreference = "Continue"
-$InstallDir = "$env:USERPROFILE\\MediaVault-AI"
-
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Red
-Write-Host "  MEDIAVAULT AI SUITE - DÉSINSTALLATION" -ForegroundColor Red
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Red
-Write-Host ""
-
-$confirm = Read-Host "Voulez-vous vraiment désinstaller tous les services IA? (O/N)"
-if ($confirm -ne "O" -and $confirm -ne "o") {
-    Write-Host "Annulé."
-    exit
-}
-
-Write-Host ""
-Write-Host "[1/5] Arrêt des services..." -ForegroundColor Yellow
-taskkill /F /IM ollama.exe 2>$null
-taskkill /F /IM python.exe /FI "WINDOWTITLE eq ComfyUI*" 2>$null
-Write-Host "  ✓ Services arrêtés" -ForegroundColor Green
-
-Write-Host "[2/5] Désinstallation de Ollama..." -ForegroundColor Yellow
-winget uninstall --id Ollama.Ollama -e --silent 2>$null
-Write-Host "  ✓ Ollama désinstallé" -ForegroundColor Green
-
-Write-Host "[3/5] Suppression du dossier d'installation..." -ForegroundColor Yellow
-if (Test-Path $InstallDir) {
-    Remove-Item -Path $InstallDir -Recurse -Force
-    Write-Host "  ✓ Dossier supprimé: $InstallDir" -ForegroundColor Green
-}
-
-Write-Host "[4/5] Suppression du raccourci bureau..." -ForegroundColor Yellow
-$shortcut = "$env:USERPROFILE\\Desktop\\MediaVault AI.lnk"
-if (Test-Path $shortcut) {
-    Remove-Item $shortcut -Force
-    Write-Host "  ✓ Raccourci supprimé" -ForegroundColor Green
-}
-
-Write-Host "[5/5] Nettoyage Docker (optionnel)..." -ForegroundColor Yellow
-$cleanDocker = Read-Host "Supprimer aussi les conteneurs Docker? (O/N)"
-if ($cleanDocker -eq "O" -or $cleanDocker -eq "o") {
-    docker stop mediavault-ollama mediavault-comfyui mediavault-whisper mediavault-xtts 2>$null
-    docker rm mediavault-ollama mediavault-comfyui mediavault-whisper mediavault-xtts 2>$null
-    docker volume rm mediavault_ollama_data mediavault_comfyui_models 2>$null
-    Write-Host "  ✓ Conteneurs Docker supprimés" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  DÉSINSTALLATION TERMINÉE!" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host ""
-Write-Host "Appuyez sur une touche pour terminer..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-`;
-    }
-    
-    const blob = new Blob([scriptContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    toast.success(`Script ${type === 'full' ? 'd\'installation' : 'de désinstallation'} téléchargé`);
+  const downloadScript = (scriptName: string) => {
+    const link = document.createElement('a');
+    link.href = `/scripts/${scriptName}`;
+    link.download = scriptName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Script ${scriptName} téléchargé`);
   };
 
   const onlineCount = services.filter(s => s.status === 'online').length;
-  const offlineCount = services.filter(s => s.status === 'offline').length;
+  const offlineCount = services.filter(s => s.status === 'offline' || s.status === 'not_installed').length;
+
+  const gpuLabel = systemInfo?.gpuType === 'intel-arc' ? 'Intel Arc' :
+                   systemInfo?.gpuType === 'nvidia' ? 'NVIDIA' :
+                   systemInfo?.gpuType === 'amd' ? 'AMD' :
+                   systemInfo?.gpu?.split('/')[0]?.slice(0, 20) || 'Non détecté';
 
   return (
     <div className="space-y-6">
@@ -354,13 +197,19 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         
         <Card className="bg-card/50">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-blue-500/20">
-              <Cpu className="w-6 h-6 text-blue-500" />
+            <div className={cn(
+              "p-3 rounded-lg",
+              systemInfo?.gpuType === 'intel-arc' ? "bg-blue-500/20" :
+              systemInfo?.gpuType === 'nvidia' ? "bg-green-500/20" : "bg-muted"
+            )}>
+              <Cpu className={cn(
+                "w-6 h-6",
+                systemInfo?.gpuType === 'intel-arc' ? "text-blue-500" :
+                systemInfo?.gpuType === 'nvidia' ? "text-green-500" : "text-muted-foreground"
+              )} />
             </div>
             <div>
-              <p className="text-sm font-medium truncate max-w-[150px]">
-                {systemInfo?.gpu?.split('/')[0] || 'Non détecté'}
-              </p>
+              <p className="text-sm font-medium truncate max-w-[150px]">{gpuLabel}</p>
               <p className="text-sm text-muted-foreground">GPU</p>
             </div>
           </CardContent>
@@ -431,6 +280,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                       "transition-all",
                       service.status === 'online' && "border-green-500/30",
                       service.status === 'offline' && "border-red-500/30",
+                      service.status === 'not_installed' && "border-orange-500/30",
                       service.status === 'error' && "border-yellow-500/30"
                     )}>
                       <CollapsibleTrigger className="w-full">
@@ -468,6 +318,13 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                             </div>
                           )}
                           
+                          {service.installPath && (
+                            <div className="p-2 rounded bg-muted/50 text-xs font-mono flex items-center gap-2">
+                              <FolderOpen className="w-3 h-3" />
+                              <span>%USERPROFILE%\MediaVault-AI\{service.installPath}</span>
+                            </div>
+                          )}
+                          
                           {service.capabilities && (
                             <div>
                               <p className="text-sm text-muted-foreground mb-2">Fonctionnalités:</p>
@@ -481,7 +338,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                             </div>
                           )}
                           
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <Button 
                               size="sm" 
                               variant="outline"
@@ -504,7 +361,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                               </Button>
                             )}
                             
-                            {service.status === 'offline' && SERVICE_INSTALL_COMMANDS[service.id] && (
+                            {(service.status === 'offline' || service.status === 'not_installed') && SERVICE_INSTALL_COMMANDS[service.id] && (
                               <Button 
                                 size="sm" 
                                 variant="default"
@@ -535,14 +392,15 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
         {/* Installation Tab */}
         <TabsContent value="install" className="space-y-4">
+          {/* Quick Download Scripts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Installation en un clic
+                Scripts d'installation en un clic
               </CardTitle>
               <CardDescription>
-                Téléchargez et exécutez le script pour installer automatiquement tous les services IA
+                Téléchargez et exécutez ces scripts PowerShell pour installer automatiquement tous les services
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -550,37 +408,80 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                 <Button 
                   size="lg" 
                   className="h-auto py-4 flex-col gap-2"
-                  onClick={() => handleDownloadInstallScript('full')}
+                  onClick={() => downloadScript('install-ai-suite-complete.ps1')}
                 >
                   <Download className="w-6 h-6" />
-                  <span className="font-semibold">Télécharger le script d'installation</span>
-                  <span className="text-xs opacity-80">install-mediavault-ai.ps1</span>
+                  <span className="font-semibold">Installation complète</span>
+                  <span className="text-xs opacity-80">install-ai-suite-complete.ps1</span>
+                </Button>
+                
+                <Button 
+                  size="lg" 
+                  variant="secondary"
+                  className="h-auto py-4 flex-col gap-2"
+                  onClick={() => downloadScript('start-ai-services.bat')}
+                >
+                  <Play className="w-6 h-6" />
+                  <span className="font-semibold">Démarrer les services</span>
+                  <span className="text-xs opacity-80">start-ai-services.bat</span>
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2"
+                  onClick={() => downloadScript('stop-ai-services.bat')}
+                >
+                  <Square className="w-6 h-6" />
+                  <span className="font-semibold">Arrêter les services</span>
+                  <span className="text-xs opacity-80">stop-ai-services.bat</span>
                 </Button>
                 
                 <Button 
                   size="lg" 
                   variant="destructive"
                   className="h-auto py-4 flex-col gap-2"
-                  onClick={() => handleDownloadInstallScript('uninstall')}
+                  onClick={() => downloadScript('uninstall-ai-suite.ps1')}
                 >
                   <Trash2 className="w-6 h-6" />
-                  <span className="font-semibold">Télécharger le script de désinstallation</span>
-                  <span className="text-xs opacity-80">uninstall-mediavault-ai.ps1</span>
+                  <span className="font-semibold">Désinstallation</span>
+                  <span className="text-xs opacity-80">uninstall-ai-suite.ps1</span>
                 </Button>
               </div>
               
+              {systemInfo?.gpuType === 'intel-arc' && (
+                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+                  <h4 className="font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    Intel Arc GPU Détecté
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Votre système dispose d'un GPU Intel Arc. Le script d'installation configurera 
+                    automatiquement PyTorch avec support Intel OneAPI pour de meilleures performances.
+                  </p>
+                </div>
+              )}
+              
               <div className="p-4 rounded-lg bg-muted/50 border">
-                <p className="text-sm font-medium mb-2">Comment exécuter le script:</p>
-                <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                  <li>Clic droit sur le fichier téléchargé</li>
-                  <li>Sélectionnez "Exécuter avec PowerShell"</li>
-                  <li>Acceptez l'exécution en tant qu'administrateur</li>
-                  <li>Attendez la fin de l'installation</li>
+                <p className="text-sm font-medium mb-2">Comment exécuter le script d'installation:</p>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                  <li>Téléchargez <strong>install-ai-suite-complete.ps1</strong></li>
+                  <li>Ouvrez PowerShell en tant qu'Administrateur</li>
+                  <li>Exécutez:
+                    <code className="block mt-1 p-2 bg-background rounded text-xs">
+                      Set-ExecutionPolicy Bypass -Scope Process; cd $env:USERPROFILE\Downloads; .\install-ai-suite-complete.ps1
+                    </code>
+                  </li>
+                  <li>Attendez la fin de l'installation (~15-30 min)</li>
+                  <li>Double-cliquez sur le raccourci "MediaVault AI" sur le bureau</li>
                 </ol>
               </div>
             </CardContent>
           </Card>
 
+          {/* Manual Installation */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -722,9 +623,10 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     Service "Hors ligne"
                   </h4>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Vérifiez que le service est démarré</li>
-                    <li>Utilisez le script "start-ai-services.bat"</li>
+                    <li>Vérifiez que le service est démarré avec "start-ai-services.bat"</li>
+                    <li>Vérifiez que le dossier d'installation existe</li>
                     <li>Vérifiez que le port n'est pas bloqué par un pare-feu</li>
+                    <li>Consultez les logs du service pour plus de détails</li>
                   </ul>
                 </div>
                 
@@ -736,7 +638,7 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                     <li>Le service doit autoriser les requêtes cross-origin</li>
                     <li>Utilisez les serveurs Flask fournis avec CORS activé</li>
-                    <li>Vérifiez la configuration du service</li>
+                    <li>Réinstallez le service avec le script d'installation complet</li>
                   </ul>
                 </div>
                 
@@ -746,9 +648,22 @@ $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     Problèmes de GPU
                   </h4>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Installez les derniers drivers NVIDIA</li>
-                    <li>Vérifiez que CUDA est installé</li>
+                    <li><strong>NVIDIA:</strong> Installez CUDA 12.1+ et les derniers drivers</li>
+                    <li><strong>Intel Arc:</strong> Installez Intel oneAPI et les drivers Arc</li>
                     <li>Utilisez le mode CPU si pas de GPU compatible</li>
+                  </ul>
+                </div>
+                
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-purple-500" />
+                    Réinstallation propre
+                  </h4>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>1. Téléchargez et exécutez "uninstall-ai-suite.ps1"</li>
+                    <li>2. Redémarrez l'ordinateur</li>
+                    <li>3. Téléchargez et exécutez "install-ai-suite-complete.ps1"</li>
+                    <li>4. Vérifiez les services avec le diagnostic</li>
                   </ul>
                 </div>
               </div>

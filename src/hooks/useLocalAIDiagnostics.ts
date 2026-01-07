@@ -5,12 +5,14 @@ export interface AIServiceStatus {
   name: string;
   url: string;
   port: number;
-  status: 'online' | 'offline' | 'checking' | 'error';
+  status: 'online' | 'offline' | 'checking' | 'error' | 'not_installed';
   latency?: number;
   version?: string;
   error?: string;
   lastChecked?: Date;
   capabilities?: string[];
+  installPath?: string;
+  isInstalled?: boolean;
 }
 
 export interface DiagnosticLog {
@@ -26,66 +28,83 @@ export interface SystemInfo {
   os: string;
   browser: string;
   gpu: string | null;
+  gpuType: 'nvidia' | 'intel-arc' | 'amd' | 'unknown' | null;
   memory: string | null;
   diskSpace: string | null;
+  installDir: string;
 }
 
-export const AI_SERVICES: Omit<AIServiceStatus, 'status' | 'latency' | 'error' | 'lastChecked'>[] = [
+export interface InstallationStatus {
+  isComplete: boolean;
+  servicesInstalled: string[];
+  servicesMissing: string[];
+  installDir: string;
+}
+
+export const AI_SERVICES: Omit<AIServiceStatus, 'status' | 'latency' | 'error' | 'lastChecked' | 'isInstalled'>[] = [
   {
     id: 'ollama',
     name: 'Ollama (LLM)',
     url: 'http://localhost:11434',
     port: 11434,
-    capabilities: ['Chat', 'Génération de texte', 'Embeddings']
+    capabilities: ['Chat', 'Génération de texte', 'Embeddings'],
+    installPath: '' // System-wide install
   },
   {
     id: 'comfyui',
     name: 'ComfyUI (Images)',
     url: 'http://localhost:8188',
     port: 8188,
-    capabilities: ['Génération d\'images', 'Inpainting', 'ControlNet', 'AnimateDiff']
+    capabilities: ['Génération d\'images', 'Inpainting', 'ControlNet', 'AnimateDiff'],
+    installPath: 'ComfyUI'
   },
   {
     id: 'whisper',
     name: 'Whisper (STT)',
     url: 'http://localhost:9000',
     port: 9000,
-    capabilities: ['Transcription audio', 'Détection de langue']
+    capabilities: ['Transcription audio', 'Détection de langue'],
+    installPath: 'whisper-api'
   },
   {
     id: 'xtts',
     name: 'XTTS (TTS)',
     url: 'http://localhost:8020',
     port: 8020,
-    capabilities: ['Synthèse vocale', 'Clonage de voix']
+    capabilities: ['Synthèse vocale', 'Clonage de voix'],
+    installPath: 'xtts-api'
   },
   {
     id: 'musicgen',
     name: 'MusicGen',
     url: 'http://localhost:8030',
     port: 8030,
-    capabilities: ['Génération musicale']
+    capabilities: ['Génération musicale'],
+    installPath: 'musicgen-api'
   },
   {
     id: 'demucs',
     name: 'Demucs',
     url: 'http://localhost:8040',
     port: 8040,
-    capabilities: ['Séparation de stems audio']
+    capabilities: ['Séparation de stems audio'],
+    installPath: 'demucs-api'
   },
   {
     id: 'clip',
     name: 'CLIP (Analyse)',
     url: 'http://localhost:8060',
     port: 8060,
-    capabilities: ['Analyse d\'images', 'Recherche sémantique']
+    capabilities: ['Analyse d\'images', 'Recherche sémantique'],
+    installPath: 'clip-api'
   },
   {
     id: 'esrgan',
     name: 'ESRGAN (Upscale)',
     url: 'http://localhost:8070',
     port: 8070,
-    capabilities: ['Upscaling d\'images', 'Super-résolution']
+    capabilities: ['Upscaling d\'images', 'Super-résolution'],
+    installPath: 'esrgan-api'
   }
 ];
 
@@ -102,7 +121,7 @@ const HEALTH_ENDPOINTS: Record<string, string> = {
 
 export function useLocalAIDiagnostics() {
   const [services, setServices] = useState<AIServiceStatus[]>(() =>
-    AI_SERVICES.map(s => ({ ...s, status: 'offline' as const }))
+    AI_SERVICES.map(s => ({ ...s, status: 'offline' as const, isInstalled: undefined }))
   );
   const [logs, setLogs] = useState<DiagnosticLog[]>([]);
   const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false);
@@ -122,7 +141,7 @@ export function useLocalAIDiagnostics() {
       message,
       details
     };
-    setLogs(prev => [log, ...prev].slice(0, 500)); // Keep last 500 logs
+    setLogs(prev => [log, ...prev].slice(0, 500));
     return log;
   }, []);
 
@@ -130,6 +149,21 @@ export function useLocalAIDiagnostics() {
     setLogs([]);
     addLog('info', 'System', 'Logs effacés');
   }, [addLog]);
+
+  const detectGPUType = (gpuString: string | null): SystemInfo['gpuType'] => {
+    if (!gpuString) return null;
+    const lower = gpuString.toLowerCase();
+    if (lower.includes('nvidia') || lower.includes('geforce') || lower.includes('rtx') || lower.includes('gtx')) {
+      return 'nvidia';
+    }
+    if (lower.includes('intel') && (lower.includes('arc') || lower.includes('a770') || lower.includes('a750') || lower.includes('a380'))) {
+      return 'intel-arc';
+    }
+    if (lower.includes('amd') || lower.includes('radeon')) {
+      return 'amd';
+    }
+    return 'unknown';
+  };
 
   const checkService = useCallback(async (service: AIServiceStatus): Promise<AIServiceStatus> => {
     const startTime = Date.now();
@@ -166,7 +200,8 @@ export function useLocalAIDiagnostics() {
           latency,
           version,
           error: undefined,
-          lastChecked: new Date()
+          lastChecked: new Date(),
+          isInstalled: true
         };
       } else {
         const errorMsg = `HTTP ${response.status}: ${response.statusText}`;
@@ -177,18 +212,21 @@ export function useLocalAIDiagnostics() {
           status: 'error',
           latency,
           error: errorMsg,
-          lastChecked: new Date()
+          lastChecked: new Date(),
+          isInstalled: true
         };
       }
     } catch (err) {
       const latency = Date.now() - startTime;
       let errorMsg: string;
+      let status: AIServiceStatus['status'] = 'offline';
       
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
-          errorMsg = 'Timeout après 5 secondes';
+          errorMsg = 'Timeout après 5 secondes - Service peut être en cours de chargement';
         } else if (err.message.includes('Failed to fetch')) {
-          errorMsg = 'Service non accessible (non démarré ou bloqué par CORS)';
+          // Could be CORS or not running
+          errorMsg = 'Service non démarré ou bloqué par CORS';
         } else {
           errorMsg = err.message;
         }
@@ -200,7 +238,7 @@ export function useLocalAIDiagnostics() {
       
       return {
         ...service,
-        status: 'offline',
+        status,
         latency,
         error: errorMsg,
         lastChecked: new Date()
@@ -217,8 +255,10 @@ export function useLocalAIDiagnostics() {
       os: navigator.platform,
       browser: navigator.userAgent,
       gpu: null,
+      gpuType: null,
       memory: null,
-      diskSpace: null
+      diskSpace: null,
+      installDir: '%USERPROFILE%\\MediaVault-AI'
     };
     
     // Try to get GPU info
@@ -229,6 +269,7 @@ export function useLocalAIDiagnostics() {
         const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
         if (debugInfo) {
           sysInfo.gpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+          sysInfo.gpuType = detectGPUType(sysInfo.gpu);
         }
       }
     } catch {
@@ -241,7 +282,15 @@ export function useLocalAIDiagnostics() {
     }
     
     setSystemInfo(sysInfo);
-    addLog('info', 'System', `OS: ${sysInfo.os}`, sysInfo.gpu ? `GPU: ${sysInfo.gpu}` : undefined);
+    
+    const gpuInfo = sysInfo.gpu ? `GPU: ${sysInfo.gpu}` : undefined;
+    const gpuTypeMsg = sysInfo.gpuType === 'intel-arc' 
+      ? '(Intel Arc détecté - Support OpenVINO/OneAPI disponible)'
+      : sysInfo.gpuType === 'nvidia' 
+        ? '(NVIDIA détecté - Support CUDA disponible)'
+        : undefined;
+    
+    addLog('info', 'System', `OS: ${sysInfo.os}`, [gpuInfo, gpuTypeMsg].filter(Boolean).join(' | '));
     
     // Check all services in parallel
     const updatedServices = await Promise.all(
@@ -259,6 +308,18 @@ export function useLocalAIDiagnostics() {
     const online = updatedServices.filter(s => s.status === 'online').length;
     const offline = updatedServices.filter(s => s.status === 'offline').length;
     const errors = updatedServices.filter(s => s.status === 'error').length;
+    
+    // Provide recommendations
+    if (offline > 0) {
+      const offlineServices = updatedServices.filter(s => s.status === 'offline').map(s => s.name).join(', ');
+      addLog('warning', 'System', `Services hors ligne: ${offlineServices}`, 
+        'Vérifiez que les services sont installés et démarrés avec start-ai-services.bat');
+    }
+    
+    if (sysInfo.gpuType === 'intel-arc') {
+      addLog('info', 'System', 'Intel Arc GPU détecté', 
+        'Utilisez le script d\'installation avec support Intel OneAPI pour de meilleures performances');
+    }
     
     addLog(
       online === updatedServices.length ? 'success' : online > 0 ? 'warning' : 'error',
@@ -302,8 +363,10 @@ INFORMATIONS SYSTÈME
 ═══════════════════════════════════════════════════════
 OS: ${systemInfo.os}
 GPU: ${systemInfo.gpu || 'Non détecté'}
+Type GPU: ${systemInfo.gpuType || 'Non détecté'}
 Mémoire: ${systemInfo.memory || 'Non disponible'}
 Navigateur: ${systemInfo.browser}
+Dossier d'installation: ${systemInfo.installDir}
 ` : '';
     
     const servicesText = `
@@ -311,11 +374,29 @@ Navigateur: ${systemInfo.browser}
 ÉTAT DES SERVICES
 ═══════════════════════════════════════════════════════
 ${services.map(s => {
-  const status = s.status === 'online' ? '✓ EN LIGNE' : s.status === 'offline' ? '✗ HORS LIGNE' : '⚠ ERREUR';
+  const status = s.status === 'online' ? '✓ EN LIGNE' : 
+                 s.status === 'offline' ? '✗ HORS LIGNE' : 
+                 s.status === 'not_installed' ? '⊘ NON INSTALLÉ' : '⚠ ERREUR';
   const latency = s.latency ? `(${s.latency}ms)` : '';
   const error = s.error ? `\n    Erreur: ${s.error}` : '';
-  return `${status.padEnd(12)} | ${s.name.padEnd(25)} | ${s.url} ${latency}${error}`;
+  const path = s.installPath ? `\n    Chemin: ${systemInfo?.installDir || '%USERPROFILE%\\MediaVault-AI'}\\${s.installPath}` : '';
+  return `${status.padEnd(15)} | ${s.name.padEnd(25)} | ${s.url} ${latency}${error}${path}`;
 }).join('\n')}
+`;
+
+    const recommendationsText = `
+═══════════════════════════════════════════════════════
+RECOMMANDATIONS
+═══════════════════════════════════════════════════════
+${services.filter(s => s.status === 'offline').length > 0 ? `
+• ${services.filter(s => s.status === 'offline').length} services hors ligne - Exécutez start-ai-services.bat
+` : ''}${systemInfo?.gpuType === 'intel-arc' ? `
+• Intel Arc GPU détecté - Utilisez le script d'installation avec support Intel OneAPI
+` : ''}${systemInfo?.gpuType === 'nvidia' ? `
+• NVIDIA GPU détecté - Vérifiez que CUDA 12.1+ est installé
+` : ''}
+• Pour installer les services manquants, téléchargez install-ai-suite-complete.ps1
+• Pour un support technique, partagez ce rapport complet
 `;
     
     const fullReport = `
@@ -325,6 +406,7 @@ Date: ${new Date().toISOString()}
 ═══════════════════════════════════════════════════════
 ${systemInfoText}
 ${servicesText}
+${recommendationsText}
 
 ═══════════════════════════════════════════════════════
 LOGS DÉTAILLÉS
