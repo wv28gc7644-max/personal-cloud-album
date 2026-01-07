@@ -43,23 +43,61 @@ echo.
 
 REM --- 1) Installation via PowerShell (log via Tee-Object) ---
 echo [1/3] Installation des services (PowerShell)...
-if not exist "%SCRIPT_DIR%install-ai-suite-complete.ps1" (
-  echo [ERREUR] Script introuvable: %SCRIPT_DIR%install-ai-suite-complete.ps1
-  echo Copiez ce .bat dans le dossier \public\scripts\ ou téléchargez-le depuis l'application.
-  pause
-  exit /b 1
+
+REM Chercher le script PS1 dans plusieurs emplacements
+set "PS1_SCRIPT="
+if exist "%SCRIPT_DIR%install-ai-suite-complete.ps1" set "PS1_SCRIPT=%SCRIPT_DIR%install-ai-suite-complete.ps1"
+if exist "%~dp0install-ai-suite-complete.ps1" set "PS1_SCRIPT=%~dp0install-ai-suite-complete.ps1"
+if exist "%USERPROFILE%\Downloads\install-ai-suite-complete.ps1" set "PS1_SCRIPT=%USERPROFILE%\Downloads\install-ai-suite-complete.ps1"
+if exist "%AI_DIR%\install-ai-suite-complete.ps1" set "PS1_SCRIPT=%AI_DIR%\install-ai-suite-complete.ps1"
+
+if "%PS1_SCRIPT%"=="" (
+  echo [ERREUR] Script introuvable: install-ai-suite-complete.ps1
+  echo.
+  echo Emplacements vérifiés:
+  echo   - %SCRIPT_DIR%
+  echo   - %~dp0
+  echo   - %USERPROFILE%\Downloads
+  echo   - %AI_DIR%
+  echo.
+  echo SOLUTION: Téléchargez install-ai-suite-complete.ps1 depuis l'application
+  echo           et placez-le dans le même dossier que ce fichier .bat
+  echo.
+  echo [ERREUR] Script PS1 introuvable > "%INSTALL_LOG%"
+  set "PS_EXIT=404"
+  goto skipInstall
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%SCRIPT_DIR%install-ai-suite-complete.ps1' -InstallDir '%AI_DIR%' *>&1 | Tee-Object -FilePath '%INSTALL_LOG%'" 
+echo Script trouvé: %PS1_SCRIPT%
+echo Lancement de l'installation... (peut prendre 15-30 minutes)
+echo.
+
+REM Exécuter avec capture d'erreur complète
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Continue'; try { & '%PS1_SCRIPT%' -InstallDir '%AI_DIR%' *>&1 | Tee-Object -FilePath '%INSTALL_LOG%'; exit $LASTEXITCODE } catch { $_ | Out-File -Append '%INSTALL_LOG%'; exit 1 }"
 set "PS_EXIT=%ERRORLEVEL%"
+
+echo.
+echo Installation terminée avec code: %PS_EXIT%
+
+:skipInstall
 
 REM --- 2) Démarrage + logs ---
 echo.
 echo [2/3] Démarrage des services...
-if exist "%SCRIPT_DIR%start-ai-services.bat" (
-  call "%SCRIPT_DIR%start-ai-services.bat" > "%START_LOG%" 2>&1
+
+REM Chercher start-ai-services.bat
+set "START_SCRIPT="
+if exist "%SCRIPT_DIR%start-ai-services.bat" set "START_SCRIPT=%SCRIPT_DIR%start-ai-services.bat"
+if exist "%AI_DIR%\start-ai-services.bat" set "START_SCRIPT=%AI_DIR%\start-ai-services.bat"
+if exist "%USERPROFILE%\Downloads\start-ai-services.bat" set "START_SCRIPT=%USERPROFILE%\Downloads\start-ai-services.bat"
+
+if "%START_SCRIPT%"=="" (
+  echo [WARN] start-ai-services.bat introuvable - services non démarrés
+  echo [WARN] start-ai-services.bat introuvable > "%START_LOG%"
 ) else (
-  echo [ERREUR] start-ai-services.bat introuvable: %SCRIPT_DIR%start-ai-services.bat
+  echo Démarrage via: %START_SCRIPT%
+  call "%START_SCRIPT%" > "%START_LOG%" 2>&1
+  echo Services démarrés.
 )
 
 REM --- 3) Vérification + rapport final ---
@@ -111,11 +149,39 @@ call :CheckUrl "CLIP"    "http://localhost:8060/health" >> "%REPORT_FILE%"
 call :CheckUrl "ESRGAN"  "http://localhost:8070/health" >> "%REPORT_FILE%"
 
 echo.>> "%REPORT_FILE%"
+
+REM Vérification des dossiers installés
+echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
+echo DOSSIERS INSTALLATION>> "%REPORT_FILE%"
+echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
+if exist "%AI_DIR%\ComfyUI" (echo ✓ ComfyUI installé>> "%REPORT_FILE%") else (echo ✗ ComfyUI NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\whisper-api" (echo ✓ Whisper installé>> "%REPORT_FILE%") else (echo ✗ Whisper NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\xtts-api" (echo ✓ XTTS installé>> "%REPORT_FILE%") else (echo ✗ XTTS NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\musicgen-api" (echo ✓ MusicGen installé>> "%REPORT_FILE%") else (echo ✗ MusicGen NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\demucs-api" (echo ✓ Demucs installé>> "%REPORT_FILE%") else (echo ✗ Demucs NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\clip-api" (echo ✓ CLIP installé>> "%REPORT_FILE%") else (echo ✗ CLIP NON installé>> "%REPORT_FILE%")
+if exist "%AI_DIR%\esrgan-api" (echo ✓ ESRGAN installé>> "%REPORT_FILE%") else (echo ✗ ESRGAN NON installé>> "%REPORT_FILE%")
+echo.>> "%REPORT_FILE%"
+
+REM Extrait du log d'installation (dernières 50 lignes)
+echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
+echo EXTRAIT LOG INSTALLATION (50 dernières lignes)>> "%REPORT_FILE%"
+echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
+if exist "%INSTALL_LOG%" (
+  powershell -NoProfile -Command "Get-Content -Tail 50 '%INSTALL_LOG%'" >> "%REPORT_FILE%" 2>&1
+) else (
+  echo [Aucun log d'installation trouvé]>> "%REPORT_FILE%"
+)
+echo.>> "%REPORT_FILE%"
+
 echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
 echo NOTES>> "%REPORT_FILE%"
 echo ═══════════════════════════════════════════════════════>> "%REPORT_FILE%"
-echo - Si un service est OK en HTTP ici, mais hors-ligne dans l'app, c'est un souci CORS navigateur.>> "%REPORT_FILE%"
-echo - Si c'est X ici, c'est qu'il n'est pas démarré / pas installé / bloqué firewall.>> "%REPORT_FILE%"
+echo - EXIT CODE 404 = script PS1 introuvable (téléchargez-le)>> "%REPORT_FILE%"
+echo - EXIT CODE 0 = installation réussie>> "%REPORT_FILE%"
+echo - EXIT CODE autre = erreur pendant l'installation (voir log ci-dessus)>> "%REPORT_FILE%"
+echo - Si un service est OK en HTTP mais hors-ligne dans l'app = souci CORS navigateur>> "%REPORT_FILE%"
+echo - Si c'est X en HTTP = pas démarré / pas installé / bloqué firewall>> "%REPORT_FILE%"
 echo.>> "%REPORT_FILE%"
 
 echo Rapport créé: %REPORT_FILE%
