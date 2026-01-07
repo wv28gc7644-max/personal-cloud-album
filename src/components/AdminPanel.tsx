@@ -598,7 +598,7 @@ export const AdminPanel = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-9 bg-muted/50">
+          <TabsList className="grid w-full grid-cols-10 bg-muted/50">
             <TabsTrigger value="general" className="gap-2">
               <Settings className="w-4 h-4" />
               Général
@@ -622,6 +622,10 @@ export const AdminPanel = () => {
             <TabsTrigger value="local-ai" className="gap-2">
               <Brain className="w-4 h-4" />
               IA Locale
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-2">
+              <Zap className="w-4 h-4" />
+              Intégrations
             </TabsTrigger>
             <TabsTrigger value="security" className="gap-2">
               <Shield className="w-4 h-4" />
@@ -1194,6 +1198,37 @@ export const AdminPanel = () => {
               <TabsContent value="automation" className="space-y-4 mt-4">
                 <WorkflowBuilder />
                 <BatchScheduler />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          {/* Integrations Tab */}
+          <TabsContent value="integrations" className="space-y-4 mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-primary" />
+                  Intégrations Externes
+                </CardTitle>
+                <CardDescription>
+                  Connectez MediaVault à vos services préférés pour une expérience unifiée
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Tabs defaultValue="discord" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="discord">Discord</TabsTrigger>
+                <TabsTrigger value="telegram">Telegram</TabsTrigger>
+                <TabsTrigger value="homeassistant">Home Assistant</TabsTrigger>
+              </TabsList>
+              <TabsContent value="discord" className="mt-4">
+                <DiscordIntegration />
+              </TabsContent>
+              <TabsContent value="telegram" className="mt-4">
+                <TelegramIntegration />
+              </TabsContent>
+              <TabsContent value="homeassistant" className="mt-4">
+                <HomeAssistantIntegration />
               </TabsContent>
             </Tabs>
           </TabsContent>
