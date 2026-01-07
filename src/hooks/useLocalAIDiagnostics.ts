@@ -261,11 +261,16 @@ export function useLocalAIDiagnostics() {
       const latency = Date.now() - startTime;
       let errorMsg: string;
       let status: AIServiceStatus['status'] = 'offline';
-      
+
+      // In browsers, mixed-content blocks often surface as a generic TypeError.
+      const isTypeError = err instanceof TypeError || (err instanceof Error && err.name === 'TypeError');
+      const errorText = err instanceof Error ? (err.message || '') : '';
+      const looksLikeFetchBlocked = isTypeError || errorText.includes('Failed to fetch') || errorText.includes('NetworkError');
+
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
           errorMsg = 'Timeout après 5 secondes - Service peut être en cours de chargement';
-        } else if (err.message.includes('Failed to fetch')) {
+        } else if (looksLikeFetchBlocked) {
           // If HTTPS → HTTP localhost, it's blocked, not offline
           if (willBeBlocked) {
             status = 'blocked';
@@ -280,11 +285,11 @@ export function useLocalAIDiagnostics() {
       } else {
         errorMsg = 'Erreur inconnue';
       }
-      
+
       if (status !== 'blocked') {
         addLog('error', service.name, `Service hors ligne`, errorMsg);
       }
-      
+
       return {
         ...service,
         status,
