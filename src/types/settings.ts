@@ -58,9 +58,10 @@ export const DEFAULT_MODULES: SettingsModule[] = [
   
   // Apparence
   { id: 'theme', name: 'Thèmes', description: 'Presets et couleurs personnalisées', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', category: 'appearance', component: 'ThemePresetsPanel', order: 0, visible: true, size: 'medium' },
-  { id: 'cards', name: 'Design des cartes', description: 'Apparence de la galerie', icon: 'LayoutGrid', iconColor: 'hsl(199, 89%, 48%)', category: 'appearance', component: 'CardDesignEditor', order: 1, visible: true },
-  { id: 'grid', name: 'Grille', description: 'Colonnes et disposition', icon: 'Grid3X3', iconColor: 'hsl(262, 83%, 58%)', category: 'appearance', component: 'GridSettings', order: 2, visible: true },
-  { id: 'cardDisplay', name: 'Affichage cartes', description: 'Métadonnées et boutons', icon: 'LayoutList', iconColor: 'hsl(174, 72%, 40%)', category: 'appearance', component: 'CardDisplaySettings', order: 3, visible: true },
+  { id: 'colorEditor', name: 'Couleurs', description: 'Éditeur avancé HSL/Gradient', icon: 'Pipette', iconColor: 'hsl(280, 87%, 55%)', category: 'appearance', component: 'AdvancedColorEditor', order: 1, visible: true },
+  { id: 'cards', name: 'Design des cartes', description: 'Apparence de la galerie', icon: 'LayoutGrid', iconColor: 'hsl(199, 89%, 48%)', category: 'appearance', component: 'CardDesignEditor', order: 2, visible: true },
+  { id: 'grid', name: 'Grille', description: 'Colonnes et disposition', icon: 'Grid3X3', iconColor: 'hsl(262, 83%, 58%)', category: 'appearance', component: 'GridSettings', order: 3, visible: true },
+  { id: 'cardDisplay', name: 'Affichage cartes', description: 'Métadonnées et boutons', icon: 'LayoutList', iconColor: 'hsl(174, 72%, 40%)', category: 'appearance', component: 'CardDisplaySettings', order: 4, visible: true },
   
   // IA & Modèles
   { id: 'localAI', name: 'IA Locale', description: 'Ollama, ComfyUI, services', icon: 'Brain', iconColor: 'hsl(271, 91%, 65%)', category: 'ai', component: 'LocalAISettingsReorganized', order: 0, visible: true, size: 'large' },
@@ -73,18 +74,18 @@ export const DEFAULT_MODULES: SettingsModule[] = [
   { id: 'autoSync', name: 'Synchronisation', description: 'Import automatique', icon: 'RefreshCw', iconColor: 'hsl(142, 76%, 36%)', category: 'media', component: 'AutoSyncSettings', order: 2, visible: true },
   
   // Intégrations
-  { id: 'discord', name: 'Discord', description: 'Bot et webhooks', icon: 'MessageCircle', iconColor: 'hsl(235, 86%, 65%)', category: 'integrations', component: 'DiscordIntegration', order: 0, visible: true },
-  { id: 'telegram', name: 'Telegram', description: 'Bot Telegram', icon: 'Send', iconColor: 'hsl(200, 100%, 50%)', category: 'integrations', component: 'TelegramIntegration', order: 1, visible: true },
-  { id: 'homeAssistant', name: 'Home Assistant', description: 'Domotique', icon: 'Home', iconColor: 'hsl(199, 89%, 48%)', category: 'integrations', component: 'HomeAssistantIntegration', order: 2, visible: true },
+  { id: 'homeHub', name: 'MediaVault Home', description: 'Hub domotique complet', icon: 'Home', iconColor: 'hsl(199, 89%, 48%)', category: 'integrations', component: 'HomeAutomationHub', order: 0, visible: true, size: 'large' },
+  { id: 'discord', name: 'Discord', description: 'Bot et webhooks', icon: 'MessageCircle', iconColor: 'hsl(235, 86%, 65%)', category: 'integrations', component: 'DiscordIntegration', order: 1, visible: true },
+  { id: 'telegram', name: 'Telegram', description: 'Bot Telegram', icon: 'Send', iconColor: 'hsl(200, 100%, 50%)', category: 'integrations', component: 'TelegramIntegration', order: 2, visible: true },
   { id: 'webhooks', name: 'Webhooks', description: 'Notifications externes', icon: 'Webhook', iconColor: 'hsl(47, 100%, 50%)', category: 'integrations', component: 'WebhookNotifications', order: 3, visible: true },
 ];
 
 export const DEFAULT_CATEGORIES: SettingsCategory[] = [
   { id: 'system', name: 'Système', icon: 'Settings', iconColor: 'hsl(215, 20%, 65%)', order: 0, visible: true, modules: ['notifications', 'aiNotifications', 'updates', 'security', 'server', 'ffmpeg'] },
-  { id: 'appearance', name: 'Apparence', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', order: 1, visible: true, modules: ['theme', 'cards', 'grid', 'cardDisplay'] },
+  { id: 'appearance', name: 'Apparence', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', order: 1, visible: true, modules: ['theme', 'colorEditor', 'cards', 'grid', 'cardDisplay'] },
   { id: 'ai', name: 'IA & Modèles', icon: 'Brain', iconColor: 'hsl(271, 91%, 65%)', order: 2, visible: true, modules: ['localAI', 'personalAI', 'aiCharacters'] },
   { id: 'media', name: 'Médias', icon: 'Image', iconColor: 'hsl(199, 89%, 48%)', order: 3, visible: true, modules: ['tags', 'playlists', 'autoSync'] },
-  { id: 'integrations', name: 'Intégrations', icon: 'Plug', iconColor: 'hsl(142, 71%, 45%)', order: 4, visible: true, modules: ['discord', 'telegram', 'homeAssistant', 'webhooks'] },
+  { id: 'integrations', name: 'Intégrations', icon: 'Plug', iconColor: 'hsl(142, 71%, 45%)', order: 4, visible: true, modules: ['homeHub', 'discord', 'telegram', 'webhooks'] },
 ];
 
 export const DEFAULT_LAYOUT_CONFIG: SettingsLayoutConfig = {
