@@ -21,6 +21,7 @@ import { NotificationsSettings } from './NotificationsSettings';
 import { UpdatesSettings } from './UpdatesSettings';
 import { ServerSettings } from './ServerSettings';
 import { ThemeSettings } from './ThemeSettings';
+import { ThemePresetsPanel } from './ThemePresetsPanel';
 import { GridSettings } from './GridSettings';
 import { CardDisplaySettings } from './CardDisplaySettings';
 import { PersonalAISettings } from './PersonalAISettings';
@@ -43,6 +44,7 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   UpdatesSettings,
   ServerSettings,
   ThemeSettings,
+  ThemePresetsPanel,
   GridSettings,
   CardDisplaySettings,
   PersonalAISettings,
