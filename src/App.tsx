@@ -9,6 +9,8 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import { useStartupUpdateCheck } from "@/hooks/useStartupUpdateCheck";
 import { AuthProvider } from "@/hooks/useAuth";
+import { GlobalEditorProvider } from "@/components/GlobalEditorProvider";
+import { GlobalEditorPanel } from "@/components/GlobalEditorPanel";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +26,7 @@ const AppContent = () => {
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <GlobalEditorPanel />
     </BrowserRouter>
   );
 };
@@ -31,11 +34,13 @@ const AppContent = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppContent />
-      </TooltipProvider>
+      <GlobalEditorProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </TooltipProvider>
+      </GlobalEditorProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

@@ -20,11 +20,14 @@ import {
   Download,
   Server,
   CheckCircle2,
-  XCircle
+  XCircle,
+  PenTool
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
 import { useLocalServer } from '@/hooks/useLocalServer';
+import { useGlobalEditorContext } from './GlobalEditorProvider';
+import { EditableElement } from './EditableElement';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -47,6 +50,7 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
   const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites } = useMediaStore();
   const { hasUpdate, commitsBehind } = useUpdateStatus();
   const { isConnected, testConnection } = useLocalServer();
+  const { isEditMode, toggleEditMode } = useGlobalEditorContext();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
 
@@ -71,14 +75,20 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
     <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Logo */}
       <div className="p-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <FolderOpen className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-            MediaVault
-          </span>
-        </h1>
+        <EditableElement id="sidebar-logo" type="container" name="Logo">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <EditableElement id="sidebar-logo-icon" type="icon" name="Icône Logo">
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <FolderOpen className="w-5 h-5 text-primary-foreground" />
+              </div>
+            </EditableElement>
+            <EditableElement id="sidebar-logo-text" type="text" name="Texte Logo">
+              <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
+                MediaVault
+              </span>
+            </EditableElement>
+          </h1>
+        </EditableElement>
       </div>
 
       {/* Navigation */}
@@ -307,6 +317,23 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
 
       {/* Settings */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
+        {/* Global Editor Toggle */}
+        <button 
+          onClick={toggleEditMode}
+          className={cn(
+            "w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-colors",
+            isEditMode
+              ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          <PenTool className="w-4 h-4" />
+          <span className="text-sm">Éditeur UI</span>
+          {isEditMode && (
+            <span className="ml-auto text-xs bg-blue-500/30 px-2 py-0.5 rounded">ON</span>
+          )}
+        </button>
+
         <button 
           onClick={() => onViewChange('admin')}
           className={cn(
