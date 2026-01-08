@@ -92,36 +92,38 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-        {navItems.map((item, index) => (
-          <motion.button
-            key={item.view}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.05 }}
-            whileHover={{ x: 4 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onViewChange(item.view)}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-              currentView === item.view
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-            )}
-          >
-            <item.icon className={cn("w-5 h-5", item.view === 'favorites' && currentView === 'favorites' && "fill-current text-yellow-500")} />
-            <span className="font-medium">{item.label}</span>
-            {item.badge !== undefined && item.badge > 0 && (
-              <motion.span 
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full"
+      <EditableElement id="sidebar-navigation" type="container" name="Navigation">
+        <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+          {navItems.map((item, index) => (
+            <EditableElement key={item.view} id={`sidebar-nav-${item.view}`} type="button" name={item.label}>
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onViewChange(item.view)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+                  currentView === item.view
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                )}
               >
-                {item.badge}
-              </motion.span>
-            )}
-          </motion.button>
-        ))}
+                <item.icon className={cn("w-5 h-5", item.view === 'favorites' && currentView === 'favorites' && "fill-current text-yellow-500")} />
+                <span className="font-medium">{item.label}</span>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full"
+                  >
+                    {item.badge}
+                  </motion.span>
+                )}
+              </motion.button>
+            </EditableElement>
+          ))}
 
         {/* Slideshow button */}
         {onStartSlideshow && (
@@ -135,63 +137,69 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
         )}
 
         {/* AI Studio button */}
-        <button
-          onClick={() => onViewChange('ai-studio')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 mt-4 ai-studio-button",
-            currentView === 'ai-studio'
-              ? "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/50 border border-transparent"
-          )}
-        >
-          <Sparkles className={cn("w-5 h-5", currentView === 'ai-studio' && "animate-pulse")} />
-          <span className="font-medium">Studio IA</span>
-          <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
-            Nouveau
-          </span>
-        </button>
+        <EditableElement id="sidebar-ai-studio" type="button" name="Studio IA">
+          <button
+            onClick={() => onViewChange('ai-studio')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 mt-4 ai-studio-button",
+              currentView === 'ai-studio'
+                ? "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 border border-transparent"
+            )}
+          >
+            <Sparkles className={cn("w-5 h-5", currentView === 'ai-studio' && "animate-pulse")} />
+            <span className="font-medium">Studio IA</span>
+            <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+              Nouveau
+            </span>
+          </button>
+        </EditableElement>
 
         {/* AI Creations button */}
-        <button
-          onClick={() => onViewChange('ai-creations')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-            currentView === 'ai-creations'
-              ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-pink-400 border border-pink-500/30"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-          )}
-        >
-          <Palette className="w-5 h-5" />
-          <span className="font-medium">Créations IA</span>
-        </button>
+        <EditableElement id="sidebar-ai-creations" type="button" name="Créations IA">
+          <button
+            onClick={() => onViewChange('ai-creations')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+              currentView === 'ai-creations'
+                ? "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-pink-400 border border-pink-500/30"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+            )}
+          >
+            <Palette className="w-5 h-5" />
+            <span className="font-medium">Créations IA</span>
+          </button>
+        </EditableElement>
 
         {/* Agent Local button avec indicateur de connexion */}
-        <button
-          onClick={() => onViewChange('agent')}
-          className={cn(
-            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
-            currentView === 'agent'
-              ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/30"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/50"
-          )}
-        >
-          <Terminal className="w-5 h-5" />
-          <span className="font-medium">Agent Local</span>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="ml-auto flex items-center gap-1">
-                {isConnected ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                ) : (
-                  <XCircle className="w-4 h-4 text-red-400" />
-                )}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{isConnected ? 'Serveur connecté' : 'Serveur déconnecté'}</p>
-            </TooltipContent>
-          </Tooltip>
-        </button>
+        <EditableElement id="sidebar-agent" type="button" name="Agent Local">
+          <button
+            onClick={() => onViewChange('agent')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+              currentView === 'agent'
+                ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/30"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+            )}
+          >
+            <Terminal className="w-5 h-5" />
+            <span className="font-medium">Agent Local</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="ml-auto flex items-center gap-1">
+                  {isConnected ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-400" />
+                  )}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{isConnected ? 'Serveur connecté' : 'Serveur déconnecté'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </button>
+        </EditableElement>
 
         {/* Tags section */}
         <div className="pt-6">
@@ -312,8 +320,9 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
-      </nav>
+          </div>
+        </nav>
+      </EditableElement>
 
       {/* Settings */}
       <div className="p-3 border-t border-sidebar-border space-y-1">

@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import { NotificationCenter } from './NotificationCenter';
 import { UserMenu } from './UserMenu';
 import { AIAssistant } from './AIAssistant';
+import { EditableElement } from './EditableElement';
+import { useGlobalEditorContext } from './GlobalEditorProvider';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -16,6 +18,7 @@ interface MediaHeaderProps {
 
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
   const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, getFilteredMedia } = useMediaStore();
+  const { isEditMode } = useGlobalEditorContext();
   const filteredCount = getFilteredMedia().length;
 
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
@@ -39,80 +42,100 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
 
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border">
-      <div className="flex items-center justify-between gap-4 p-4">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            placeholder="Rechercher par nom ou tag..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-muted/50 border-transparent focus:border-primary"
-          />
-        </div>
+      <EditableElement id="header-container" type="container" name="Header">
+        <div className="flex items-center justify-between gap-4 p-4">
+          {/* Search */}
+          <EditableElement id="header-search" type="container" name="Recherche">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                placeholder="Rechercher par nom ou tag..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-muted/50 border-transparent focus:border-primary"
+              />
+            </div>
+          </EditableElement>
 
-        {/* Stats */}
-        <div className="text-sm text-muted-foreground">
-          {filteredCount} médias
-        </div>
+          {/* Stats */}
+          <EditableElement id="header-stats" type="text" name="Compteur médias">
+            <div className="text-sm text-muted-foreground">
+              {filteredCount} médias
+            </div>
+          </EditableElement>
 
-        {/* Sort */}
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-40">
-            <ArrowUpDown className="w-4 h-4 mr-2" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {/* Sort */}
+          <EditableElement id="header-sort" type="container" name="Tri">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-40">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sortOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </EditableElement>
 
-        {/* View mode toggles */}
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
-          {viewModes.map(({ mode, icon: Icon, label }) => (
-            <Button
-              key={mode}
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setViewMode(mode)}
-              className={cn(
-                "transition-colors",
-                viewMode === mode && "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
-              title={label}
-            >
-              <Icon className="w-4 h-4" />
+          {/* View mode toggles */}
+          <EditableElement id="header-view-modes" type="container" name="Modes de vue">
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
+              {viewModes.map(({ mode, icon: Icon, label }) => (
+                <Button
+                  key={mode}
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setViewMode(mode)}
+                  className={cn(
+                    "transition-colors",
+                    viewMode === mode && "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
+                  title={label}
+                >
+                  <Icon className="w-4 h-4" />
+                </Button>
+              ))}
+            </div>
+          </EditableElement>
+
+          {/* Slideshow button */}
+          {onStartSlideshow && (
+            <EditableElement id="header-slideshow" type="button" name="Bouton Diaporama">
+              <Button variant="outline" size="sm" onClick={onStartSlideshow} className="gap-2">
+                <Play className="w-4 h-4" />
+                Diaporama
+              </Button>
+            </EditableElement>
+          )}
+
+          {/* Notification Center */}
+          <EditableElement id="header-notifications" type="icon" name="Notifications">
+            <NotificationCenter />
+          </EditableElement>
+
+          {/* AI Assistant */}
+          <EditableElement id="header-ai-assistant" type="icon" name="Assistant IA">
+            <AIAssistant />
+          </EditableElement>
+
+          {/* User Menu */}
+          <EditableElement id="header-user-menu" type="icon" name="Menu Utilisateur">
+            <UserMenu />
+          </EditableElement>
+
+          {/* Upload button */}
+          <EditableElement id="header-upload" type="button" name="Bouton Ajouter">
+            <Button onClick={onUploadClick} className="gap-2">
+              <Upload className="w-4 h-4" />
+              Ajouter
             </Button>
-          ))}
+          </EditableElement>
         </div>
-
-        {/* Slideshow button */}
-        {onStartSlideshow && (
-          <Button variant="outline" size="sm" onClick={onStartSlideshow} className="gap-2">
-            <Play className="w-4 h-4" />
-            Diaporama
-          </Button>
-        )}
-
-        {/* Notification Center */}
-        <NotificationCenter />
-
-        {/* AI Assistant */}
-        <AIAssistant />
-
-        {/* User Menu */}
-        <UserMenu />
-
-        {/* Upload button */}
-        <Button onClick={onUploadClick} className="gap-2">
-          <Upload className="w-4 h-4" />
-          Ajouter
-        </Button>
-      </div>
+      </EditableElement>
     </header>
   );
 }
