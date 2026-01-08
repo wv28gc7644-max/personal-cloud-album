@@ -943,7 +943,7 @@ export const AdminPanel = () => {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={testConnection}
+                        onClick={() => testConnection()}
                         disabled={isLoading}
                       >
                         {isLoading ? (
