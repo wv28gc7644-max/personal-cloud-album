@@ -56,7 +56,7 @@ export const DEFAULT_MODULES: SettingsModule[] = [
   { id: 'ffmpeg', name: 'FFmpeg', description: 'Traitement vidéo/audio', icon: 'Film', iconColor: 'hsl(280, 87%, 55%)', category: 'system', component: 'FFmpegManager', order: 4, visible: true },
   
   // Apparence
-  { id: 'theme', name: 'Thème', description: 'Couleurs et mode sombre', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', category: 'appearance', component: 'ThemeSettings', order: 0, visible: true },
+  { id: 'theme', name: 'Thèmes', description: 'Presets et couleurs personnalisées', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', category: 'appearance', component: 'ThemePresetsPanel', order: 0, visible: true, size: 'medium' },
   { id: 'cards', name: 'Design des cartes', description: 'Apparence de la galerie', icon: 'LayoutGrid', iconColor: 'hsl(199, 89%, 48%)', category: 'appearance', component: 'CardDesignEditor', order: 1, visible: true },
   { id: 'grid', name: 'Grille', description: 'Colonnes et disposition', icon: 'Grid3X3', iconColor: 'hsl(262, 83%, 58%)', category: 'appearance', component: 'GridSettings', order: 2, visible: true },
   { id: 'cardDisplay', name: 'Affichage cartes', description: 'Métadonnées et boutons', icon: 'LayoutList', iconColor: 'hsl(174, 72%, 40%)', category: 'appearance', component: 'CardDisplaySettings', order: 3, visible: true },
