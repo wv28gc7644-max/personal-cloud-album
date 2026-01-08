@@ -21,7 +21,8 @@ import {
   Server,
   CheckCircle2,
   XCircle,
-  PenTool
+  PenTool,
+  Home as HomeIcon
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
@@ -37,7 +38,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'smart-home';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
@@ -198,6 +199,22 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
                 <p>{isConnected ? 'Serveur connecté' : 'Serveur déconnecté'}</p>
               </TooltipContent>
             </Tooltip>
+          </button>
+        </EditableElement>
+
+        {/* Smart Home button */}
+        <EditableElement id="sidebar-smart-home" type="button" name="MediaVault Home">
+          <button
+            onClick={() => onViewChange('smart-home')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
+              currentView === 'smart-home'
+                ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/30"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+            )}
+          >
+            <HomeIcon className="w-5 h-5" />
+            <span className="font-medium">MediaVault Home</span>
           </button>
         </EditableElement>
 

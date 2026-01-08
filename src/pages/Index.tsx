@@ -10,9 +10,10 @@ import { SlideshowModal } from '@/components/SlideshowModal';
 import AIStudioView from '@/components/AIStudioView';
 import AICreationsView from '@/components/AICreationsView';
 import LocalAgent from '@/components/LocalAgent';
+import { SmartHomeDashboard } from '@/components/home';
 import { useMediaStore } from '@/hooks/useMediaStore';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'smart-home';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -53,12 +54,16 @@ const Index = () => {
     return undefined;
   };
 
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar 
         onCreatePlaylist={() => setPlaylistOpen(true)} 
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={handleViewChange}
         onStartSlideshow={() => setSlideshowOpen(true)}
       />
       
@@ -73,6 +78,10 @@ const Index = () => {
           <AICreationsView />
         ) : currentView === 'agent' ? (
           <LocalAgent />
+        ) : currentView === 'smart-home' ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <SmartHomeDashboard />
+          </div>
         ) : (
           <>
             <MediaHeader 
