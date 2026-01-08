@@ -17,9 +17,11 @@ import {
   Wand2,
   Clock,
   Volume2,
-  SkipForward
+  SkipForward,
+  FolderPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAICreations } from '@/hooks/useAICreations';
 
 interface GeneratedTrack {
   id: string;
@@ -41,6 +43,7 @@ const MOODS = [
 ];
 
 export const MusicGenerator = () => {
+  const { saveCreation } = useAICreations();
   const [prompt, setPrompt] = useState('');
   const [genre, setGenre] = useState('Electronic');
   const [mood, setMood] = useState('Énergique');
@@ -96,7 +99,23 @@ export const MusicGenerator = () => {
         
         setGeneratedTracks(prev => [newTrack, ...prev]);
         setProgress(100);
-        toast.success('Musique générée !');
+        
+        // Auto-save to gallery
+        await saveCreation({
+          type: 'music',
+          name: `${genre} - ${mood}`,
+          url: data.audioUrl,
+          metadata: {
+            prompt: prompt || `${mood} ${genre}`,
+            genre,
+            mood,
+            duration,
+            bpm,
+            model: 'MusicGen'
+          }
+        });
+        
+        toast.success('Musique générée et sauvegardée !');
 
         // Auto-play
         const audio = new Audio(data.audioUrl);

@@ -20,10 +20,12 @@ import {
   User,
   Plus,
   Wand2,
-  Square
+  Square,
+  FolderPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAICreations } from '@/hooks/useAICreations';
 
 interface VoiceProfile {
   id: string;
@@ -42,6 +44,7 @@ interface GeneratedAudio {
 }
 
 export const VoiceCloner = () => {
+  const { saveCreation } = useAICreations();
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -210,11 +213,27 @@ export const VoiceCloner = () => {
         
         setGeneratedAudios(prev => [newAudio, ...prev]);
         
+        // Auto-save to gallery
+        const voiceName = voices.find(v => v.id === selectedVoice)?.name || 'Unknown';
+        await saveCreation({
+          type: 'voice',
+          name: `${voiceName} - ${textToSpeak.slice(0, 30)}...`,
+          url: data.audioUrl,
+          metadata: {
+            text: textToSpeak,
+            voiceId: selectedVoice,
+            voiceName,
+            speed,
+            pitch,
+            model: 'XTTS'
+          }
+        });
+        
         // Auto-play
         const audio = new Audio(data.audioUrl);
         audio.play();
         
-        toast.success('Audio généré !');
+        toast.success('Audio généré et sauvegardé !');
       } else {
         throw new Error('Synthesis failed');
       }
