@@ -16,6 +16,18 @@ import { TelegramIntegration } from '@/components/TelegramIntegration';
 import { HomeAssistantIntegration } from '@/components/HomeAssistantIntegration';
 import { WebhookNotifications } from '@/components/WebhookNotifications';
 
+// Import new settings components
+import { NotificationsSettings } from './NotificationsSettings';
+import { UpdatesSettings } from './UpdatesSettings';
+import { ServerSettings } from './ServerSettings';
+import { ThemeSettings } from './ThemeSettings';
+import { GridSettings } from './GridSettings';
+import { CardDisplaySettings } from './CardDisplaySettings';
+import { PersonalAISettings } from './PersonalAISettings';
+import { TagsSettings } from './TagsSettings';
+import { PlaylistsSettings } from './PlaylistsSettings';
+import { AutoSyncSettings } from './AutoSyncSettings';
+
 // Component map for rendering
 const COMPONENT_MAP: Record<string, React.ComponentType> = {
   LocalAISettingsReorganized,
@@ -27,6 +39,16 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   TelegramIntegration,
   HomeAssistantIntegration,
   WebhookNotifications,
+  NotificationsSettings,
+  UpdatesSettings,
+  ServerSettings,
+  ThemeSettings,
+  GridSettings,
+  CardDisplaySettings,
+  PersonalAISettings,
+  TagsSettings,
+  PlaylistsSettings,
+  AutoSyncSettings,
 };
 
 export function SettingsView() {
