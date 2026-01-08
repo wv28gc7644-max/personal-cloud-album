@@ -16,7 +16,7 @@ interface UseLocalServerReturn {
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
-  testConnection: () => Promise<boolean>;
+  testConnection: (options?: { silent?: boolean }) => Promise<boolean>;
   loadFilesFromServer: () => Promise<void>;
   filesCount: number;
 }

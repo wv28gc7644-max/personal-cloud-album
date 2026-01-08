@@ -790,6 +790,729 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ results }));
     }
 
+    // Exécuter une seule étape de workflow
+    if (pathname === '/api/workflow/run-step' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { service, endpoint, params } = body;
+      
+      try {
+        const serviceUrl = AI_CONFIG[service];
+        if (!serviceUrl) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: `Service ${service} inconnu` }));
+        }
+        
+        addLog('info', 'workflow', `Exécution étape: ${service}${endpoint}`);
+        const result = await proxyRequest(`${serviceUrl}${endpoint}`, 'POST', params);
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'workflow', `Échec étape ${service}: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: INPAINTING/OUTPAINTING - Édition d'images via ComfyUI
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/image/inpaint' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { image, mask, prompt, negativePrompt } = body;
+      
+      try {
+        // Workflow ComfyUI pour inpainting
+        const workflow = {
+          prompt: {
+            "3": {
+              inputs: { image: image, upload: "image" },
+              class_type: "LoadImage"
+            },
+            "4": {
+              inputs: { image: mask, upload: "image" },
+              class_type: "LoadImage"
+            },
+            "5": {
+              inputs: {
+                text: prompt || "high quality, detailed",
+                clip: ["6", 0]
+              },
+              class_type: "CLIPTextEncode"
+            },
+            "6": {
+              inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+              class_type: "CheckpointLoaderSimple"
+            },
+            "7": {
+              inputs: {
+                samples: ["10", 0],
+                vae: ["6", 2]
+              },
+              class_type: "VAEDecode"
+            },
+            "10": {
+              inputs: {
+                seed: Math.floor(Math.random() * 1000000),
+                steps: 20,
+                cfg: 7,
+                sampler_name: "euler",
+                scheduler: "normal",
+                denoise: 0.8,
+                model: ["6", 0],
+                positive: ["5", 0],
+                negative: ["11", 0],
+                latent_image: ["12", 0]
+              },
+              class_type: "KSampler"
+            },
+            "11": {
+              inputs: {
+                text: negativePrompt || "blurry, low quality",
+                clip: ["6", 0]
+              },
+              class_type: "CLIPTextEncode"
+            },
+            "12": {
+              inputs: {
+                pixels: ["3", 0],
+                vae: ["6", 2],
+                mask: ["4", 0]
+              },
+              class_type: "VAEEncodeForInpaint"
+            }
+          }
+        };
+        
+        addLog('info', 'comfyui', 'Inpainting démarré');
+        const result = await proxyRequest(`${AI_CONFIG.comfyui}/prompt`, 'POST', workflow);
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'comfyui', `Erreur inpainting: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'ComfyUI inpainting non disponible', details: e.message }));
+      }
+    }
+
+    if (pathname === '/api/ai/image/outpaint' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { image, direction, prompt, expandPixels } = body;
+      
+      try {
+        // Workflow ComfyUI pour outpainting
+        const workflow = {
+          prompt: {
+            "3": {
+              inputs: { image: image, upload: "image" },
+              class_type: "LoadImage"
+            },
+            "4": {
+              inputs: {
+                left: direction === 'left' ? (expandPixels || 256) : 0,
+                right: direction === 'right' ? (expandPixels || 256) : 0,
+                top: direction === 'top' ? (expandPixels || 256) : 0,
+                bottom: direction === 'bottom' ? (expandPixels || 256) : 0,
+                feathering: 40,
+                image: ["3", 0]
+              },
+              class_type: "ImagePadForOutpaint"
+            },
+            "5": {
+              inputs: {
+                text: prompt || "seamless extension, same style",
+                clip: ["6", 0]
+              },
+              class_type: "CLIPTextEncode"
+            },
+            "6": {
+              inputs: { ckpt_name: "sd_xl_base_1.0.safetensors" },
+              class_type: "CheckpointLoaderSimple"
+            }
+          }
+        };
+        
+        addLog('info', 'comfyui', `Outpainting direction: ${direction}`);
+        const result = await proxyRequest(`${AI_CONFIG.comfyui}/prompt`, 'POST', workflow);
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'comfyui', `Erreur outpainting: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'ComfyUI outpainting non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: FACE SWAP - Échange de visages via InsightFace
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/face/swap' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { sourceImage, targetImage, faceIndex } = body;
+      
+      try {
+        addLog('info', 'insightface', 'Face swap démarré');
+        const result = await proxyRequest(`${AI_CONFIG.insightface}/swap`, 'POST', {
+          source: sourceImage,
+          target: targetImage,
+          face_index: faceIndex || 0
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'insightface', `Erreur face swap: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'InsightFace swap non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: VIDEO GENERATION - Texte vers vidéo via AnimateDiff
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/video/generate' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { prompt, negativePrompt, frames, fps, width, height } = body;
+      
+      try {
+        addLog('info', 'animatediff', `Génération vidéo: ${prompt}`);
+        const result = await proxyRequest(`${AI_CONFIG.animatediff}/generate`, 'POST', {
+          prompt: prompt,
+          negative_prompt: negativePrompt || 'blurry, low quality, distorted',
+          num_frames: frames || 16,
+          fps: fps || 8,
+          width: width || 512,
+          height: height || 512,
+          seed: Math.floor(Math.random() * 1000000)
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'animatediff', `Erreur génération vidéo: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'AnimateDiff non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: VOICE TRAINING - Entraînement de voix XTTS
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/voice/train' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { audioSamples, speakerName, language } = body;
+      
+      try {
+        addLog('info', 'xtts', `Entraînement voix: ${speakerName}`);
+        const result = await proxyRequest(`${AI_CONFIG.xtts}/train`, 'POST', {
+          samples: audioSamples,
+          speaker_name: speakerName,
+          language: language || 'fr'
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'xtts', `Erreur entraînement voix: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'XTTS training non disponible', details: e.message }));
+      }
+    }
+
+    if (pathname === '/api/ai/voice/synthesize' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { text, speakerId, language, speed } = body;
+      
+      try {
+        addLog('info', 'xtts', `Synthèse vocale: ${text.slice(0, 50)}...`);
+        const result = await proxyRequest(`${AI_CONFIG.xtts}/tts_to_audio`, 'POST', {
+          text: text,
+          speaker_wav: speakerId,
+          language: language || 'fr',
+          speed: speed || 1.0
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'xtts', `Erreur synthèse vocale: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'XTTS synthèse non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: MUSIC GENERATION - Génération de musique
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/music/generate' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { prompt, duration, temperature, topK } = body;
+      
+      try {
+        addLog('info', 'musicgen', `Génération musique: ${prompt}`);
+        const result = await proxyRequest(`${AI_CONFIG.musicgen}/generate`, 'POST', {
+          prompt: prompt,
+          duration: duration || 10,
+          temperature: temperature || 1.0,
+          top_k: topK || 250
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'musicgen', `Erreur génération musique: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'MusicGen non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: AUDIO SEPARATION - Séparation de pistes Demucs
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/audio/separate' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { audioUrl, stems } = body;
+      
+      try {
+        addLog('info', 'demucs', `Séparation audio: ${stems || 4} pistes`);
+        const result = await proxyRequest(`${AI_CONFIG.demucs}/separate`, 'POST', {
+          audio: audioUrl,
+          stems: stems || 4, // vocals, drums, bass, other
+          model: 'htdemucs'
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'demucs', `Erreur séparation audio: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Demucs non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: IMAGE UPSCALE - Agrandissement d'images
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/image/upscale' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { image, scale, model } = body;
+      
+      try {
+        addLog('info', 'esrgan', `Upscaling x${scale || 4}`);
+        const result = await proxyRequest(`${AI_CONFIG.esrgan}/upscale`, 'POST', {
+          image: image,
+          scale: scale || 4,
+          model: model || 'realesrgan-x4plus'
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'esrgan', `Erreur upscaling: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'ESRGAN non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: LIPSYNC - Synchronisation labiale
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/lipsync' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { videoUrl, audioUrl, faceIndex } = body;
+      
+      try {
+        addLog('info', 'lipsync', 'Synchronisation labiale démarrée');
+        const result = await proxyRequest(`${AI_CONFIG.lipsync}/generate`, 'POST', {
+          video: videoUrl,
+          audio: audioUrl,
+          face_index: faceIndex || 0
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'lipsync', `Erreur lipsync: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'LipSync non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: FRAME INTERPOLATION - Interpolation de frames RIFE
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai/interpolate' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { videoUrl, multiplier, slowMotion } = body;
+      
+      try {
+        addLog('info', 'rife', `Interpolation x${multiplier || 2}`);
+        const result = await proxyRequest(`${AI_CONFIG.rife}/interpolate`, 'POST', {
+          video: videoUrl,
+          multiplier: multiplier || 2,
+          slow_motion: slowMotion || false
+        });
+        
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result.data));
+      } catch (e) {
+        addLog('error', 'rife', `Erreur interpolation: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'RIFE non disponible', details: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: FFMPEG - Vérification et compression vidéo
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/check-ffmpeg' && req.method === 'GET') {
+      exec('ffmpeg -version', (error, stdout) => {
+        if (error) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ installed: false, error: error.message }));
+        }
+        
+        const versionMatch = stdout.match(/ffmpeg version ([^\s]+)/);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          installed: true, 
+          version: versionMatch ? versionMatch[1] : 'unknown',
+          output: stdout.split('\n')[0]
+        }));
+      });
+      return;
+    }
+
+    // Stockage des jobs de montage/compression en cours
+    const montageJobs = new Map();
+
+    if (pathname === '/api/montage/analyze' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { files } = body;
+      
+      if (!files || !Array.isArray(files)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Liste de fichiers requise' }));
+      }
+
+      const analyses = [];
+      for (const file of files) {
+        try {
+          const filePath = file.startsWith('http') ? file : path.join(MEDIA_FOLDER, file);
+          const probeCmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`;
+          
+          const result = await new Promise((resolve, reject) => {
+            exec(probeCmd, (error, stdout) => {
+              if (error) reject(error);
+              else resolve(JSON.parse(stdout));
+            });
+          });
+          
+          analyses.push({ file, data: result });
+        } catch (e) {
+          analyses.push({ file, error: e.message });
+        }
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ analyses }));
+    }
+
+    if (pathname === '/api/montage/create' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { files, transitions, music, output } = body;
+      
+      const jobId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+      montageJobs.set(jobId, { status: 'starting', progress: 0 });
+      
+      // Construire la commande FFmpeg
+      let filterComplex = '';
+      let inputs = files.map((f, i) => `-i "${f}"`).join(' ');
+      
+      if (music) {
+        inputs += ` -i "${music}"`;
+      }
+      
+      // Filtres xfade pour transitions
+      if (transitions && transitions.length > 0) {
+        for (let i = 0; i < files.length - 1; i++) {
+          const transition = transitions[i] || 'fade';
+          const duration = 0.5;
+          filterComplex += `[${i}:v][${i+1}:v]xfade=transition=${transition}:duration=${duration}:offset=${i * 5}[v${i}];`;
+        }
+      }
+      
+      const outputPath = output || path.join(MEDIA_FOLDER, 'ai-creations', `montage-${jobId}.mp4`);
+      const cmd = `ffmpeg ${inputs} -filter_complex "${filterComplex}" -c:v libx264 -preset fast "${outputPath}"`;
+      
+      const child = spawn('cmd', ['/c', cmd], { shell: true });
+      
+      child.stderr.on('data', (data) => {
+        const match = data.toString().match(/time=(\d+:\d+:\d+)/);
+        if (match) {
+          montageJobs.set(jobId, { status: 'processing', progress: 50, time: match[1] });
+        }
+      });
+      
+      child.on('close', (code) => {
+        montageJobs.set(jobId, { 
+          status: code === 0 ? 'completed' : 'failed', 
+          progress: 100,
+          output: outputPath 
+        });
+      });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ jobId, status: 'started' }));
+    }
+
+    if (pathname.startsWith('/api/montage/progress/') && req.method === 'GET') {
+      const jobId = pathname.split('/').pop();
+      const job = montageJobs.get(jobId);
+      
+      if (!job) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Job introuvable' }));
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(job));
+    }
+
+    if (pathname === '/api/video/compress' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { input, codec, quality, output } = body;
+      
+      const jobId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+      montageJobs.set(jobId, { status: 'starting', progress: 0 });
+      
+      const codecParams = {
+        'h265': '-c:v libx265 -crf 28',
+        'h264': '-c:v libx264 -crf 23',
+        'av1': '-c:v libaom-av1 -crf 30'
+      };
+      
+      const codecParam = codecParams[codec] || codecParams['h264'];
+      const outputPath = output || input.replace(/\.[^.]+$/, `_compressed.mp4`);
+      const cmd = `ffmpeg -i "${input}" ${codecParam} -preset medium "${outputPath}"`;
+      
+      const child = spawn('cmd', ['/c', cmd], { shell: true });
+      
+      child.stderr.on('data', (data) => {
+        const match = data.toString().match(/time=(\d+:\d+:\d+)/);
+        if (match) {
+          montageJobs.set(jobId, { status: 'compressing', progress: 50, time: match[1] });
+        }
+      });
+      
+      child.on('close', (code) => {
+        montageJobs.set(jobId, { 
+          status: code === 0 ? 'completed' : 'failed', 
+          progress: 100,
+          output: outputPath 
+        });
+      });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ jobId, status: 'started' }));
+    }
+
+    if (pathname.startsWith('/api/video/compress/progress/') && req.method === 'GET') {
+      const jobId = pathname.split('/').pop();
+      const job = montageJobs.get(jobId);
+      
+      if (!job) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Job introuvable' }));
+      }
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(job));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: HOME AUTOMATION - Domotique
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/integrations/homeassistant/connect' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { url, token } = body;
+      
+      try {
+        const response = await fetch(`${url}/api/`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          addLog('info', 'homeassistant', `Connecté à ${data.location_name || 'Home Assistant'}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true, data }));
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (e) {
+        addLog('error', 'homeassistant', `Erreur connexion: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    if (pathname === '/api/integrations/homeassistant/entities' && req.method === 'GET') {
+      const haUrl = url.searchParams.get('url');
+      const haToken = url.searchParams.get('token');
+      
+      if (!haUrl || !haToken) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'URL et token requis' }));
+      }
+      
+      try {
+        const response = await fetch(`${haUrl}/api/states`, {
+          headers: { 'Authorization': `Bearer ${haToken}` }
+        });
+        
+        if (response.ok) {
+          const entities = await response.json();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ entities }));
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    if (pathname === '/api/integrations/homeassistant/call' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { haUrl, haToken, domain, service, entityId, data: serviceData } = body;
+      
+      try {
+        const response = await fetch(`${haUrl}/api/services/${domain}/${service}`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${haToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            entity_id: entityId,
+            ...serviceData
+          })
+        });
+        
+        if (response.ok) {
+          addLog('info', 'homeassistant', `Service ${domain}.${service} appelé sur ${entityId}`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true }));
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (e) {
+        addLog('error', 'homeassistant', `Erreur appel service: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // Tuya Local API
+    if (pathname === '/api/integrations/tuya/devices' && req.method === 'GET') {
+      // Tuya Local nécessite une configuration préalable
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ 
+        message: 'Tuya Local: Configurez vos appareils via l\'interface',
+        documentation: 'https://github.com/codetheweb/tuyapi'
+      }));
+    }
+
+    // Reolink API
+    if (pathname === '/api/integrations/reolink/cameras' && req.method === 'GET') {
+      const ip = url.searchParams.get('ip');
+      const user = url.searchParams.get('user');
+      const pass = url.searchParams.get('pass');
+      
+      if (!ip || !user || !pass) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'IP, user et password requis' }));
+      }
+      
+      try {
+        const response = await fetch(`http://${ip}/api.cgi?cmd=GetDevInfo&user=${user}&password=${pass}`);
+        if (response.ok) {
+          const data = await response.json();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify(data));
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: CREATIONS IA - Sauvegarde des créations
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/ai-creations/save' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const { type, data, prompt, model, filename } = body;
+      
+      try {
+        const creationsDir = path.join(MEDIA_FOLDER, 'ai-creations');
+        if (!fs.existsSync(creationsDir)) {
+          fs.mkdirSync(creationsDir, { recursive: true });
+        }
+        
+        const timestamp = Date.now();
+        const finalFilename = filename || `${type}-${timestamp}`;
+        const filePath = path.join(creationsDir, finalFilename);
+        
+        // Décoder base64 si nécessaire
+        if (data.startsWith('data:')) {
+          const base64Data = data.split(',')[1];
+          fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        } else {
+          fs.writeFileSync(filePath, data);
+        }
+        
+        // Sauvegarder les métadonnées
+        const metaPath = filePath + '.meta.json';
+        fs.writeFileSync(metaPath, JSON.stringify({
+          type,
+          prompt,
+          model,
+          createdAt: new Date().toISOString()
+        }, null, 2));
+        
+        addLog('info', 'creations', `Création sauvegardée: ${finalFilename}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ 
+          success: true, 
+          path: filePath,
+          url: `http://localhost:${PORT}/media/ai-creations/${finalFilename}`
+        }));
+      } catch (e) {
+        addLog('error', 'creations', `Erreur sauvegarde: ${e.message}`);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // API: Installation automatique des modèles IA
     // ═══════════════════════════════════════════════════════════════
