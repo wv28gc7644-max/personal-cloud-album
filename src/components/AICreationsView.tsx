@@ -181,7 +181,11 @@ export default function AICreationsView() {
                 : "Aucun résultat pour cette recherche"}
             </p>
             {creations.length === 0 && (
-              <Button variant="outline" className="gap-2">
+              <Button 
+                variant="outline" 
+                className="gap-2"
+                onClick={() => window.dispatchEvent(new CustomEvent('mediavault-navigate', { detail: 'ai-studio' }))}
+              >
                 <Wand2 className="h-4 w-4" />
                 Ouvrir le Studio IA
               </Button>

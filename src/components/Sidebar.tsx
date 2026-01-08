@@ -52,10 +52,10 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
 
   // Vérifier la connexion au serveur local au chargement
   useEffect(() => {
-    testConnection();
-    const interval = setInterval(testConnection, 30000); // Vérifier toutes les 30s
+    testConnection(); // First check shows toast
+    const interval = setInterval(() => testConnection({ silent: true }), 30000); // Silent checks
     return () => clearInterval(interval);
-  }, []);
+  }, [testConnection]);
 
   const favoritesCount = getFavorites().length;
 

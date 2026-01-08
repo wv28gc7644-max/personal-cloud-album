@@ -45,7 +45,7 @@ export const useLocalServer = (): UseLocalServerReturn => {
     return 'http://localhost:3001';
   }, []);
 
-  const testConnection = useCallback(async (): Promise<boolean> => {
+  const testConnection = useCallback(async (options?: { silent?: boolean }): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
     
@@ -57,8 +57,12 @@ export const useLocalServer = (): UseLocalServerReturn => {
       });
       
       if (response.ok) {
+        const wasDisconnected = !isConnected;
         setIsConnected(true);
-        toast.success('Connexion au serveur local réussie');
+        // Only show toast if not silent AND was previously disconnected
+        if (!options?.silent && wasDisconnected) {
+          toast.success('Connexion au serveur local réussie');
+        }
         return true;
       } else {
         throw new Error('Serveur non accessible');
