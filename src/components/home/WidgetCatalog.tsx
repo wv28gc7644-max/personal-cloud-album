@@ -172,7 +172,7 @@ export const WIDGET_CATALOG: WidgetTemplate[] = [
   { id: 'alarm', name: 'Alarme', description: 'Armé/Désarmé', category: 'security', icon: Siren, color: 'text-red-500', bgGradient: 'from-red-600/20 to-red-400/10', hasToggle: true },
   { id: 'motion-sensor', name: 'Détecteur mouvement', description: 'Zone surveillée', category: 'security', icon: Eye, color: 'text-purple-400', bgGradient: 'from-purple-500/20 to-pink-500/10' },
   { id: 'door-sensor', name: 'Capteur porte', description: 'Ouvert/Fermé', category: 'security', icon: DoorClosed, color: 'text-blue-400', bgGradient: 'from-blue-500/20 to-indigo-500/10' },
-  { id: 'window-sensor', name: 'Capteur fenêtre', description: 'État des fenêtres', category: 'security', icon: Window, color: 'text-cyan-400', bgGradient: 'from-cyan-500/20 to-blue-500/10' },
+  { id: 'window-sensor', name: 'Capteur fenêtre', description: 'État des fenêtres', category: 'security', icon: Square, color: 'text-cyan-400', bgGradient: 'from-cyan-500/20 to-blue-500/10' },
   { id: 'smoke-detector', name: 'Détecteur fumée', description: 'Alerte incendie', category: 'security', icon: AlertTriangle, color: 'text-orange-400', bgGradient: 'from-orange-500/20 to-red-500/10' },
   { id: 'co-detector', name: 'Détecteur CO', description: 'Monoxyde de carbone', category: 'security', icon: AlertTriangle, color: 'text-yellow-400', bgGradient: 'from-yellow-500/20 to-amber-500/10' },
   { id: 'water-leak', name: 'Fuite d\'eau', description: 'Détection inondation', category: 'security', icon: Droplets, color: 'text-blue-400', bgGradient: 'from-blue-500/20 to-cyan-500/10' },
@@ -247,8 +247,8 @@ export const WIDGET_CATALOG: WidgetTemplate[] = [
   { id: 'mower', name: 'Tondeuse robot', description: 'Tonte jardin', category: 'appliances', icon: Flower2, color: 'text-lime-400', bgGradient: 'from-lime-500/20 to-green-500/10', hasToggle: true },
   { id: 'pool-pump', name: 'Pompe piscine', description: 'Filtration', category: 'appliances', icon: Waves, color: 'text-blue-400', bgGradient: 'from-blue-500/20 to-cyan-500/10', hasToggle: true },
   { id: 'irrigation', name: 'Arrosage', description: 'Système arrosage', category: 'appliances', icon: Droplets, color: 'text-green-400', bgGradient: 'from-green-500/20 to-teal-500/10', hasToggle: true },
-  { id: 'blinds', name: 'Volets roulants', description: 'Ouvrir/Fermer', category: 'appliances', icon: Blinds, color: 'text-gray-400', bgGradient: 'from-gray-500/20 to-slate-500/10', hasSlider: true },
-  { id: 'curtains', name: 'Rideaux', description: 'Position rideaux', category: 'appliances', icon: Window, color: 'text-indigo-400', bgGradient: 'from-indigo-500/20 to-purple-500/10', hasSlider: true },
+  { id: 'blinds', name: 'Volets roulants', description: 'Ouvrir/Fermer', category: 'appliances', icon: Rows3, color: 'text-gray-400', bgGradient: 'from-gray-500/20 to-slate-500/10', hasSlider: true },
+  { id: 'curtains', name: 'Rideaux', description: 'Position rideaux', category: 'appliances', icon: Square, color: 'text-indigo-400', bgGradient: 'from-indigo-500/20 to-purple-500/10', hasSlider: true },
 
   // === CHARTS & INFO (11) ===
   { id: 'chart-line', name: 'Graphique ligne', description: 'Évolution temps', category: 'charts', icon: TrendingUp, color: 'text-blue-400', bgGradient: 'from-blue-500/20 to-indigo-500/10', hasChart: true, size: 'large' },

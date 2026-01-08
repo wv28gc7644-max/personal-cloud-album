@@ -1195,6 +1195,165 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // API: Installation automatique FFmpeg
+    // ═══════════════════════════════════════════════════════════════
+
+    // État global de l'installation FFmpeg
+    if (!global.ffmpegInstallStatus) {
+      global.ffmpegInstallStatus = { step: 'idle', progress: 0, message: '' };
+    }
+
+    if (pathname === '/api/install-ffmpeg' && req.method === 'POST') {
+      const INSTALL_DIR = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'ffmpeg');
+      const FFMPEG_URL = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';
+      const TEMP_ZIP = path.join(process.env.TEMP || '/tmp', 'ffmpeg.zip');
+
+      // Réinitialiser le statut
+      global.ffmpegInstallStatus = { step: 'downloading', progress: 5, message: 'Préparation du téléchargement...' };
+
+      // Fonction asynchrone d'installation
+      const installFFmpeg = async () => {
+        try {
+          // Créer le dossier d'installation
+          global.ffmpegInstallStatus = { step: 'downloading', progress: 10, message: 'Création du dossier d\'installation...' };
+          if (!fs.existsSync(INSTALL_DIR)) {
+            fs.mkdirSync(INSTALL_DIR, { recursive: true });
+          }
+
+          // Télécharger FFmpeg via PowerShell
+          global.ffmpegInstallStatus = { step: 'downloading', progress: 20, message: 'Téléchargement de FFmpeg (~50MB)...' };
+          
+          await new Promise((resolve, reject) => {
+            const downloadCmd = `powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '${FFMPEG_URL}' -OutFile '${TEMP_ZIP}'"`;
+            
+            exec(downloadCmd, { timeout: 300000 }, (error, stdout, stderr) => {
+              if (error) {
+                reject(new Error('Échec du téléchargement: ' + error.message));
+              } else {
+                resolve(stdout);
+              }
+            });
+
+            // Mise à jour du progrès pendant le téléchargement
+            let dlProgress = 20;
+            const progressInterval = setInterval(() => {
+              if (dlProgress < 55) {
+                dlProgress += 5;
+                global.ffmpegInstallStatus = { 
+                  step: 'downloading', 
+                  progress: dlProgress, 
+                  message: `Téléchargement en cours (${dlProgress}%)...` 
+                };
+              }
+            }, 3000);
+
+            setTimeout(() => clearInterval(progressInterval), 120000);
+          });
+
+          // Vérifier que le fichier existe
+          if (!fs.existsSync(TEMP_ZIP)) {
+            throw new Error('Le fichier téléchargé est introuvable');
+          }
+
+          // Extraire l'archive
+          global.ffmpegInstallStatus = { step: 'extracting', progress: 60, message: 'Extraction des fichiers...' };
+          
+          await new Promise((resolve, reject) => {
+            const extractCmd = `powershell -Command "Expand-Archive -Path '${TEMP_ZIP}' -DestinationPath '${INSTALL_DIR}' -Force"`;
+            exec(extractCmd, { timeout: 120000 }, (error) => {
+              if (error) reject(new Error('Échec de l\'extraction: ' + error.message));
+              else resolve();
+            });
+          });
+
+          global.ffmpegInstallStatus = { step: 'configuring', progress: 75, message: 'Recherche du dossier FFmpeg...' };
+
+          // Trouver le sous-dossier contenant ffmpeg.exe
+          const dirs = fs.readdirSync(INSTALL_DIR).filter(d => 
+            fs.statSync(path.join(INSTALL_DIR, d)).isDirectory() && d.startsWith('ffmpeg')
+          );
+
+          if (dirs.length === 0) {
+            throw new Error('Dossier FFmpeg introuvable après extraction');
+          }
+
+          const ffmpegBinDir = path.join(INSTALL_DIR, dirs[0], 'bin');
+          
+          if (!fs.existsSync(path.join(ffmpegBinDir, 'ffmpeg.exe'))) {
+            throw new Error('ffmpeg.exe introuvable dans ' + ffmpegBinDir);
+          }
+
+          // Ajouter au PATH utilisateur
+          global.ffmpegInstallStatus = { step: 'configuring', progress: 85, message: 'Configuration du PATH système...' };
+          
+          await new Promise((resolve, reject) => {
+            // D'abord essayer le PATH machine (admin), sinon PATH utilisateur
+            exec(`setx PATH "%PATH%;${ffmpegBinDir}"`, (error) => {
+              // On continue même en cas d'erreur (peut ne pas avoir les droits admin)
+              resolve();
+            });
+          });
+
+          // Nettoyage
+          global.ffmpegInstallStatus = { step: 'verifying', progress: 90, message: 'Nettoyage des fichiers temporaires...' };
+          try {
+            fs.unlinkSync(TEMP_ZIP);
+          } catch (e) {
+            // Ignorer les erreurs de suppression
+          }
+
+          // Vérification finale
+          global.ffmpegInstallStatus = { step: 'verifying', progress: 95, message: 'Vérification de l\'installation...' };
+          
+          // Tester avec le chemin complet
+          const ffmpegPath = path.join(ffmpegBinDir, 'ffmpeg.exe');
+          await new Promise((resolve, reject) => {
+            exec(`"${ffmpegPath}" -version`, (error, stdout) => {
+              if (error) {
+                reject(new Error('FFmpeg installé mais non exécutable'));
+              } else {
+                const versionMatch = stdout.match(/ffmpeg version ([^\s]+)/);
+                global.ffmpegInstallStatus = { 
+                  step: 'completed', 
+                  progress: 100, 
+                  message: 'Installation terminée !',
+                  version: versionMatch ? versionMatch[1] : 'unknown',
+                  path: ffmpegBinDir
+                };
+                resolve();
+              }
+            });
+          });
+
+          addLog('info', 'ffmpeg', 'Installation automatique réussie: ' + ffmpegBinDir);
+
+        } catch (error) {
+          global.ffmpegInstallStatus = { 
+            step: 'failed', 
+            progress: 0, 
+            message: error.message || 'Erreur inconnue'
+          };
+          addLog('error', 'ffmpeg', 'Échec installation: ' + error.message);
+        }
+      };
+
+      // Lancer l'installation en arrière-plan
+      installFFmpeg();
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ 
+        success: true, 
+        message: 'Installation démarrée',
+        status: global.ffmpegInstallStatus
+      }));
+    }
+
+    if (pathname === '/api/ffmpeg-install-status' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(global.ffmpegInstallStatus || { step: 'idle', progress: 0, message: '' }));
+    }
+
     // Stockage des jobs de montage/compression en cours
     const montageJobs = new Map();
 

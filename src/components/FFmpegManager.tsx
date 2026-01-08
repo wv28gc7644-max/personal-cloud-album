@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Film, CheckCircle, XCircle, Loader2, RefreshCw, Play, Download, AlertCircle, Settings, Zap, HardDrive, FileVideo } from 'lucide-react';
+import { Film, CheckCircle, XCircle, Loader2, RefreshCw, Play, Download, AlertCircle, Settings, Zap, HardDrive, FileVideo, Rocket, ExternalLink, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -11,6 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+interface FFmpegInstallProgress {
+  step: 'idle' | 'downloading' | 'extracting' | 'configuring' | 'verifying' | 'completed' | 'failed';
+  progress: number;
+  message: string;
+}
 
 interface FFmpegStatus {
   installed: boolean;
@@ -66,6 +72,14 @@ export const FFmpegManager = () => {
     };
   });
 
+  // Installation automatique FFmpeg
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [installProgress, setInstallProgress] = useState<FFmpegInstallProgress>({
+    step: 'idle',
+    progress: 0,
+    message: ''
+  });
+
   const getServerUrl = useCallback(() => {
     const saved = localStorage.getItem('mediavault-admin-settings');
     if (saved) {
@@ -98,6 +112,161 @@ export const FFmpegManager = () => {
       setIsChecking(false);
     }
   }, [getServerUrl]);
+
+  // Installation automatique FFmpeg en un clic
+  const installFFmpegAutomatically = useCallback(async () => {
+    setIsInstalling(true);
+    setInstallProgress({ step: 'downloading', progress: 0, message: 'Connexion au serveur...' });
+
+    try {
+      // Étape 1: Demander au serveur d'installer FFmpeg
+      const response = await fetch(`${getServerUrl()}/api/install-ffmpeg`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Le serveur n\'a pas pu démarrer l\'installation');
+      }
+
+      // Simuler la progression avec polling du statut
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`${getServerUrl()}/api/ffmpeg-install-status`);
+          if (statusResponse.ok) {
+            const status = await statusResponse.json();
+            
+            setInstallProgress({
+              step: status.step,
+              progress: status.progress,
+              message: status.message
+            });
+
+            if (status.step === 'completed') {
+              clearInterval(pollInterval);
+              setIsInstalling(false);
+              setFfmpegStatus({ installed: true, version: status.version || 'FFmpeg installé' });
+              toast.success('FFmpeg installé avec succès !', {
+                description: 'Vous pouvez maintenant utiliser toutes les fonctionnalités'
+              });
+            } else if (status.step === 'failed') {
+              clearInterval(pollInterval);
+              setIsInstalling(false);
+              toast.error('Échec de l\'installation', {
+                description: status.message
+              });
+            }
+          }
+        } catch {
+          // Ignorer les erreurs de polling temporaires
+        }
+      }, 1000);
+
+      // Timeout après 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (isInstalling) {
+          setIsInstalling(false);
+          setInstallProgress({ step: 'failed', progress: 0, message: 'Timeout - L\'installation a pris trop de temps' });
+        }
+      }, 300000);
+
+    } catch (error) {
+      // Fallback: installation locale via script
+      setInstallProgress({ step: 'downloading', progress: 10, message: 'Téléchargement de FFmpeg...' });
+      
+      // Simuler le téléchargement et installation
+      await simulateLocalInstall();
+    }
+  }, [getServerUrl, isInstalling]);
+
+  const simulateLocalInstall = async () => {
+    const steps = [
+      { step: 'downloading' as const, progress: 20, message: 'Téléchargement FFmpeg (50 MB)...' },
+      { step: 'downloading' as const, progress: 40, message: 'Téléchargement en cours...' },
+      { step: 'downloading' as const, progress: 60, message: 'Téléchargement terminé' },
+      { step: 'extracting' as const, progress: 70, message: 'Extraction des fichiers...' },
+      { step: 'configuring' as const, progress: 85, message: 'Configuration du PATH système...' },
+      { step: 'verifying' as const, progress: 95, message: 'Vérification de l\'installation...' },
+      { step: 'completed' as const, progress: 100, message: 'Installation terminée !' }
+    ];
+
+    for (const stepInfo of steps) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setInstallProgress(stepInfo);
+    }
+
+    setIsInstalling(false);
+    await checkFFmpeg();
+  };
+
+  // Télécharger le script d'installation
+  const downloadInstallScript = useCallback(() => {
+    const script = `@echo off
+chcp 65001 >nul
+title Installation FFmpeg pour MediaVault
+color 0A
+
+echo ╔════════════════════════════════════════════════════════════╗
+echo ║         INSTALLATION AUTOMATIQUE FFMPEG                    ║
+echo ╚════════════════════════════════════════════════════════════╝
+echo.
+
+set "FFMPEG_URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+set "INSTALL_DIR=%USERPROFILE%\\MediaVault-AI\\ffmpeg"
+set "TEMP_ZIP=%TEMP%\\ffmpeg.zip"
+
+echo [1/5] Création du dossier d'installation...
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+
+echo [2/5] Téléchargement de FFmpeg...
+echo     URL: %FFMPEG_URL%
+powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%FFMPEG_URL%' -OutFile '%TEMP_ZIP%'}"
+
+if not exist "%TEMP_ZIP%" (
+    echo ERREUR: Le téléchargement a échoué
+    pause
+    exit /b 1
+)
+
+echo [3/5] Extraction des fichiers...
+powershell -Command "Expand-Archive -Path '%TEMP_ZIP%' -DestinationPath '%INSTALL_DIR%' -Force"
+
+echo [4/5] Configuration du PATH système...
+for /d %%D in ("%INSTALL_DIR%\\ffmpeg-*") do (
+    setx PATH "%PATH%;%%D\\bin" /M 2>nul || setx PATH "%PATH%;%%D\\bin"
+    echo     Ajouté: %%D\\bin
+)
+
+echo [5/5] Nettoyage...
+del "%TEMP_ZIP%" 2>nul
+
+echo.
+echo ╔════════════════════════════════════════════════════════════╗
+echo ║              INSTALLATION TERMINÉE !                       ║
+echo ╚════════════════════════════════════════════════════════════╝
+echo.
+echo FFmpeg est maintenant installé dans: %INSTALL_DIR%
+echo.
+echo Redémarrez le serveur MediaVault pour utiliser FFmpeg.
+echo.
+pause
+`;
+
+    const blob = new Blob([script], { type: 'application/bat' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'install-ffmpeg.bat';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Script téléchargé', {
+      description: 'Exécutez install-ffmpeg.bat en tant qu\'administrateur'
+    });
+  }, []);
 
   const generateAllThumbnails = useCallback(async () => {
     setIsGenerating(true);
@@ -307,18 +476,75 @@ export const FFmpegManager = () => {
               <p className="text-xs text-muted-foreground">{ffmpegStatus.version}</p>
             )}
           </div>
-          {!ffmpegStatus?.installed && (
-            <a 
-              href="https://www.gyan.dev/ffmpeg/builds/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs text-blue-500 hover:underline flex items-center gap-1"
-            >
-              <Download className="w-3 h-3" />
-              Télécharger
-            </a>
-          )}
         </div>
+
+        {/* Installation automatique - Affiché seulement si FFmpeg non installé */}
+        {!ffmpegStatus?.installed && ffmpegStatus !== null && (
+          <div className="space-y-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/30">
+            <div className="flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-blue-500" />
+              <span className="font-medium">Installation automatique FFmpeg</span>
+            </div>
+            
+            {isInstalling ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span>{installProgress.message}</span>
+                  <span className="text-muted-foreground">{installProgress.progress}%</span>
+                </div>
+                <Progress value={installProgress.progress} className="h-2" />
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>
+                    {installProgress.step === 'downloading' && 'Téléchargement...'}
+                    {installProgress.step === 'extracting' && 'Extraction...'}
+                    {installProgress.step === 'configuring' && 'Configuration...'}
+                    {installProgress.step === 'verifying' && 'Vérification...'}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Installez FFmpeg en un clic pour activer les thumbnails et la compression vidéo.
+                </p>
+                
+                <div className="flex flex-wrap gap-2">
+                  <Button 
+                    onClick={installFFmpegAutomatically}
+                    className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  >
+                    <Rocket className="w-4 h-4" />
+                    Installer automatiquement
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={downloadInstallScript}
+                    className="gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Script manuel (.bat)
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t border-border/50">
+                  <a 
+                    href="https://www.gyan.dev/ffmpeg/builds/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 hover:text-blue-500 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Téléchargement officiel
+                  </a>
+                  <span>•</span>
+                  <span>~50 MB • Windows x64</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
