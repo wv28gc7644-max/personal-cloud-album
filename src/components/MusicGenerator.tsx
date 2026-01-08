@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAICreations } from '@/hooks/useAICreations';
+import { emitAIEvent } from '@/hooks/useAIPushNotifications';
 
 interface GeneratedTrack {
   id: string;
@@ -64,6 +65,15 @@ export const MusicGenerator = () => {
 
     setIsGenerating(true);
     setProgress(0);
+    const startTime = Date.now();
+
+    // Emit start event
+    emitAIEvent({
+      type: 'generation_started',
+      title: 'Génération musicale démarrée',
+      message: `Style: ${genre} - ${mood}, Durée: ${duration}s`,
+      metadata: { model: 'MusicGen' }
+    });
 
     try {
       const progressInterval = setInterval(() => {
@@ -85,6 +95,7 @@ export const MusicGenerator = () => {
       });
 
       clearInterval(progressInterval);
+      const generationDuration = (Date.now() - startTime) / 1000;
 
       if (response.ok) {
         const data = await response.json();
@@ -115,6 +126,17 @@ export const MusicGenerator = () => {
           }
         });
         
+        // Emit success event
+        emitAIEvent({
+          type: 'generation_completed',
+          title: 'Musique générée avec succès',
+          message: `${genre} - ${mood} (${duration}s) en ${generationDuration.toFixed(1)}s`,
+          metadata: { 
+            model: 'MusicGen',
+            duration: generationDuration
+          }
+        });
+        
         toast.success('Musique générée et sauvegardée !');
 
         // Auto-play
@@ -125,6 +147,17 @@ export const MusicGenerator = () => {
         throw new Error('Generation failed');
       }
     } catch (error) {
+      // Emit error event
+      emitAIEvent({
+        type: 'generation_failed',
+        title: 'Échec de génération musicale',
+        message: 'Vérifiez que MusicGen/AudioCraft est installé',
+        metadata: { 
+          model: 'MusicGen',
+          error: String(error)
+        }
+      });
+      
       toast.error('Erreur de génération', {
         description: 'Vérifiez que MusicGen/AudioCraft est installé'
       });

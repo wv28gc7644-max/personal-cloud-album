@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { useComfyUI } from '@/hooks/useComfyUI';
 import { useAICreations } from '@/hooks/useAICreations';
+import { emitAIEvent } from '@/hooks/useAIPushNotifications';
 
 interface VideoGenerationParams {
   prompt: string;
@@ -83,6 +84,15 @@ export const VideoGenerator = () => {
 
     setIsGeneratingVideo(true);
     setProgress(0);
+    const startTime = Date.now();
+
+    // Emit start event
+    emitAIEvent({
+      type: 'generation_started',
+      title: 'Génération vidéo démarrée',
+      message: `Mode: ${mode === 'text-to-video' ? 'Texte vers vidéo' : 'Image vers vidéo'}`,
+      metadata: { model: 'AnimateDiff' }
+    });
 
     try {
       // Simulate video generation progress
@@ -114,6 +124,7 @@ export const VideoGenerator = () => {
       });
 
       clearInterval(progressInterval);
+      const duration = (Date.now() - startTime) / 1000;
 
       if (response.ok) {
         const data = await response.json();
@@ -136,11 +147,33 @@ export const VideoGenerator = () => {
           }
         });
         
+        // Emit success event
+        emitAIEvent({
+          type: 'generation_completed',
+          title: 'Vidéo générée avec succès',
+          message: `${params.frames} frames en ${duration.toFixed(1)}s`,
+          metadata: { 
+            model: 'AnimateDiff',
+            duration
+          }
+        });
+        
         toast.success('Vidéo générée et sauvegardée !');
       } else {
         throw new Error('Erreur de génération');
       }
     } catch (error) {
+      // Emit error event
+      emitAIEvent({
+        type: 'generation_failed',
+        title: 'Échec de génération vidéo',
+        message: 'Vérifiez que ComfyUI + AnimateDiff sont installés',
+        metadata: { 
+          model: 'AnimateDiff',
+          error: String(error)
+        }
+      });
+      
       toast.error('Erreur lors de la génération vidéo', {
         description: 'Vérifiez que ComfyUI + AnimateDiff sont installés'
       });

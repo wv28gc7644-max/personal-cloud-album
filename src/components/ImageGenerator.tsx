@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useComfyUI, GenerationParams } from '@/hooks/useComfyUI';
 import { useAICreations } from '@/hooks/useAICreations';
+import { emitAIEvent } from '@/hooks/useAIPushNotifications';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,6 +105,16 @@ export function ImageGenerator() {
       return;
     }
 
+    const startTime = Date.now();
+    
+    // Emit start event
+    emitAIEvent({
+      type: 'generation_started',
+      title: 'Génération d\'image démarrée',
+      message: `Prompt: "${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}"`,
+      metadata: { model: 'ComfyUI/SDXL' }
+    });
+
     try {
       const params: GenerationParams = {
         prompt,
@@ -119,8 +130,33 @@ export function ImageGenerator() {
       };
 
       await generate(params);
+      
+      const duration = (Date.now() - startTime) / 1000;
+      
+      // Emit success event
+      emitAIEvent({
+        type: 'generation_completed',
+        title: 'Image générée avec succès',
+        message: `${batchSize} image(s) créée(s) en ${duration.toFixed(1)}s`,
+        metadata: { 
+          model: 'ComfyUI/SDXL',
+          duration
+        }
+      });
+      
       toast.success('Image(s) générée(s) !');
     } catch (err) {
+      // Emit error event
+      emitAIEvent({
+        type: 'generation_failed',
+        title: 'Échec de génération d\'image',
+        message: 'Une erreur est survenue lors de la génération',
+        metadata: { 
+          model: 'ComfyUI/SDXL',
+          error: String(err)
+        }
+      });
+      
       toast.error('Erreur de génération');
     }
   };

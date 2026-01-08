@@ -29,6 +29,8 @@ import { TagsSettings } from './TagsSettings';
 import { PlaylistsSettings } from './PlaylistsSettings';
 import { AutoSyncSettings } from './AutoSyncSettings';
 import { AINotificationsPanel } from './AINotificationsPanel';
+import { AdvancedColorEditor } from './AdvancedColorEditor';
+import { HomeAutomationHub } from './HomeAutomationHub';
 
 // Component map for rendering
 const COMPONENT_MAP: Record<string, React.ComponentType> = {
@@ -53,6 +55,8 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   PlaylistsSettings,
   AutoSyncSettings,
   AINotificationsPanel,
+  AdvancedColorEditor,
+  HomeAutomationHub,
 };
 
 export function SettingsView() {
