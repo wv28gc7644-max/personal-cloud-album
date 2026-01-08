@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useComfyUI, GenerationParams } from '@/hooks/useComfyUI';
+import { useAICreations } from '@/hooks/useAICreations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,8 @@ import {
   XCircle,
   Plus,
   Trash2,
-  Save
+  Save,
+  FolderPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -64,6 +66,8 @@ export function ImageGenerator() {
     generate,
     interrupt
   } = useComfyUI();
+  
+  const { saveCreation } = useAICreations();
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('ugly, blurry, low quality, distorted, deformed');
@@ -165,6 +169,25 @@ export function ImageGenerator() {
     } catch {
       toast.error('Erreur de téléchargement');
     }
+  };
+
+  const handleSaveToGallery = async (imageUrl: string, index: number) => {
+    await saveCreation({
+      type: 'image',
+      name: `Image ${index + 1} - ${prompt.slice(0, 30)}...`,
+      url: imageUrl,
+      metadata: {
+        prompt,
+        negativePrompt,
+        width: selectedRatio.width,
+        height: selectedRatio.height,
+        steps,
+        cfg,
+        sampler,
+        seed,
+        model: 'ComfyUI/SD'
+      }
+    });
   };
 
   const handleCopyPrompt = () => {
@@ -426,6 +449,9 @@ export function ImageGenerator() {
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button size="sm" variant="secondary" onClick={() => handleDownload(url)}>
                         <Download className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => handleSaveToGallery(url, i)}>
+                        <FolderPlus className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

@@ -21,10 +21,12 @@ import {
   Sparkles,
   RotateCcw,
   Pause,
-  Clock
+  Clock,
+  FolderPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useComfyUI } from '@/hooks/useComfyUI';
+import { useAICreations } from '@/hooks/useAICreations';
 
 interface VideoGenerationParams {
   prompt: string;
@@ -56,6 +58,7 @@ const defaultParams: VideoGenerationParams = {
 
 export const VideoGenerator = () => {
   const { isConnected } = useComfyUI();
+  const { saveCreation } = useAICreations();
   const [mode, setMode] = useState<'text-to-video' | 'image-to-video'>('text-to-video');
   const [params, setParams] = useState<VideoGenerationParams>(defaultParams);
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -116,7 +119,24 @@ export const VideoGenerator = () => {
         const data = await response.json();
         setGeneratedVideo(data.videoUrl);
         setProgress(100);
-        toast.success('Vidéo générée avec succès !');
+        
+        // Auto-save to gallery
+        await saveCreation({
+          type: 'video',
+          name: `Vidéo - ${params.prompt.slice(0, 30)}...`,
+          url: data.videoUrl,
+          metadata: {
+            prompt: params.prompt,
+            mode,
+            frames: params.frames,
+            fps: params.fps,
+            width: params.width,
+            height: params.height,
+            model: 'AnimateDiff'
+          }
+        });
+        
+        toast.success('Vidéo générée et sauvegardée !');
       } else {
         throw new Error('Erreur de génération');
       }
@@ -405,7 +425,16 @@ export const VideoGenerator = () => {
               />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1 gap-2"
+                onClick={() => {
+                  const a = document.createElement('a');
+                  a.href = generatedVideo;
+                  a.download = `video-${Date.now()}.mp4`;
+                  a.click();
+                }}
+              >
                 <Download className="w-4 h-4" />
                 Télécharger MP4
               </Button>
