@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { getLocalServerUrl } from '@/utils/localServerUrl';
 
 interface FFmpegInstallProgress {
   step: 'idle' | 'downloading' | 'extracting' | 'configuring' | 'verifying' | 'completed' | 'failed';
@@ -81,12 +82,7 @@ export const FFmpegManager = () => {
   });
 
   const getServerUrl = useCallback(() => {
-    const saved = localStorage.getItem('mediavault-admin-settings');
-    if (saved) {
-      const settings = JSON.parse(saved);
-      return settings.localServerUrl || 'http://localhost:3001';
-    }
-    return 'http://localhost:3001';
+    return getLocalServerUrl();
   }, []);
 
   const checkFFmpeg = useCallback(async () => {
