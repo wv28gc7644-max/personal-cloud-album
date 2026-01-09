@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMediaStore } from './useMediaStore';
 import { MediaItem, Tag } from '@/types/media';
 import { toast } from 'sonner';
+import { getLocalServerUrl } from '@/utils/localServerUrl';
 
 interface LocalFile {
   name: string;
@@ -37,12 +38,7 @@ export const useLocalServer = (): UseLocalServerReturn => {
   const { addMedia, tags } = useMediaStore();
 
   const getServerUrl = useCallback((): string => {
-    const saved = localStorage.getItem('mediavault-admin-settings');
-    if (saved) {
-      const settings = JSON.parse(saved);
-      return settings.localServerUrl || 'http://localhost:3001';
-    }
-    return 'http://localhost:3001';
+    return getLocalServerUrl();
   }, []);
 
   const testConnection = useCallback(async (options?: { silent?: boolean }): Promise<boolean> => {

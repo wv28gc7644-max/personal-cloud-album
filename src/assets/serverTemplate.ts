@@ -1181,19 +1181,55 @@ const server = http.createServer(async (req, res) => {
     // ===================================================================
 
     if (pathname === '/api/check-ffmpeg' && req.method === 'GET') {
-      exec('ffmpeg -version', (error, stdout) => {
-        if (error) {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ installed: false, error: error.message }));
-        }
-        
-        const versionMatch = stdout.match(/ffmpeg version ([^\\s]+)/);
+      const respondOk = (payload) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          installed: true, 
-          version: versionMatch ? versionMatch[1] : 'unknown',
-          output: stdout.split('\\n')[0]
-        }));
+        res.end(JSON.stringify(payload));
+      };
+
+      const parseVersion = (stdout) => {
+        const versionMatch = String(stdout || '').match(/ffmpeg version ([^\\s]+)/);
+        return versionMatch ? versionMatch[1] : 'unknown';
+      };
+
+      exec('ffmpeg -version', (error, stdout) => {
+        if (!error) {
+          return respondOk({ installed: true, version: parseVersion(stdout), output: String(stdout).split('\\n')[0] });
+        }
+
+        try {
+          const installRoot = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'ffmpeg');
+          if (fs.existsSync(installRoot)) {
+            const dirs = fs.readdirSync(installRoot).filter(d => {
+              try {
+                return fs.statSync(path.join(installRoot, d)).isDirectory() && d.startsWith('ffmpeg');
+              } catch {
+                return false;
+              }
+            });
+
+            if (dirs.length > 0) {
+              const binDir = path.join(installRoot, dirs[0], 'bin');
+              const ffmpegExe = path.join(binDir, 'ffmpeg.exe');
+              if (fs.existsSync(ffmpegExe)) {
+                const currentPath = process.env.PATH || '';
+                if (!currentPath.toLowerCase().includes(binDir.toLowerCase())) {
+                  process.env.PATH = binDir + ';' + currentPath;
+                }
+
+                return exec('"' + ffmpegExe + '" -version', (err2, stdout2) => {
+                  if (err2) {
+                    return respondOk({ installed: false, error: err2.message, hint: 'FFmpeg trouvé mais non exécutable' });
+                  }
+                  return respondOk({ installed: true, version: parseVersion(stdout2), output: String(stdout2).split('\\n')[0], path: binDir, source: 'mediavault-install' });
+                });
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        return respondOk({ installed: false, error: error.message, hint: 'FFmpeg non trouvé (PATH + dossier MediaVault-AI)' });
       });
       return;
     }
