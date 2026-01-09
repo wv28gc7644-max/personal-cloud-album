@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Film, CheckCircle, XCircle, Loader2, RefreshCw, Play, Download, AlertCircle, Settings, Zap, HardDrive, FileVideo, Rocket, ExternalLink, FolderOpen } from 'lucide-react';
+import { Film, CheckCircle, XCircle, Loader2, RefreshCw, Play, Download, AlertCircle, Settings, Zap, HardDrive, FileVideo, Rocket, ExternalLink, FolderOpen, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -52,6 +52,7 @@ export const FFmpegManager = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<ThumbnailProgress | null>(null);
+  const [connectivityDiag, setConnectivityDiag] = useState<string | null>(null);
   const [timestampPosition, setTimestampPosition] = useState<number>(() => 
     parseInt(localStorage.getItem('mediavault-thumbnail-position') || '25')
   );
@@ -85,13 +86,21 @@ export const FFmpegManager = () => {
     return getLocalServerUrl();
   }, []);
 
+  const isHttpsContext = typeof window !== 'undefined' && window.location.protocol === 'https:';
+
   const checkFFmpeg = useCallback(async () => {
     setIsChecking(true);
+    const serverUrl = getServerUrl();
+
     try {
-      const response = await fetch(`${getServerUrl()}/api/check-ffmpeg`);
+      const response = await fetch(`${serverUrl}/api/check-ffmpeg`, {
+        signal: AbortSignal.timeout(8000)
+      });
+
       if (response.ok) {
         const data = await response.json();
         setFfmpegStatus(data);
+        setConnectivityDiag(null);
         if (data.installed) {
           toast.success('FFmpeg détecté', { description: data.version });
         } else {
@@ -99,59 +108,108 @@ export const FFmpegManager = () => {
         }
       } else {
         setFfmpegStatus({ installed: false, version: null });
+        setConnectivityDiag(
+          JSON.stringify(
+            {
+              kind: 'http_error',
+              status: response.status,
+              serverUrl,
+              origin: typeof window !== 'undefined' ? window.location.origin : 'unknown'
+            },
+            null,
+            2
+          )
+        );
         toast.error('Erreur de connexion au serveur');
       }
     } catch (err) {
       setFfmpegStatus({ installed: false, version: null });
+      setConnectivityDiag(
+        JSON.stringify(
+          {
+            kind: 'fetch_failed',
+            message: err instanceof Error ? err.message : String(err),
+            serverUrl,
+            origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
+            httpsContext: isHttpsContext
+          },
+          null,
+          2
+        )
+      );
       toast.error('Serveur non accessible');
     } finally {
       setIsChecking(false);
     }
-  }, [getServerUrl]);
+  }, [getServerUrl, isHttpsContext]);
 
   // Installation automatique FFmpeg en un clic
   const installFFmpegAutomatically = useCallback(async () => {
+    const serverUrl = getServerUrl();
     setIsInstalling(true);
     setInstallProgress({ step: 'downloading', progress: 0, message: 'Connexion au serveur...' });
 
+    // Pré-check: si on est dans un contexte HTTPS avec localhost en HTTP, ça ne pourra pas marcher.
+    if (isHttpsContext && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(serverUrl)) {
+      setIsInstalling(false);
+      setInstallProgress({
+        step: 'failed',
+        progress: 0,
+        message: "Bloqué par le navigateur (HTTPS → http://localhost). Ouvrez l'interface via http://localhost:3001 puis relancez l'installation."
+      });
+      toast.error('Automatisation impossible dans cette page', {
+        description: 'Ouvrez http://localhost:3001 (en local) pour piloter le serveur.'
+      });
+      return;
+    }
+
     try {
+      // Vérifier que le serveur répond réellement
+      const health = await fetch(`${serverUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
+      if (!health.ok) throw new Error('health_not_ok');
+
       // Étape 1: Demander au serveur d'installer FFmpeg
-      const response = await fetch(`${getServerUrl()}/api/install-ffmpeg`, {
+      const response = await fetch(`${serverUrl}/api/install-ffmpeg`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(8000)
       });
 
       if (!response.ok) {
         throw new Error('Le serveur n\'a pas pu démarrer l\'installation');
       }
 
-      // Simuler la progression avec polling du statut
+      let finished = false;
       const pollInterval = setInterval(async () => {
         try {
-          const statusResponse = await fetch(`${getServerUrl()}/api/ffmpeg-install-status`);
-          if (statusResponse.ok) {
-            const status = await statusResponse.json();
-            
-            setInstallProgress({
-              step: status.step,
-              progress: status.progress,
-              message: status.message
-            });
+          const statusResponse = await fetch(`${serverUrl}/api/ffmpeg-install-status`, {
+            signal: AbortSignal.timeout(5000)
+          });
+          if (!statusResponse.ok) return;
 
-            if (status.step === 'completed') {
-              clearInterval(pollInterval);
-              setIsInstalling(false);
-              setFfmpegStatus({ installed: true, version: status.version || 'FFmpeg installé' });
-              toast.success('FFmpeg installé avec succès !', {
-                description: 'Vous pouvez maintenant utiliser toutes les fonctionnalités'
-              });
-            } else if (status.step === 'failed') {
-              clearInterval(pollInterval);
-              setIsInstalling(false);
-              toast.error('Échec de l\'installation', {
-                description: status.message
-              });
-            }
+          const status = await statusResponse.json();
+          setInstallProgress({
+            step: status.step,
+            progress: status.progress,
+            message: status.message
+          });
+
+          if (status.step === 'completed') {
+            finished = true;
+            clearInterval(pollInterval);
+            setIsInstalling(false);
+            setFfmpegStatus({ installed: true, version: status.version || 'FFmpeg installé' });
+            setConnectivityDiag(null);
+            toast.success('FFmpeg installé avec succès !', {
+              description: 'Vous pouvez maintenant utiliser toutes les fonctionnalités'
+            });
+          } else if (status.step === 'failed') {
+            finished = true;
+            clearInterval(pollInterval);
+            setIsInstalling(false);
+            toast.error("Échec de l'installation", {
+              description: status.message
+            });
           }
         } catch {
           // Ignorer les erreurs de polling temporaires
@@ -160,21 +218,29 @@ export const FFmpegManager = () => {
 
       // Timeout après 5 minutes
       setTimeout(() => {
+        if (finished) return;
         clearInterval(pollInterval);
-        if (isInstalling) {
-          setIsInstalling(false);
-          setInstallProgress({ step: 'failed', progress: 0, message: 'Timeout - L\'installation a pris trop de temps' });
-        }
+        setIsInstalling(false);
+        setInstallProgress({ step: 'failed', progress: 0, message: "Timeout - L'installation a pris trop de temps" });
       }, 300000);
-
     } catch (error) {
-      // Fallback: installation locale via script
-      setInstallProgress({ step: 'downloading', progress: 10, message: 'Téléchargement de FFmpeg...' });
-      
-      // Simuler le téléchargement et installation
-      await simulateLocalInstall();
+      setIsInstalling(false);
+      setConnectivityDiag(
+        JSON.stringify(
+          {
+            kind: 'install_failed_preflight',
+            message: error instanceof Error ? error.message : String(error),
+            serverUrl,
+            origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
+            httpsContext: isHttpsContext
+          },
+          null,
+          2
+        )
+      );
+      toast.error('Serveur non accessible');
     }
-  }, [getServerUrl, isInstalling]);
+  }, [getServerUrl, isHttpsContext]);
 
   const simulateLocalInstall = async () => {
     const steps = [
@@ -486,6 +552,55 @@ export const FFmpegManager = () => {
             )}
           </div>
         </div>
+
+        {/* Diagnostic de connectivité (cas le plus fréquent: app ouverte en HTTPS) */}
+        {!ffmpegStatus?.installed && connectivityDiag && (
+          <div className={cn(
+            "p-4 rounded-lg border space-y-2",
+            isHttpsContext ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/30 border-border/50"
+          )}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Connexion au serveur local impossible
+                </p>
+                {isHttpsContext ? (
+                  <p className="text-sm text-muted-foreground">
+                    Votre navigateur bloque l'accès à <code className="px-1 rounded bg-muted">http://localhost</code> depuis cette page sécurisée.
+                    Ouvrez l'interface en local :{' '}
+                    <a className="underline" href="http://localhost:3001" target="_blank" rel="noreferrer">http://localhost:3001</a>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Le serveur local ne répond pas. Vérifiez qu'il est démarré (node server.cjs) et que l'URL est correcte dans les réglages.
+                  </p>
+                )}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(connectivityDiag);
+                    toast.success('Diagnostic copié');
+                  } catch {
+                    toast.error('Impossible de copier le diagnostic');
+                  }
+                }}
+              >
+                <Copy className="w-4 h-4" />
+                Copier
+              </Button>
+            </div>
+
+            <pre className="text-xs overflow-auto max-h-40 p-2 rounded bg-muted/50 border border-border/50">
+{connectivityDiag}
+            </pre>
+          </div>
+        )}
 
         {/* Installation automatique - Affiché seulement si FFmpeg non installé */}
         {!ffmpegStatus?.installed && ffmpegStatus !== null && (

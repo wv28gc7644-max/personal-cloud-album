@@ -44,53 +44,65 @@ export const useLocalServer = (): UseLocalServerReturn => {
   const testConnection = useCallback(async (options?: { silent?: boolean }): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
-    
+
+    const serverUrl = getServerUrl();
+    const isHttpsContext = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    const looksLikeLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(serverUrl);
+
+    const mixedContentHint =
+      isHttpsContext && looksLikeLocalhost
+        ? "Connexion bloquée par le navigateur (HTTPS → serveur local HTTP). Ouvrez l'interface via http://localhost:3001 (script de démarrage) ou utilisez une URL réseau (IP LAN) dans les réglages."
+        : null;
+
     try {
-      const serverUrl = getServerUrl();
       const response = await fetch(`${serverUrl}/api/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000)
       });
-      
+
       if (response.ok) {
         const wasDisconnected = !isConnected;
         setIsConnected(true);
-        // Only show toast if not silent AND was previously disconnected
         if (!options?.silent && wasDisconnected) {
           toast.success('Connexion au serveur local réussie');
         }
         return true;
-      } else {
-        throw new Error('Serveur non accessible');
       }
+
+      throw new Error('Serveur non accessible');
     } catch (err) {
       // Try alternative endpoint
       try {
-        const serverUrl = getServerUrl();
         const response = await fetch(`${serverUrl}/api/files`, {
           method: 'GET',
           signal: AbortSignal.timeout(5000)
         });
-        
+
         if (response.ok) {
           setIsConnected(true);
-          toast.success('Connexion au serveur local réussie');
+          if (!options?.silent) {
+            toast.success('Connexion au serveur local réussie');
+          }
           return true;
         }
       } catch {
         // Connection failed
       }
-      
+
       setIsConnected(false);
-      setError('Impossible de se connecter au serveur local. Vérifiez que le serveur est démarré.');
-      toast.error('Connexion échouée', {
-        description: 'Assurez-vous que le serveur local est démarré'
-      });
+      setError(mixedContentHint || 'Impossible de se connecter au serveur local. Vérifiez que le serveur est démarré.');
+
+      if (!options?.silent) {
+        toast.error('Connexion échouée', {
+          description: mixedContentHint || 'Assurez-vous que le serveur local est démarré'
+        });
+      }
+
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [getServerUrl]);
+  }, [getServerUrl, isConnected]);
 
   const loadFilesFromServer = useCallback(async (): Promise<void> => {
     setIsLoading(true);
