@@ -202,58 +202,71 @@ export const FFmpegManager = () => {
 
   // Télécharger le script d'installation
   const downloadInstallScript = useCallback(() => {
-    const script = `@echo off
-chcp 65001 >nul
-title Installation FFmpeg pour MediaVault
-color 0A
+    const scriptLines = [
+      '@echo off',
+      'setlocal enabledelayedexpansion',
+      'title Installation FFmpeg pour MediaVault',
+      'color 0A',
+      '',
+      'echo ========================================================',
+      'echo        INSTALLATION AUTOMATIQUE FFMPEG',
+      'echo ========================================================',
+      'echo.',
+      '',
+      'set "FFMPEG_URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"',
+      'set "INSTALL_DIR=%USERPROFILE%\\MediaVault-AI\\ffmpeg"',
+      'set "TEMP_ZIP=%TEMP%\\ffmpeg.zip"',
+      '',
+      'echo [1/5] Creation du dossier d installation...',
+      'if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"',
+      '',
+      'echo [2/5] Telechargement de FFmpeg...',
+      'echo     URL: %FFMPEG_URL%',
+      'powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri \'%FFMPEG_URL%\' -OutFile \'%TEMP_ZIP%\'"',
+      '',
+      'if not exist "%TEMP_ZIP%" (',
+      '    echo ERREUR: Le telechargement a echoue',
+      '    pause',
+      '    exit /b 1',
+      ')',
+      '',
+      'echo [3/5] Extraction des fichiers...',
+      'powershell -Command "Expand-Archive -Path \'%TEMP_ZIP%\' -DestinationPath \'%INSTALL_DIR%\' -Force"',
+      '',
+      'echo [4/5] Configuration du PATH systeme...',
+      'for /d %%D in ("%INSTALL_DIR%\\ffmpeg-*") do (',
+      '    set "FFMPEG_BIN=%%D\\bin"',
+      '    echo     Dossier trouve: !FFMPEG_BIN!',
+      ')',
+      '',
+      'if defined FFMPEG_BIN (',
+      '    setx PATH "%PATH%;!FFMPEG_BIN!"',
+      '    echo     PATH mis a jour avec: !FFMPEG_BIN!',
+      ') else (',
+      '    echo ERREUR: Dossier FFmpeg non trouve apres extraction',
+      '    pause',
+      '    exit /b 1',
+      ')',
+      '',
+      'echo [5/5] Nettoyage...',
+      'del "%TEMP_ZIP%" 2>nul',
+      '',
+      'echo.',
+      'echo ========================================================',
+      'echo              INSTALLATION TERMINEE !',
+      'echo ========================================================',
+      'echo.',
+      'echo FFmpeg est maintenant installe dans: %INSTALL_DIR%',
+      'echo.',
+      'echo IMPORTANT: Fermez et rouvrez votre terminal pour que',
+      'echo le PATH soit pris en compte, puis relancez MediaVault.',
+      'echo.',
+      'pause',
+      'endlocal'
+    ];
 
-echo ╔════════════════════════════════════════════════════════════╗
-echo ║         INSTALLATION AUTOMATIQUE FFMPEG                    ║
-echo ╚════════════════════════════════════════════════════════════╝
-echo.
-
-set "FFMPEG_URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-set "INSTALL_DIR=%USERPROFILE%\\MediaVault-AI\\ffmpeg"
-set "TEMP_ZIP=%TEMP%\\ffmpeg.zip"
-
-echo [1/5] Création du dossier d'installation...
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-
-echo [2/5] Téléchargement de FFmpeg...
-echo     URL: %FFMPEG_URL%
-powershell -Command "& {[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%FFMPEG_URL%' -OutFile '%TEMP_ZIP%'}"
-
-if not exist "%TEMP_ZIP%" (
-    echo ERREUR: Le téléchargement a échoué
-    pause
-    exit /b 1
-)
-
-echo [3/5] Extraction des fichiers...
-powershell -Command "Expand-Archive -Path '%TEMP_ZIP%' -DestinationPath '%INSTALL_DIR%' -Force"
-
-echo [4/5] Configuration du PATH système...
-for /d %%D in ("%INSTALL_DIR%\\ffmpeg-*") do (
-    setx PATH "%PATH%;%%D\\bin" /M 2>nul || setx PATH "%PATH%;%%D\\bin"
-    echo     Ajouté: %%D\\bin
-)
-
-echo [5/5] Nettoyage...
-del "%TEMP_ZIP%" 2>nul
-
-echo.
-echo ╔════════════════════════════════════════════════════════════╗
-echo ║              INSTALLATION TERMINÉE !                       ║
-echo ╚════════════════════════════════════════════════════════════╝
-echo.
-echo FFmpeg est maintenant installé dans: %INSTALL_DIR%
-echo.
-echo Redémarrez le serveur MediaVault pour utiliser FFmpeg.
-echo.
-pause
-`;
-
-    const blob = new Blob([script], { type: 'application/bat' });
+    const script = scriptLines.join('\r\n');
+    const blob = new Blob([script], { type: 'application/x-bat' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -263,8 +276,8 @@ pause
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    toast.success('Script téléchargé', {
-      description: 'Exécutez install-ffmpeg.bat en tant qu\'administrateur'
+    toast.success('Script telecharge', {
+      description: 'Executez install-ffmpeg.bat en tant qu\'administrateur'
     });
   }, []);
 
