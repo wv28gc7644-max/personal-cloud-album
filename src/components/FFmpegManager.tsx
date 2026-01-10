@@ -343,6 +343,55 @@ export const FFmpegManager = () => {
     });
   }, []);
 
+  // Télécharger un script diagnostic (collecte un rapport utile même si l'UI ne détecte rien)
+  const downloadDiagnosticScript = useCallback(() => {
+    const scriptLines = [
+      '@echo off',
+      'setlocal',
+      'title Diagnostic MediaVault (serveur + FFmpeg)',
+      '',
+      'set "OUTDIR=%USERPROFILE%\\MediaVault-AI\\logs"',
+      'if not exist "%OUTDIR%" mkdir "%OUTDIR%"',
+      '',
+      'set "STAMP=%DATE:~-4%-%DATE:~3,2%-%DATE:~0,2%_%TIME:~0,2%-%TIME:~3,2%-%TIME:~6,2%"',
+      'set "STAMP=%STAMP: =0%"',
+      'set "OUT=%OUTDIR%\\mediavault-diagnostic-%STAMP%.txt"',
+      '',
+      'echo MediaVault diagnostic > "%OUT%"',
+      'echo.>> "%OUT%"',
+      'echo [1] URL serveur attendu: http://localhost:3001 >> "%OUT%"',
+      'echo.>> "%OUT%"',
+      'echo [2] Test /api/health >> "%OUT%"',
+      'powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 http://localhost:3001/api/health).Content } catch { \"ERROR: $($_.Exception.Message)\" }" >> "%OUT%"',
+      'echo.>> "%OUT%"',
+      'echo [3] Test /api/check-ffmpeg >> "%OUT%"',
+      'powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 http://localhost:3001/api/check-ffmpeg).Content } catch { \"ERROR: $($_.Exception.Message)\" }" >> "%OUT%"',
+      'echo.>> "%OUT%"',
+      'echo [4] Rapport complet /api/debug/report >> "%OUT%"',
+      'powershell -NoProfile -Command "try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 http://localhost:3001/api/debug/report).Content } catch { \"ERROR: $($_.Exception.Message)\" }" >> "%OUT%"',
+      'echo.>> "%OUT%"',
+      'echo Fichier genere: %OUT%',
+      'echo Envoyez ce fichier au support.',
+      'pause',
+      'endlocal'
+    ];
+
+    const script = scriptLines.join('\r\n');
+    const blob = new Blob([script], { type: 'application/x-bat' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mediavault-diagnostic.bat';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast.success('Script diagnostic téléchargé', {
+      description: 'Lancez-le puis envoyez le fichier .txt généré.'
+    });
+  }, []);
+
   const generateAllThumbnails = useCallback(async () => {
     setIsGenerating(true);
     setProgress({ total: 0, completed: 0, current: null, failed: [] });
@@ -578,22 +627,34 @@ export const FFmpegManager = () => {
                 )}
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(connectivityDiag);
-                    toast.success('Diagnostic copié');
-                  } catch {
-                    toast.error('Impossible de copier le diagnostic');
-                  }
-                }}
-              >
-                <Copy className="w-4 h-4" />
-                Copier
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(connectivityDiag);
+                      toast.success('Diagnostic copié');
+                    } catch {
+                      toast.error('Impossible de copier le diagnostic');
+                    }
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                  Copier
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={downloadDiagnosticScript}
+                >
+                  <Download className="w-4 h-4" />
+                  Script diagnostic
+                </Button>
+              </div>
             </div>
 
             <pre className="text-xs overflow-auto max-h-40 p-2 rounded bg-muted/50 border border-border/50">

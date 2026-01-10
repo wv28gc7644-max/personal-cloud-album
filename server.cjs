@@ -18,11 +18,53 @@ const { exec, spawn } = require('child_process');
 // CONFIGURATION - MODIFIEZ CES VALEURS
 // ═══════════════════════════════════════════════════════════════════
 
-const MEDIA_FOLDER = 'C:/Users/VotreNom/Pictures';
+let MEDIA_FOLDER = process.env.MEDIAVAULT_MEDIA_FOLDER || 'C:/Users/VotreNom/Pictures';
 const PORT = 3001;
 const DIST_FOLDER = path.join(__dirname, 'dist');
 const DATA_FILE = path.join(__dirname, 'data.json');
 const LOG_FILE = path.join(__dirname, 'ai-logs.json');
+
+// Résolution robuste du dossier média (évite que le serveur refuse de démarrer)
+const resolveMediaFolder = () => {
+  const candidates = [];
+
+  // 1) Variable d'environnement
+  if (process.env.MEDIAVAULT_MEDIA_FOLDER) candidates.push(process.env.MEDIAVAULT_MEDIA_FOLDER);
+
+  // 2) Valeur par défaut (peut être un placeholder)
+  if (MEDIA_FOLDER) candidates.push(MEDIA_FOLDER);
+
+  // 3) Dossiers utilisateur classiques
+  const userProfile = process.env.USERPROFILE || '';
+  if (userProfile) {
+    candidates.push(path.join(userProfile, 'Videos'));
+    candidates.push(path.join(userProfile, 'Pictures'));
+    candidates.push(path.join(userProfile, 'Desktop'));
+    candidates.push(path.join(userProfile, 'Downloads'));
+  }
+
+  // 4) Fallback interne MediaVault-AI
+  const fallback = path.join(userProfile || __dirname, 'MediaVault-AI', 'media');
+  candidates.push(fallback);
+
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) return p;
+    } catch {
+      // ignore
+    }
+  }
+
+  // Si rien n'existe, on crée le fallback
+  try {
+    fs.mkdirSync(fallback, { recursive: true });
+  } catch {
+    // ignore
+  }
+  return fallback;
+};
+
+MEDIA_FOLDER = resolveMediaFolder();
 
 // Buffer circulaire pour les logs (max 1000 entrées)
 let logsBuffer = [];
@@ -64,9 +106,18 @@ const AI_CONFIG = {
 // ═══════════════════════════════════════════════════════════════════
 
 if (!fs.existsSync(MEDIA_FOLDER)) {
-  console.error('❌ MEDIA_FOLDER introuvable:', MEDIA_FOLDER);
-  console.log('➡️ Modifiez MEDIA_FOLDER dans server.cjs puis relancez');
-  process.exit(1);
+  // Ne plus bloquer le démarrage : on crée un dossier fallback et on continue.
+  const userProfile = process.env.USERPROFILE || __dirname;
+  const fallback = path.join(userProfile, 'MediaVault-AI', 'media');
+  try {
+    fs.mkdirSync(fallback, { recursive: true });
+    MEDIA_FOLDER = fallback;
+  } catch {
+    // dernier recours : dossier du projet
+    MEDIA_FOLDER = __dirname;
+  }
+  console.warn('⚠️ MEDIA_FOLDER introuvable, fallback activé:', MEDIA_FOLDER);
+  addLog('warn', 'server', `MEDIA_FOLDER introuvable, fallback: ${MEDIA_FOLDER}`);
 }
 
 // Créer le fichier de données s'il n'existe pas
@@ -179,6 +230,94 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
     }
 
+    // Rapport diagnostic exportable (à envoyer au support)
+    if (pathname === '/api/debug/report' && req.method === 'GET') {
+      const now = new Date();
+      const userProfile = process.env.USERPROFILE || '';
+      const logsDir = path.join(userProfile || __dirname, 'MediaVault-AI', 'logs');
+      try {
+        fs.mkdirSync(logsDir, { recursive: true });
+      } catch {
+        // ignore
+      }
+
+      const safeExec = (cmd) =>
+        new Promise((resolve) => {
+          exec(cmd, { timeout: 4000 }, (error, stdout, stderr) => {
+            resolve({ ok: !error, error: error?.message || null, stdout: String(stdout || ''), stderr: String(stderr || '') });
+          });
+        });
+
+      // Vérif FFmpeg (PATH + fallback MediaVault-AI)
+      let ffmpeg = { installed: false, version: null, source: null, path: null, error: null };
+      const viaPath = await safeExec('ffmpeg -version');
+      if (viaPath.ok) {
+        const m = viaPath.stdout.match(/ffmpeg version ([^\s]+)/);
+        ffmpeg = { installed: true, version: m ? m[1] : 'unknown', source: 'PATH', path: null, error: null };
+      } else {
+        try {
+          const installRoot = path.join(userProfile, 'MediaVault-AI', 'ffmpeg');
+          if (fs.existsSync(installRoot)) {
+            const dirs = fs.readdirSync(installRoot).filter(d => {
+              try {
+                return fs.statSync(path.join(installRoot, d)).isDirectory() && d.startsWith('ffmpeg');
+              } catch {
+                return false;
+              }
+            });
+            if (dirs.length > 0) {
+              const binDir = path.join(installRoot, dirs[0], 'bin');
+              const ffmpegExe = path.join(binDir, 'ffmpeg.exe');
+              if (fs.existsSync(ffmpegExe)) {
+                const viaExe = await safeExec(`"${ffmpegExe}" -version`);
+                if (viaExe.ok) {
+                  const m = viaExe.stdout.match(/ffmpeg version ([^\s]+)/);
+                  ffmpeg = { installed: true, version: m ? m[1] : 'unknown', source: 'mediavault-install', path: binDir, error: null };
+                } else {
+                  ffmpeg = { installed: false, version: null, source: 'mediavault-install', path: binDir, error: viaExe.error || 'ffmpeg.exe not executable' };
+                }
+              }
+            }
+          }
+        } catch (e) {
+          ffmpeg.error = e?.message || String(e);
+        }
+        if (!ffmpeg.installed) ffmpeg.error = ffmpeg.error || viaPath.error || 'ffmpeg not found';
+      }
+
+      const report = {
+        generatedAt: now.toISOString(),
+        port: PORT,
+        mediaFolder: MEDIA_FOLDER,
+        mediaFolderExists: (() => {
+          try { return fs.existsSync(MEDIA_FOLDER); } catch { return false; }
+        })(),
+        cwd: process.cwd(),
+        projectDir: __dirname,
+        node: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        env: {
+          USERPROFILE: process.env.USERPROFILE || null,
+          MEDIAVAULT_MEDIA_FOLDER: process.env.MEDIAVAULT_MEDIA_FOLDER || null,
+          PATH_length: (process.env.PATH || '').length
+        },
+        ffmpeg
+      };
+
+      const stamp = now.toISOString().replace(/[:.]/g, '-');
+      const filename = `mediavault-diagnostic-${stamp}.json`;
+      const filePath = path.join(logsDir, filename);
+      try {
+        fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf8');
+      } catch {
+        // ignore
+      }
+
+      addLog('info', 'server', `Diagnostic généré: ${filename}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ...report, savedTo: filePath }));
+    }
     if (pathname === '/api/ai/status') {
       // Multi-port configuration: Windows/BAT ports first, then Docker ports
       const SERVICE_PORT_CANDIDATES = {
