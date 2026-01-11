@@ -190,7 +190,8 @@ const server = http.createServer(async (req, res) => {
     
     if (pathname === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
+      // Security: Don't expose full file system paths - only return status
+      return res.end(JSON.stringify({ status: 'ok', configured: !!MEDIA_FOLDER }));
     }
 
     if (pathname === '/api/ai/status') {
@@ -1117,15 +1118,15 @@ const server = http.createServer(async (req, res) => {
 
     // Informations systeme (secure: all commands are hardcoded with spawn)
     if (pathname === '/api/agent/system-info' && req.method === 'GET') {
+      // Security: Don't expose full file system paths in API responses
       const info = {
         platform: process.platform,
         arch: process.arch,
         nodeVersion: process.version,
         uptime: process.uptime(),
         memoryUsage: process.memoryUsage(),
-        cwd: __dirname,
-        mediaFolder: MEDIA_FOLDER,
-        aiDir: path.join(process.env.USERPROFILE || '', 'MediaVault-AI')
+        mediaFolderConfigured: !!MEDIA_FOLDER,
+        aiDirConfigured: fs.existsSync(path.join(process.env.USERPROFILE || '', 'MediaVault-AI'))
       };
 
       // Recuperer infos GPU si disponible (secure spawn)
