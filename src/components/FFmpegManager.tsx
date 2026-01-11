@@ -270,7 +270,7 @@ export const FFmpegManager = () => {
       { step: 'downloading' as const, progress: 60, message: 'Téléchargement terminé' },
       { step: 'extracting' as const, progress: 70, message: 'Extraction des fichiers...' },
       { step: 'configuring' as const, progress: 85, message: 'Configuration du PATH système...' },
-      { step: 'verifying' as const, progress: 95, message: 'Vérification de l\'installation...' },
+      { step: 'verifying' as const, progress: 95, message: "Vérification de l'installation..." },
       { step: 'completed' as const, progress: 100, message: 'Installation terminée !' }
     ];
 
@@ -283,7 +283,86 @@ export const FFmpegManager = () => {
     await checkFFmpeg();
   };
 
-  // Télécharger le script d'installation
+  // Télécharger server.cjs (serveur local) - version "infaillible" via template embarqué
+  const downloadLocalServerFile = useCallback(() => {
+    import('@/assets/serverTemplate').then(({ serverTemplate }) => {
+      const blob = new Blob([serverTemplate], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'server.cjs';
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('server.cjs téléchargé', { description: 'Placez-le avec le .bat dans un même dossier (ex: C:\\MediaVault\\)' });
+    });
+  }, []);
+
+  // Télécharger un script de démarrage (Windows)
+  const downloadStartMediaVaultBat = useCallback(() => {
+    const batContent = [
+      '@echo off',
+      'title MediaVault - Demarrage',
+      'color 0A',
+      '',
+      'echo.',
+      'echo  ============================================',
+      'echo           MediaVault - Demarrage',
+      'echo  ============================================',
+      'echo.',
+      '',
+      ':: Verifier Node.js',
+      'echo [1/4] Verification de Node.js...',
+      'where node >nul 2>nul',
+      'if %errorlevel% neq 0 (',
+      '    echo [ERREUR] Node.js n\'est pas installe!',
+      '    echo Telecharger depuis: https://nodejs.org/',
+      '    pause',
+      '    exit /b 1',
+      ')',
+      'for /f "tokens=1" %%i in (\'node -v\') do set NODE_VERSION=%%i',
+      'echo       Node.js %NODE_VERSION% detecte',
+      '',
+      ':: Aller au dossier du projet',
+      'echo.',
+      'echo [2/4] Navigation vers le dossier...',
+      'cd /d "%~dp0"',
+      'echo       Dossier: %CD%',
+      '',
+      ':: Verifier si le serveur est deja en cours',
+      'echo.',
+      'echo [3/4] Verification du serveur...',
+      'netstat -ano | findstr :3001 >nul 2>nul',
+      'if %errorlevel% equ 0 (',
+      '    echo       Serveur deja en cours sur le port 3001',
+      ') else (',
+      '    echo       Demarrage du serveur local...',
+      '    start /min cmd /c "node server.cjs"',
+      '    timeout /t 2 /nobreak >nul',
+      ')',
+      '',
+      ':: Ouvrir le navigateur',
+      'echo.',
+      'echo [4/4] Ouverture du navigateur...',
+      'timeout /t 1 /nobreak >nul',
+      'start http://localhost:3001',
+      '',
+      'echo.',
+      'echo  MediaVault est pret : http://localhost:3001',
+      'echo.',
+      'pause >nul'
+    ].join('\r\n');
+
+    const blob = new Blob([batContent], { type: 'application/x-bat' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'Lancer MediaVault.bat';
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Lancer MediaVault.bat téléchargé');
+  }, []);
+
+  // Télécharger le script d'installation FFmpeg (manuel)
   const downloadInstallScript = useCallback(() => {
     const scriptLines = [
       '@echo off',
@@ -358,9 +437,9 @@ export const FFmpegManager = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
-    toast.success('Script telecharge', {
-      description: 'Executez install-ffmpeg.bat en tant qu\'administrateur'
+
+    toast.success('Script téléchargé', {
+      description: "Exécutez install-ffmpeg.bat en tant qu'administrateur"
     });
   }, []);
 
@@ -763,7 +842,11 @@ export const FFmpegManager = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="setup" className="gap-2">
+              <HardDrive className="w-4 h-4" />
+              Setup
+            </TabsTrigger>
             <TabsTrigger value="thumbnails" className="gap-2">
               <Film className="w-4 h-4" />
               Thumbnails
@@ -773,6 +856,57 @@ export const FFmpegManager = () => {
               Compression
             </TabsTrigger>
           </TabsList>
+
+          {/* Setup Tab (manuel + fichiers) */}
+          <TabsContent value="setup" className="space-y-4 mt-4">
+            <div className="p-4 rounded-lg border bg-muted/30 border-border/50 space-y-3">
+              <p className="text-sm">
+                Objectif : lancer MediaVault <strong>en local</strong> (HTTP) pour que le navigateur autorise la connexion au serveur et que FFmpeg puisse être détecté.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button variant="outline" className="gap-2" onClick={downloadLocalServerFile}>
+                  <Download className="w-4 h-4" />
+                  Télécharger server.cjs
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={downloadStartMediaVaultBat}>
+                  <Download className="w-4 h-4" />
+                  Télécharger Lancer MediaVault.bat
+                </Button>
+              </div>
+
+              <div className="text-sm space-y-2">
+                <p className="font-medium">Étapes (Windows) :</p>
+                <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                  <li>Créez un dossier : <code className="px-1 rounded bg-muted">C:\\MediaVault\\</code></li>
+                  <li>Mettez <code className="px-1 rounded bg-muted">server.cjs</code> + <code className="px-1 rounded bg-muted">Lancer MediaVault.bat</code> dedans</li>
+                  <li>Installez Node.js (LTS) si besoin : <a className="underline" href="https://nodejs.org/" target="_blank" rel="noreferrer">nodejs.org</a></li>
+                  <li>Double-cliquez <code className="px-1 rounded bg-muted">Lancer MediaVault.bat</code></li>
+                  <li>Ouvrez ensuite MediaVault ici : <a className="underline" href="http://localhost:3001" target="_blank" rel="noreferrer">http://localhost:3001</a></li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border bg-muted/30 border-border/50 space-y-3">
+              <p className="text-sm font-medium">Installation FFmpeg (manuel)</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" className="gap-2" onClick={downloadInstallScript}>
+                  <Download className="w-4 h-4" />
+                  install-ffmpeg.bat
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={downloadDiagnosticScript}>
+                  <Download className="w-4 h-4" />
+                  mediavault-diagnostic.bat
+                </Button>
+              </div>
+              <ol className="list-decimal pl-5 space-y-1 text-sm text-muted-foreground">
+                <li>Clique droit sur <code className="px-1 rounded bg-muted">install-ffmpeg.bat</code> → <strong>Exécuter en tant qu’administrateur</strong></li>
+                <li>Fermez / rouvrez votre terminal (ou redémarrez) pour que le PATH soit pris en compte</li>
+                <li>Revenez ici et cliquez sur le bouton ↻ en haut pour “Vérifier”</li>
+                <li>Si ça coince : lancez <code className="px-1 rounded bg-muted">mediavault-diagnostic.bat</code> et gardez le .txt généré (il contient TOUT)</li>
+              </ol>
+            </div>
+          </TabsContent>
 
           {/* Thumbnails Tab */}
           <TabsContent value="thumbnails" className="space-y-4 mt-4">
