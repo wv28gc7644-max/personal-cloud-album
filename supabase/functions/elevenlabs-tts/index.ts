@@ -29,11 +29,15 @@ serve(async (req) => {
       );
     }
 
+    // Validate voiceId format: ElevenLabs voice IDs are alphanumeric with underscores/hyphens, 20-25 chars
+    const VALID_VOICE_ID_PATTERN = /^[a-zA-Z0-9_-]{20,25}$/;
+    
     const { text, voiceId = "JBFqnCBsd6RMkjVDRZzb" } = await req.json();
 
-    if (!text) {
+    // Validate text input
+    if (!text || typeof text !== 'string') {
       return new Response(
-        JSON.stringify({ error: "Texte requis" }),
+        JSON.stringify({ error: "Texte requis", code: "INVALID_TEXT" }),
         { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -41,7 +45,19 @@ serve(async (req) => {
       );
     }
 
-    // Limiter la longueur du texte
+    // Validate voiceId format to prevent URL manipulation
+    if (typeof voiceId !== 'string' || !VALID_VOICE_ID_PATTERN.test(voiceId)) {
+      console.error("Invalid voiceId format:", voiceId?.substring(0, 30));
+      return new Response(
+        JSON.stringify({ error: "Voice ID invalide", code: "INVALID_VOICE_ID" }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Limit text length
     const truncatedText = text.slice(0, 5000);
 
     console.log("Calling ElevenLabs TTS, text length:", truncatedText.length, "voice:", voiceId);
