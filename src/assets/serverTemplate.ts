@@ -212,10 +212,29 @@ const server = http.createServer(async (req, res) => {
     // ===================================================================
 
     if (pathname === '/api/ai/check-installed' && req.method === 'GET') {
-      const checkCommand = (cmd) => {
+      // Secure command execution with spawn + allowlist
+      const ALLOWED_VERSION_CHECKS = {
+        ollama: { cmd: 'ollama', args: ['--version'] },
+        python: { cmd: 'python', args: ['--version'] },
+        pip: { cmd: 'pip', args: ['--version'] },
+        git: { cmd: 'git', args: ['--version'] }
+      };
+
+      const checkCommand = (key) => {
         return new Promise((resolve) => {
-          exec(cmd, (error, stdout) => {
-            resolve({ installed: !error, version: stdout?.trim() || null });
+          const entry = ALLOWED_VERSION_CHECKS[key];
+          if (!entry) {
+            resolve({ installed: false, version: null });
+            return;
+          }
+          const child = spawn(entry.cmd, entry.args, { shell: false, windowsHide: true });
+          let stdout = '';
+          child.stdout.on('data', (data) => { stdout += data.toString(); });
+          child.on('close', (code) => {
+            resolve({ installed: code === 0, version: stdout?.trim() || null });
+          });
+          child.on('error', () => {
+            resolve({ installed: false, version: null });
           });
         });
       };
@@ -225,10 +244,10 @@ const server = http.createServer(async (req, res) => {
       };
 
       const results = {
-        ollama: await checkCommand('ollama --version'),
-        python: await checkCommand('python --version'),
-        pip: await checkCommand('pip --version'),
-        git: await checkCommand('git --version'),
+        ollama: await checkCommand('ollama'),
+        python: await checkCommand('python'),
+        pip: await checkCommand('pip'),
+        git: await checkCommand('git'),
         comfyui: checkPath(path.join(process.env.USERPROFILE || '', 'ComfyUI')),
         whisper: checkPath(path.join(__dirname, 'docker', 'whisper')),
         xtts: checkPath(path.join(__dirname, 'docker', 'xtts')),
@@ -400,19 +419,27 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/update' && req.method === 'POST') {
       const updateScript = path.join(__dirname, 'Mettre a jour MediaVault.bat');
-      if (fs.existsSync(updateScript)) {
-        exec(\`start cmd /c "\${updateScript}"\`, (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: err.message }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Mise a jour lancee' }));
-        });
-      } else {
+      // Security: validate the script path is within project directory
+      const normalizedScript = path.normalize(updateScript);
+      const normalizedDir = path.normalize(__dirname);
+      if (!normalizedScript.startsWith(normalizedDir) || !fs.existsSync(updateScript)) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Script de mise a jour introuvable' }));
+        return res.end(JSON.stringify({ error: 'Script de mise a jour introuvable' }));
       }
+      // Use spawn with shell:false for security
+      const child = spawn('cmd', ['/c', 'start', 'cmd', '/c', normalizedScript], {
+        shell: false,
+        cwd: __dirname,
+        windowsHide: false
+      });
+      child.on('error', (err) => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
+      child.on('spawn', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Mise a jour lancee' }));
+      });
       return;
     }
 
@@ -423,13 +450,31 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Version requise' }));
       }
-      exec(\`git checkout \${version}\`, { cwd: __dirname }, (err) => {
-        if (err) {
+      // Security: strict validation - only allow git refs (alphanumeric, hyphens, dots, slashes)
+      const safeVersionRegex = /^[a-zA-Z0-9._\\-\\/]+$/;
+      if (!safeVersionRegex.test(version) || version.length > 100) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Version invalide' }));
+      }
+      // Use spawn with argument array for security
+      const child = spawn('git', ['checkout', version], { 
+        cwd: __dirname, 
+        shell: false,
+        windowsHide: true
+      });
+      let stderr = '';
+      child.stderr.on('data', (data) => { stderr += data.toString(); });
+      child.on('close', (code) => {
+        if (code !== 0) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: err.message }));
+          return res.end(JSON.stringify({ error: stderr || 'Git checkout failed' }));
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, message: \`Restauration vers \${version}\` }));
+      });
+      child.on('error', (err) => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
       });
       return;
     }
@@ -759,33 +804,44 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const { component } = body;
       
-      const installScripts = {
-        ollama: 'winget install Ollama.Ollama',
-        comfyui: 'git clone https://github.com/comfyanonymous/ComfyUI.git C:\\\\AI\\\\ComfyUI',
-        whisper: 'pip install openai-whisper',
-        xtts: 'pip install TTS',
-        musicgen: 'pip install audiocraft',
-        demucs: 'pip install demucs',
-        insightface: 'pip install insightface onnxruntime-gpu',
-        clip: 'pip install clip-interrogator',
-        animatediff: 'git clone https://github.com/guoyww/AnimateDiff.git C:\\\\AI\\\\AnimateDiff',
-        rife: 'pip install rife-ncnn-vulkan',
-        esrgan: 'pip install realesrgan',
+      // Security: strict allowlist with pre-defined commands (no user input in command)
+      const installCommands = {
+        ollama: { cmd: 'winget', args: ['install', 'Ollama.Ollama', '--accept-source-agreements', '--accept-package-agreements'] },
+        comfyui: { cmd: 'git', args: ['clone', 'https://github.com/comfyanonymous/ComfyUI.git', 'C:\\\\AI\\\\ComfyUI'] },
+        whisper: { cmd: 'pip', args: ['install', 'openai-whisper'] },
+        xtts: { cmd: 'pip', args: ['install', 'TTS'] },
+        musicgen: { cmd: 'pip', args: ['install', 'audiocraft'] },
+        demucs: { cmd: 'pip', args: ['install', 'demucs'] },
+        insightface: { cmd: 'pip', args: ['install', 'insightface', 'onnxruntime-gpu'] },
+        clip: { cmd: 'pip', args: ['install', 'clip-interrogator'] },
+        animatediff: { cmd: 'git', args: ['clone', 'https://github.com/guoyww/AnimateDiff.git', 'C:\\\\AI\\\\AnimateDiff'] },
+        rife: { cmd: 'pip', args: ['install', 'rife-ncnn-vulkan'] },
+        esrgan: { cmd: 'pip', args: ['install', 'realesrgan'] },
       };
       
-      const script = installScripts[component];
-      if (!script) {
+      const entry = installCommands[component];
+      if (!entry) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: \`Composant \${component} inconnu\` }));
       }
       
-      exec(script, (err, stdout, stderr) => {
-        if (err) {
+      // Use spawn with argument array for security (no shell injection)
+      const child = spawn(entry.cmd, entry.args, { shell: false, windowsHide: true });
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', (data) => { stdout += data.toString(); });
+      child.stderr.on('data', (data) => { stderr += data.toString(); });
+      child.on('close', (code) => {
+        if (code !== 0) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: err.message, stderr }));
+          return res.end(JSON.stringify({ error: \`Exit code \${code}\`, stderr }));
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, stdout }));
+      });
+      child.on('error', (err) => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
       });
       return;
     }
@@ -794,29 +850,36 @@ const server = http.createServer(async (req, res) => {
     // API: AGENT LOCAL - Controle a distance securise
     // ===================================================================
 
-    // Whitelist des commandes autorisees
-    const ALLOWED_COMMANDS = {
-      // Scripts d'installation
+    // Whitelist des commandes autorisees - separated into scripts and simple commands
+    const ALLOWED_SCRIPTS = {
+      // Scripts d'installation (validated paths)
       'step-00': path.join(__dirname, 'public', 'scripts', 'step-00-prepare.bat'),
       'step-01': path.join(__dirname, 'public', 'scripts', 'step-01-prereqs.bat'),
       'step-02': path.join(__dirname, 'public', 'scripts', 'step-02-python311.bat'),
       'step-03': path.join(__dirname, 'public', 'scripts', 'step-03-git.bat'),
       'step-04': path.join(__dirname, 'public', 'scripts', 'step-04-ollama.bat'),
       'step-05': path.join(__dirname, 'public', 'scripts', 'step-05-run-complete-installer.bat'),
-      // Installation automatique complete (1 clic)
-      'auto-install': 'AUTO_INSTALL_SEQUENCE',
       // Maintenance
       'diagnose': path.join(__dirname, 'public', 'scripts', 'diagnose-ai-suite.bat'),
       'start-services': path.join(__dirname, 'public', 'scripts', 'start-ai-services.bat'),
       'stop-services': path.join(__dirname, 'public', 'scripts', 'stop-ai-services.bat'),
       'uninstall': path.join(__dirname, 'public', 'scripts', 'uninstall-ai-suite.bat'),
-      // Commandes systeme simples
-      'ollama-version': 'ollama --version',
-      'python-version': 'python --version',
-      'nvidia-smi': 'nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader',
-      'git-version': 'git --version',
-      'pip-version': 'pip --version',
-      'tasklist': 'tasklist /FI "IMAGENAME eq python.exe" /FI "IMAGENAME eq ollama.exe" /FO CSV',
+    };
+
+    // Simple commands with spawn arguments (no shell injection possible)
+    const ALLOWED_SIMPLE_COMMANDS = {
+      'ollama-version': { cmd: 'ollama', args: ['--version'] },
+      'python-version': { cmd: 'python', args: ['--version'] },
+      'nvidia-smi': { cmd: 'nvidia-smi', args: ['--query-gpu=name,memory.total,memory.free', '--format=csv,noheader'] },
+      'git-version': { cmd: 'git', args: ['--version'] },
+      'pip-version': { cmd: 'pip', args: ['--version'] },
+      'tasklist': { cmd: 'tasklist', args: ['/FI', 'IMAGENAME eq python.exe', '/FI', 'IMAGENAME eq ollama.exe', '/FO', 'CSV'] },
+    };
+
+    const ALLOWED_COMMANDS = {
+      ...ALLOWED_SCRIPTS,
+      ...Object.fromEntries(Object.keys(ALLOWED_SIMPLE_COMMANDS).map(k => [k, k])),
+      'auto-install': 'AUTO_INSTALL_SEQUENCE',
     };
 
     // Sequence d'installation automatique
@@ -830,7 +893,15 @@ const server = http.createServer(async (req, res) => {
       { id: 'start-services', label: 'Demarrage des services' },
     ];
 
-    // Executer une commande de la whitelist
+    // Security helper: validate script path is within allowed directory
+    const validateScriptPath = (scriptPath) => {
+      if (!scriptPath || scriptPath === 'AUTO_INSTALL_SEQUENCE') return false;
+      const normalizedScript = path.normalize(scriptPath);
+      const normalizedDir = path.normalize(__dirname);
+      return normalizedScript.startsWith(normalizedDir) && fs.existsSync(scriptPath);
+    };
+
+    // Executer une commande de la whitelist (secure)
     if (pathname === '/api/agent/exec' && req.method === 'POST') {
       const body = await parseBody(req);
       const { command } = body;
@@ -843,38 +914,95 @@ const server = http.createServer(async (req, res) => {
         }));
       }
 
-      const cmd = ALLOWED_COMMANDS[command];
-      const isScript = cmd.endsWith('.bat') || cmd.endsWith('.ps1');
-
       addLog('info', 'agent', \`Execution: \${command}\`);
 
-      // Pour les scripts batch, on les execute dans une nouvelle fenetre cmd
-      const execCmd = isScript ? \`cmd /c "\${cmd}"\` : cmd;
+      // Handle simple commands with spawn (no shell)
+      if (ALLOWED_SIMPLE_COMMANDS[command]) {
+        const { cmd, args } = ALLOWED_SIMPLE_COMMANDS[command];
+        const child = spawn(cmd, args, { shell: false, windowsHide: true, cwd: __dirname });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (data) => { stdout += data.toString(); });
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+        child.on('close', (code) => {
+          const result = {
+            command,
+            success: code === 0,
+            exitCode: code || 0,
+            stdout,
+            stderr,
+            timestamp: new Date().toISOString()
+          };
+          if (code !== 0) {
+            addLog('error', 'agent', \`Echec \${command}: code \${code}\`);
+          } else {
+            addLog('info', 'agent', \`Succes \${command}\`);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        });
+        child.on('error', (err) => {
+          addLog('error', 'agent', \`Erreur \${command}: \${err.message}\`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            command,
+            success: false,
+            exitCode: 1,
+            stdout: '',
+            stderr: err.message,
+            timestamp: new Date().toISOString()
+          }));
+        });
+        return;
+      }
 
-      exec(execCmd, { 
-        cwd: __dirname,
-        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-        timeout: 300000 // 5 minutes timeout
-      }, (error, stdout, stderr) => {
-        const result = {
-          command,
-          success: !error,
-          exitCode: error?.code || 0,
-          stdout: stdout?.toString() || '',
-          stderr: stderr?.toString() || '',
-          timestamp: new Date().toISOString()
-        };
+      // Handle scripts with validated paths
+      const scriptPath = ALLOWED_SCRIPTS[command];
+      if (scriptPath && validateScriptPath(scriptPath)) {
+        const child = spawn('cmd', ['/c', scriptPath], { 
+          shell: false, 
+          cwd: __dirname,
+          windowsHide: true,
+          timeout: 300000
+        });
+        let stdout = '';
+        let stderr = '';
+        child.stdout.on('data', (data) => { stdout += data.toString(); });
+        child.stderr.on('data', (data) => { stderr += data.toString(); });
+        child.on('close', (code) => {
+          const result = {
+            command,
+            success: code === 0,
+            exitCode: code || 0,
+            stdout,
+            stderr,
+            timestamp: new Date().toISOString()
+          };
+          if (code !== 0) {
+            addLog('error', 'agent', \`Echec \${command}: code \${code}\`);
+          } else {
+            addLog('info', 'agent', \`Succes \${command}\`);
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        });
+        child.on('error', (err) => {
+          addLog('error', 'agent', \`Erreur \${command}: \${err.message}\`);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            command,
+            success: false,
+            exitCode: 1,
+            stdout: '',
+            stderr: err.message,
+            timestamp: new Date().toISOString()
+          }));
+        });
+        return;
+      }
 
-        if (error) {
-          addLog('error', 'agent', \`Echec \${command}: \${error.message}\`);
-        } else {
-          addLog('info', 'agent', \`Succes \${command}\`);
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result));
-      });
-      return;
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Commande invalide ou script introuvable' }));
     }
 
     // Lecture de fichiers logs (restreint au dossier MediaVault-AI/logs)
@@ -947,12 +1075,15 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // Processus en cours
+    // Processus en cours (secure: no user input in command)
     if (pathname === '/api/agent/processes' && req.method === 'GET') {
-      exec('tasklist /FO CSV /NH', (error, stdout) => {
-        if (error) {
+      const child = spawn('tasklist', ['/FO', 'CSV', '/NH'], { shell: false, windowsHide: true });
+      let stdout = '';
+      child.stdout.on('data', (data) => { stdout += data.toString(); });
+      child.on('close', (code) => {
+        if (code !== 0) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: error.message }));
+          return res.end(JSON.stringify({ error: 'tasklist failed' }));
         }
 
         const lines = stdout.trim().split('\\n');
@@ -977,10 +1108,14 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ processes }));
       });
+      child.on('error', (err) => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
       return;
     }
 
-    // Informations systeme
+    // Informations systeme (secure: all commands are hardcoded with spawn)
     if (pathname === '/api/agent/system-info' && req.method === 'GET') {
       const info = {
         platform: process.platform,
@@ -993,9 +1128,12 @@ const server = http.createServer(async (req, res) => {
         aiDir: path.join(process.env.USERPROFILE || '', 'MediaVault-AI')
       };
 
-      // Recuperer infos GPU si disponible
-      exec('nvidia-smi --query-gpu=name,memory.total,memory.free,temperature.gpu --format=csv,noheader', (gpuErr, gpuOut) => {
-        if (!gpuErr && gpuOut) {
+      // Recuperer infos GPU si disponible (secure spawn)
+      const gpuChild = spawn('nvidia-smi', ['--query-gpu=name,memory.total,memory.free,temperature.gpu', '--format=csv,noheader'], { shell: false, windowsHide: true });
+      let gpuOut = '';
+      gpuChild.stdout.on('data', (data) => { gpuOut += data.toString(); });
+      gpuChild.on('close', (gpuCode) => {
+        if (gpuCode === 0 && gpuOut) {
           const gpuData = gpuOut.trim().split(',').map(s => s.trim());
           info.gpu = {
             name: gpuData[0],
@@ -1005,9 +1143,12 @@ const server = http.createServer(async (req, res) => {
           };
         }
 
-        // Recuperer espace disque
-        exec('wmic logicaldisk get size,freespace,caption', (diskErr, diskOut) => {
-          if (!diskErr && diskOut) {
+        // Recuperer espace disque (secure spawn)
+        const diskChild = spawn('wmic', ['logicaldisk', 'get', 'size,freespace,caption'], { shell: false, windowsHide: true });
+        let diskOut = '';
+        diskChild.stdout.on('data', (data) => { diskOut += data.toString(); });
+        diskChild.on('close', () => {
+          if (diskOut) {
             const lines = diskOut.trim().split('\\n').slice(1);
             info.disks = [];
             for (const line of lines) {
@@ -1022,6 +1163,38 @@ const server = http.createServer(async (req, res) => {
             }
           }
 
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(info));
+        });
+        diskChild.on('error', () => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(info));
+        });
+      });
+      gpuChild.on('error', () => {
+        // GPU not available, continue without
+        const diskChild = spawn('wmic', ['logicaldisk', 'get', 'size,freespace,caption'], { shell: false, windowsHide: true });
+        let diskOut = '';
+        diskChild.stdout.on('data', (data) => { diskOut += data.toString(); });
+        diskChild.on('close', () => {
+          if (diskOut) {
+            const lines = diskOut.trim().split('\\n').slice(1);
+            info.disks = [];
+            for (const line of lines) {
+              const parts = line.trim().split(/\\s+/);
+              if (parts.length >= 3) {
+                info.disks.push({
+                  drive: parts[0],
+                  freeSpace: parseInt(parts[1]) || 0,
+                  totalSize: parseInt(parts[2]) || 0
+                });
+              }
+            }
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(info));
+        });
+        diskChild.on('error', () => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify(info));
         });
@@ -1066,9 +1239,17 @@ const server = http.createServer(async (req, res) => {
           res.write(\`data: \${JSON.stringify({ type: 'info', text: \`  Etape \${stepIndex + 1}/\${AUTO_INSTALL_STEPS.length}: \${step.label}\` })}\\n\\n\`);
           res.write(\`data: \${JSON.stringify({ type: 'info', text: '======================================\\n' })}\\n\\n\`);
 
-          const child = spawn('cmd', ['/c', stepCmd], {
+          // Security: validate script path before execution
+          const scriptPath = ALLOWED_SCRIPTS[step.id];
+          if (!scriptPath || !validateScriptPath(scriptPath)) {
+            runStep(stepIndex + 1);
+            return;
+          }
+
+          const child = spawn('cmd', ['/c', scriptPath], {
             cwd: __dirname,
-            shell: true
+            shell: false,
+            windowsHide: true
           });
 
           child.stdout.on('data', (data) => {
@@ -1115,15 +1296,62 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Commande simple (non auto-install)
-      const cmd = ALLOWED_COMMANDS[command];
-      const isScript = cmd.endsWith('.bat') || cmd.endsWith('.ps1');
-      const execCmd = isScript ? cmd : cmd;
+      // Commande simple (non auto-install) - use secure spawn
+      // Handle simple commands with spawn (no shell)
+      if (ALLOWED_SIMPLE_COMMANDS[command]) {
+        const { cmd: execCmd, args } = ALLOWED_SIMPLE_COMMANDS[command];
+        const child = spawn(execCmd, args, {
+          cwd: __dirname,
+          shell: false,
+          windowsHide: true
+        });
 
-      const child = spawn('cmd', ['/c', execCmd], {
-        cwd: __dirname,
-        shell: true
-      });
+        addLog('info', 'agent', \`Stream demarre: \${command}\`);
+
+        child.stdout.on('data', (data) => {
+          const lines = data.toString().split('\\n');
+          for (const line of lines) {
+            if (line.trim()) {
+              res.write(\`data: \${JSON.stringify({ type: 'stdout', text: line })}\\n\\n\`);
+            }
+          }
+        });
+
+        child.stderr.on('data', (data) => {
+          const lines = data.toString().split('\\n');
+          for (const line of lines) {
+            if (line.trim()) {
+              res.write(\`data: \${JSON.stringify({ type: 'stderr', text: line })}\\n\\n\`);
+            }
+          }
+        });
+
+        child.on('close', (code) => {
+          res.write(\`data: \${JSON.stringify({ type: 'exit', code })}\\n\\n\`);
+          res.end();
+          addLog('info', 'agent', \`Stream termine: \${command} (code: \${code})\`);
+        });
+
+        child.on('error', (err) => {
+          res.write(\`data: \${JSON.stringify({ type: 'error', message: err.message })}\\n\\n\`);
+          res.end();
+        });
+
+        req.on('close', () => {
+          child.kill();
+        });
+
+        return;
+      }
+
+      // Handle scripts with validated paths
+      const scriptPath = ALLOWED_SCRIPTS[command];
+      if (scriptPath && validateScriptPath(scriptPath)) {
+        const child = spawn('cmd', ['/c', scriptPath], {
+          cwd: __dirname,
+          shell: false,
+          windowsHide: true
+        });
 
       addLog('info', 'agent', \`Stream demarre: \${command}\`);
 
@@ -1191,11 +1419,16 @@ const server = http.createServer(async (req, res) => {
         return versionMatch ? versionMatch[1] : 'unknown';
       };
 
-      exec('ffmpeg -version', (error, stdout) => {
-        if (!error) {
+      // Security: use spawn with argument array (no shell injection)
+      const child = spawn('ffmpeg', ['-version'], { shell: false, windowsHide: true });
+      let stdout = '';
+      child.stdout.on('data', (data) => { stdout += data.toString(); });
+      child.on('close', (code) => {
+        if (code === 0) {
           return respondOk({ installed: true, version: parseVersion(stdout), output: String(stdout).split('\\n')[0] });
         }
 
+        // Try MediaVault install location
         try {
           const installRoot = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'ffmpeg');
           if (fs.existsSync(installRoot)) {
@@ -1216,12 +1449,20 @@ const server = http.createServer(async (req, res) => {
                   process.env.PATH = binDir + ';' + currentPath;
                 }
 
-                return exec('"' + ffmpegExe + '" -version', (err2, stdout2) => {
-                  if (err2) {
-                    return respondOk({ installed: false, error: err2.message, hint: 'FFmpeg trouvé mais non exécutable' });
+                // Security: use spawn with full path (no shell injection)
+                const child2 = spawn(ffmpegExe, ['-version'], { shell: false, windowsHide: true });
+                let stdout2 = '';
+                child2.stdout.on('data', (data) => { stdout2 += data.toString(); });
+                child2.on('close', (code2) => {
+                  if (code2 !== 0) {
+                    return respondOk({ installed: false, error: 'FFmpeg exit code ' + code2, hint: 'FFmpeg trouvé mais non exécutable' });
                   }
                   return respondOk({ installed: true, version: parseVersion(stdout2), output: String(stdout2).split('\\n')[0], path: binDir, source: 'mediavault-install' });
                 });
+                child2.on('error', (err2) => {
+                  return respondOk({ installed: false, error: err2.message, hint: 'FFmpeg trouvé mais erreur execution' });
+                });
+                return;
               }
             }
           }
@@ -1229,7 +1470,50 @@ const server = http.createServer(async (req, res) => {
           // ignore
         }
 
-        return respondOk({ installed: false, error: error.message, hint: 'FFmpeg non trouvé (PATH + dossier MediaVault-AI)' });
+        return respondOk({ installed: false, error: 'ffmpeg not found', hint: 'FFmpeg non trouvé (PATH + dossier MediaVault-AI)' });
+      });
+      child.on('error', () => {
+        // FFmpeg not in PATH, try MediaVault location
+        try {
+          const installRoot = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'ffmpeg');
+          if (fs.existsSync(installRoot)) {
+            const dirs = fs.readdirSync(installRoot).filter(d => {
+              try {
+                return fs.statSync(path.join(installRoot, d)).isDirectory() && d.startsWith('ffmpeg');
+              } catch {
+                return false;
+              }
+            });
+
+            if (dirs.length > 0) {
+              const binDir = path.join(installRoot, dirs[0], 'bin');
+              const ffmpegExe = path.join(binDir, 'ffmpeg.exe');
+              if (fs.existsSync(ffmpegExe)) {
+                const currentPath = process.env.PATH || '';
+                if (!currentPath.toLowerCase().includes(binDir.toLowerCase())) {
+                  process.env.PATH = binDir + ';' + currentPath;
+                }
+
+                const child2 = spawn(ffmpegExe, ['-version'], { shell: false, windowsHide: true });
+                let stdout2 = '';
+                child2.stdout.on('data', (data) => { stdout2 += data.toString(); });
+                child2.on('close', (code2) => {
+                  if (code2 !== 0) {
+                    return respondOk({ installed: false, error: 'FFmpeg exit code ' + code2, hint: 'FFmpeg trouvé mais non exécutable' });
+                  }
+                  return respondOk({ installed: true, version: parseVersion(stdout2), output: String(stdout2).split('\\n')[0], path: binDir, source: 'mediavault-install' });
+                });
+                child2.on('error', (err2) => {
+                  return respondOk({ installed: false, error: err2.message, hint: 'FFmpeg trouvé mais erreur execution' });
+                });
+                return;
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+        return respondOk({ installed: false, error: 'ffmpeg not in PATH', hint: 'FFmpeg non trouvé (PATH + dossier MediaVault-AI)' });
       });
       return;
     }
@@ -1259,12 +1543,15 @@ const server = http.createServer(async (req, res) => {
 
           global.ffmpegInstallStatus = { step: 'downloading', progress: 20, message: 'Téléchargement FFmpeg (~50MB)...' };
           
+          // Security: use spawn with argument array for PowerShell (hardcoded URL, no user input)
           await new Promise((resolve, reject) => {
-            const downloadCmd = 'powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri \\'' + FFMPEG_URL + '\\' -OutFile \\'' + TEMP_ZIP + '\\'"';
-            exec(downloadCmd, { timeout: 300000 }, (error) => {
-              if (error) reject(new Error('Échec téléchargement: ' + error.message));
+            const psScript = '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri \\'' + FFMPEG_URL + '\\' -OutFile \\'' + TEMP_ZIP + '\\'';
+            const child = spawn('powershell', ['-NoProfile', '-Command', psScript], { shell: false, windowsHide: true });
+            child.on('close', (code) => {
+              if (code !== 0) reject(new Error('Échec téléchargement: code ' + code));
               else resolve();
             });
+            child.on('error', (err) => reject(new Error('Échec téléchargement: ' + err.message)));
           });
 
           if (!fs.existsSync(TEMP_ZIP)) {
@@ -1273,12 +1560,15 @@ const server = http.createServer(async (req, res) => {
 
           global.ffmpegInstallStatus = { step: 'extracting', progress: 60, message: 'Extraction...' };
           
+          // Security: use spawn with argument array for extraction (hardcoded paths)
           await new Promise((resolve, reject) => {
-            const extractCmd = 'powershell -Command "Expand-Archive -Path \\'' + TEMP_ZIP + '\\' -DestinationPath \\'' + INSTALL_DIR + '\\' -Force"';
-            exec(extractCmd, { timeout: 120000 }, (error) => {
-              if (error) reject(new Error('Échec extraction: ' + error.message));
+            const psExtract = 'Expand-Archive -Path \\'' + TEMP_ZIP + '\\' -DestinationPath \\'' + INSTALL_DIR + '\\' -Force';
+            const child = spawn('powershell', ['-NoProfile', '-Command', psExtract], { shell: false, windowsHide: true });
+            child.on('close', (code) => {
+              if (code !== 0) reject(new Error('Échec extraction: code ' + code));
               else resolve();
             });
+            child.on('error', (err) => reject(new Error('Échec extraction: ' + err.message)));
           });
 
           global.ffmpegInstallStatus = { step: 'configuring', progress: 75, message: 'Configuration...' };
@@ -1297,18 +1587,27 @@ const server = http.createServer(async (req, res) => {
 
           global.ffmpegInstallStatus = { step: 'configuring', progress: 85, message: 'Configuration PATH...' };
           
+          // Security: use spawn for setx with argument array
           await new Promise((resolve) => {
-            exec('setx PATH "%PATH%;' + ffmpegBinDir + '"', () => resolve());
+            const currentPath = process.env.PATH || '';
+            const newPath = currentPath + ';' + ffmpegBinDir;
+            const child = spawn('setx', ['PATH', newPath], { shell: false, windowsHide: true });
+            child.on('close', () => resolve());
+            child.on('error', () => resolve()); // Continue even if setx fails
           });
 
           try { fs.unlinkSync(TEMP_ZIP); } catch (e) {}
 
           global.ffmpegInstallStatus = { step: 'verifying', progress: 95, message: 'Vérification...' };
           
-          const ffmpegPath = path.join(ffmpegBinDir, 'ffmpeg.exe');
+          const ffmpegExePath = path.join(ffmpegBinDir, 'ffmpeg.exe');
           await new Promise((resolve, reject) => {
-            exec('"' + ffmpegPath + '" -version', (error, stdout) => {
-              if (error) reject(new Error('FFmpeg non exécutable'));
+            // Security: use spawn with full path
+            const child = spawn(ffmpegExePath, ['-version'], { shell: false, windowsHide: true });
+            let stdout = '';
+            child.stdout.on('data', (data) => { stdout += data.toString(); });
+            child.on('close', (code) => {
+              if (code !== 0) reject(new Error('FFmpeg non exécutable'));
               else {
                 const versionMatch = stdout.match(/ffmpeg version ([^\\s]+)/);
                 global.ffmpegInstallStatus = { 
@@ -1321,6 +1620,7 @@ const server = http.createServer(async (req, res) => {
                 resolve();
               }
             });
+            child.on('error', (err) => reject(new Error('FFmpeg non exécutable: ' + err.message)));
           });
 
           addLog('info', 'ffmpeg', 'Installation réussie: ' + ffmpegBinDir);
