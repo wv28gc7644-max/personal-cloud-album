@@ -1,17 +1,61 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
-interface WebhookConfig {
-  discord: {
-    enabled: boolean;
-    webhookUrl: string;
-  };
-  telegram: {
-    enabled: boolean;
-    botToken: string;
-    chatId: string;
-  };
-}
+// ===================================================================
+// Webhook Config Schema with Zod Validation
+// ===================================================================
+
+const WebhookConfigSchema = z.object({
+  discord: z.object({
+    enabled: z.boolean().optional().default(false),
+    webhookUrl: z.string().optional().default(''),
+  }).optional().default({ enabled: false, webhookUrl: '' }),
+  telegram: z.object({
+    enabled: z.boolean().optional().default(false),
+    botToken: z.string().optional().default(''),
+    chatId: z.string().optional().default(''),
+  }).optional().default({ enabled: false, botToken: '', chatId: '' }),
+});
+
+type WebhookConfig = z.infer<typeof WebhookConfigSchema>;
+
+const DEFAULT_WEBHOOK_CONFIG: WebhookConfig = {
+  discord: { enabled: false, webhookUrl: '' },
+  telegram: { enabled: false, botToken: '', chatId: '' },
+};
+
+/**
+ * Safely get webhook config from localStorage with Zod validation
+ */
+const getWebhookConfig = (): WebhookConfig => {
+  const saved = localStorage.getItem('mediavault-webhook-config');
+  if (!saved) return DEFAULT_WEBHOOK_CONFIG;
+  
+  try {
+    const parsed = JSON.parse(saved);
+    const validated = WebhookConfigSchema.safeParse(parsed);
+    if (validated.success) {
+      return validated.data;
+    }
+    console.warn('Invalid webhook config in localStorage, using defaults');
+    return DEFAULT_WEBHOOK_CONFIG;
+  } catch (e) {
+    console.warn('Error parsing webhook config from localStorage:', e);
+    return DEFAULT_WEBHOOK_CONFIG;
+  }
+};
+
+/**
+ * Safely save webhook config to localStorage
+ */
+const saveWebhookConfig = (config: WebhookConfig): void => {
+  try {
+    localStorage.setItem('mediavault-webhook-config', JSON.stringify(config));
+  } catch (e) {
+    console.error('Error saving webhook config to localStorage:', e);
+  }
+};
 
 interface NotificationPayload {
   type: 'image_generated' | 'video_generated' | 'audio_transcribed' | 'workflow_completed' | 'upscale_completed' | 'music_generated';
@@ -22,18 +66,12 @@ interface NotificationPayload {
 }
 
 export function useAINotifications() {
-  const [config, setConfig] = useState<WebhookConfig>(() => {
-    const saved = localStorage.getItem('mediavault-webhook-config');
-    return saved ? JSON.parse(saved) : {
-      discord: { enabled: false, webhookUrl: '' },
-      telegram: { enabled: false, botToken: '', chatId: '' }
-    };
-  });
+  const [config, setConfig] = useState<WebhookConfig>(() => getWebhookConfig());
 
   const updateConfig = useCallback((updates: Partial<WebhookConfig>) => {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
-    localStorage.setItem('mediavault-webhook-config', JSON.stringify(newConfig));
+    saveWebhookConfig(newConfig);
   }, [config]);
 
   const sendDiscordNotification = useCallback(async (payload: NotificationPayload) => {

@@ -426,16 +426,24 @@ export function useSmartHomeDevices() {
   }, []);
 
   // Get camera stream URL
+  // SECURITY NOTE: Camera credentials are stored locally and embedded in RTSP URLs.
+  // This is a known limitation for local camera streaming. For production use,
+  // consider implementing a server-side proxy to handle credentials securely.
   const getCameraStreamUrl = useCallback((device: SmartDevice): string | null => {
     if (device.protocol !== 'reolink' || !device.ip) return null;
     
     const camera = config.reolink.cameras.find(c => c.ip === device.ip);
     if (!camera) {
-      // Default RTSP URL format for Reolink
+      // Default RTSP URL format for Reolink (no credentials)
       return `rtsp://${device.ip}:554/h264Preview_01_main`;
     }
     
-    return `rtsp://${camera.username}:${camera.password}@${camera.ip}:554/h264Preview_0${camera.channel}_main`;
+    // Build RTSP URL with credentials
+    // Note: Credentials are visible in client-side code - this is for local network use only
+    const rtspUrl = `rtsp://${camera.username}:${camera.password}@${camera.ip}:554/h264Preview_0${camera.channel}_main`;
+    
+    // Avoid logging URLs with credentials
+    return rtspUrl;
   }, [config.reolink.cameras]);
 
   // Device counts by protocol

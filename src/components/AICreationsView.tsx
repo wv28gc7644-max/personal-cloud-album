@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { getAICreations, saveAICreations, AICreation as SafeAICreation } from "@/utils/safeLocalStorage";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,20 +69,22 @@ export default function AICreationsView() {
   const [filterType, setFilterType] = useState<string>("all");
   const [selectedCreation, setSelectedCreation] = useState<AICreation | null>(null);
 
-  // Charger depuis localStorage
+  // Charger depuis localStorage (validated via Zod)
   useEffect(() => {
-    const stored = localStorage.getItem("ai-creations");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setCreations(parsed.map((c: any) => ({
-          ...c,
-          createdAt: new Date(c.createdAt)
-        })));
-      } catch (e) {
-        console.error("Erreur chargement créations:", e);
-      }
-    }
+    const validated = getAICreations();
+    // Map to local AICreation type (add model field if missing)
+    setCreations(validated.map(c => ({
+      id: c.id,
+      type: c.type === 'audio' ? 'music' : c.type as AICreation['type'],
+      name: c.name,
+      url: c.url,
+      thumbnail: c.thumbnail,
+      prompt: c.prompt,
+      model: c.model || 'unknown',
+      createdAt: c.createdAt,
+      duration: c.duration,
+      metadata: c.metadata,
+    })));
   }, []);
 
   const filteredCreations = creations.filter(c => {
@@ -94,7 +97,7 @@ export default function AICreationsView() {
   const handleDelete = (id: string) => {
     const updated = creations.filter(c => c.id !== id);
     setCreations(updated);
-    localStorage.setItem("ai-creations", JSON.stringify(updated));
+    saveAICreations(updated);
     toast.success("Création supprimée");
   };
 
