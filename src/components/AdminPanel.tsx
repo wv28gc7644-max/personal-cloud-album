@@ -3,6 +3,7 @@ import { useMediaStore } from '@/hooks/useMediaStore';
 import { useLocalServer } from '@/hooks/useLocalServer';
 import { useAutoSync } from '@/hooks/useAutoSync';
 import { Tag, TagColor } from '@/types/media';
+import { getAdminSettings, saveAdminSettings, AdminSettings, DEFAULT_ADMIN_SETTINGS } from '@/utils/safeLocalStorage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -78,14 +79,7 @@ import {
 
 const TAG_COLORS: TagColor[] = ['yellow', 'blue', 'green', 'purple', 'orange', 'pink', 'gray'];
 
-interface AdminSettings {
-  gridColumns: number;
-  cardStyle: 'twitter' | 'grid' | 'compact';
-  theme: 'dark' | 'light' | 'system';
-  autoPlay: boolean;
-  showMetadata: boolean;
-  localServerUrl: string;
-}
+// AdminSettings type is now imported from safeLocalStorage
 
 // Card Display Settings Component
 const CardDisplaySettingsSection = () => {
@@ -269,17 +263,7 @@ export const AdminPanel = () => {
     return () => window.removeEventListener('open-admin-updates', handleOpenUpdates);
   }, []);
   
-  const [settings, setSettings] = useState<AdminSettings>(() => {
-    const saved = localStorage.getItem('mediavault-admin-settings');
-    return saved ? JSON.parse(saved) : {
-      gridColumns: 3,
-      cardStyle: 'twitter',
-      theme: 'dark',
-      autoPlay: false,
-      showMetadata: true,
-      localServerUrl: 'http://localhost:3001'
-    };
-  });
+  const [settings, setSettings] = useState<AdminSettings>(() => getAdminSettings());
 
   const handleAddTag = () => {
     if (!newTagName.trim()) {
@@ -304,7 +288,7 @@ export const AdminPanel = () => {
   };
 
   const handleSaveSettings = () => {
-    localStorage.setItem('mediavault-admin-settings', JSON.stringify(settings));
+    saveAdminSettings(settings);
     toast.success('Paramètres sauvegardés');
   };
 
