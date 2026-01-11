@@ -123,12 +123,13 @@ export const FFmpegManager = () => {
         toast.error('Erreur de connexion au serveur');
       }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setFfmpegStatus({ installed: false, version: null });
       setConnectivityDiag(
         JSON.stringify(
           {
             kind: 'fetch_failed',
-            message: err instanceof Error ? err.message : String(err),
+            message,
             serverUrl,
             origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
             httpsContext: isHttpsContext
@@ -137,7 +138,9 @@ export const FFmpegManager = () => {
           2
         )
       );
-      toast.error('Serveur non accessible');
+      toast.error('Serveur non accessible', {
+        description: message
+      });
     } finally {
       setIsChecking(false);
     }
@@ -152,13 +155,24 @@ export const FFmpegManager = () => {
     // Pré-check: si on est dans un contexte HTTPS avec localhost en HTTP, ça ne pourra pas marcher.
     if (isHttpsContext && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(serverUrl)) {
       setIsInstalling(false);
-      setInstallProgress({
-        step: 'failed',
-        progress: 0,
-        message: "Bloqué par le navigateur (HTTPS → http://localhost). Ouvrez l'interface via http://localhost:3001 puis relancez l'installation."
-      });
-      toast.error('Automatisation impossible dans cette page', {
-        description: 'Ouvrez http://localhost:3001 (en local) pour piloter le serveur.'
+      const msg =
+        "Bloqué par le navigateur (HTTPS → http://localhost). Ouvrez l'interface via http://localhost:3001 (en local) puis relancez l'installation.";
+      setInstallProgress({ step: 'failed', progress: 0, message: msg });
+      setConnectivityDiag(
+        JSON.stringify(
+          {
+            kind: 'mixed_content_blocked',
+            serverUrl,
+            origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
+            httpsContext: true,
+            fix: 'Ouvrir http://localhost:3001 (ou lancer start-mediavault.bat) puis refaire la vérification / installation.'
+          },
+          null,
+          2
+        )
+      );
+      toast.error('Automatisation impossible depuis cette page', {
+        description: "Ouvrez MediaVault en local (http://localhost:3001) pour piloter le serveur."
       });
       return;
     }
@@ -166,7 +180,7 @@ export const FFmpegManager = () => {
     try {
       // Vérifier que le serveur répond réellement
       const health = await fetch(`${serverUrl}/api/health`, { signal: AbortSignal.timeout(5000) });
-      if (!health.ok) throw new Error('health_not_ok');
+      if (!health.ok) throw new Error(`health_not_ok (${health.status})`);
 
       // Étape 1: Demander au serveur d'installer FFmpeg
       const response = await fetch(`${serverUrl}/api/install-ffmpeg`, {
@@ -176,7 +190,7 @@ export const FFmpegManager = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Le serveur n\'a pas pu démarrer l\'installation');
+        throw new Error(`install_start_failed (${response.status})`);
       }
 
       let finished = false;
@@ -207,6 +221,7 @@ export const FFmpegManager = () => {
             finished = true;
             clearInterval(pollInterval);
             setIsInstalling(false);
+            setInstallProgress({ step: 'failed', progress: 0, message: status.message || "Échec de l'installation" });
             toast.error("Échec de l'installation", {
               description: status.message
             });
@@ -223,13 +238,19 @@ export const FFmpegManager = () => {
         setIsInstalling(false);
         setInstallProgress({ step: 'failed', progress: 0, message: "Timeout - L'installation a pris trop de temps" });
       }, 300000);
-    } catch (error) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setIsInstalling(false);
+      setInstallProgress({
+        step: 'failed',
+        progress: 0,
+        message: `Impossible de contacter le serveur local: ${message}`
+      });
       setConnectivityDiag(
         JSON.stringify(
           {
             kind: 'install_failed_preflight',
-            message: error instanceof Error ? error.message : String(error),
+            message,
             serverUrl,
             origin: typeof window !== 'undefined' ? window.location.origin : 'unknown',
             httpsContext: isHttpsContext
@@ -238,7 +259,7 @@ export const FFmpegManager = () => {
           2
         )
       );
-      toast.error('Serveur non accessible');
+      toast.error('Serveur non accessible', { description: message });
     }
   }, [getServerUrl, isHttpsContext]);
 
@@ -345,10 +366,14 @@ export const FFmpegManager = () => {
 
   // Télécharger un script diagnostic (collecte un rapport utile même si l'UI ne détecte rien)
   const downloadDiagnosticScript = useCallback(() => {
+    const serverUrl = getServerUrl();
+
     const scriptLines = [
       '@echo off',
       'setlocal',
+      'chcp 65001 >nul 2>&1',
       'title Diagnostic MediaVault (serveur + FFmpeg)',
+      'color 0A',
       '',
       'set "OUTDIR=%USERPROFILE%\\MediaVault-AI\\logs"',
       'if not exist "%OUTDIR%" mkdir "%OUTDIR%"',
@@ -358,20 +383,25 @@ export const FFmpegManager = () => {
       'set "OUT=%OUTDIR%\\mediavault-diagnostic-%STAMP%.txt"',
       '',
       'echo MediaVault diagnostic > "%OUT%"',
+      'echo Date: %date% %time%>> "%OUT%"',
       'echo.>> "%OUT%"',
-      'echo [1] URL serveur attendu: http://localhost:3001 >> "%OUT%"',
+      `echo [1] URL serveur configuree: ${serverUrl} >> "%OUT%"`,
       'echo.>> "%OUT%"',
       'echo [2] Test /api/health >> "%OUT%"',
-      'powershell -NoProfile -Command "$r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 http://localhost:3001/api/health).Content } catch { \'ERROR: \' + $_.Exception.Message }; $r" >> "%OUT%"',
+      `powershell -NoProfile -Command "$u='${serverUrl}'; $r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 ($u + '/api/health')).Content } catch { 'ERROR: ' + $_.Exception.Message }; $r" >> "%OUT%"`,
       'echo.>> "%OUT%"',
       'echo [3] Test /api/check-ffmpeg >> "%OUT%"',
-      'powershell -NoProfile -Command "$r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 http://localhost:3001/api/check-ffmpeg).Content } catch { \'ERROR: \' + $_.Exception.Message }; $r" >> "%OUT%"',
+      `powershell -NoProfile -Command "$u='${serverUrl}'; $r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 ($u + '/api/check-ffmpeg')).Content } catch { 'ERROR: ' + $_.Exception.Message }; $r" >> "%OUT%"`,
       'echo.>> "%OUT%"',
       'echo [4] Rapport complet /api/debug/report >> "%OUT%"',
-      'powershell -NoProfile -Command "$r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 8 http://localhost:3001/api/debug/report).Content } catch { \'ERROR: \' + $_.Exception.Message }; $r" >> "%OUT%"',
+      `powershell -NoProfile -Command "$u='${serverUrl}'; $r = try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 ($u + '/api/debug/report')).Content } catch { 'ERROR: ' + $_.Exception.Message }; $r" >> "%OUT%"`,
+      'echo.>> "%OUT%"',
+      'echo [5] Version FFmpeg (PATH) >> "%OUT%"',
+      'ffmpeg -version >> "%OUT%" 2>&1',
       'echo.>> "%OUT%"',
       'echo Fichier genere: %OUT%',
       'echo Envoyez ce fichier au support.',
+      'start "" "%OUTDIR%"',
       'pause',
       'endlocal'
     ];
@@ -390,7 +420,7 @@ export const FFmpegManager = () => {
     toast.success('Script diagnostic téléchargé', {
       description: 'Lancez-le puis envoyez le fichier .txt généré.'
     });
-  }, []);
+  }, [getServerUrl]);
 
   const generateAllThumbnails = useCallback(async () => {
     setIsGenerating(true);
