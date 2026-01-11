@@ -9,6 +9,7 @@ import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
 import { Images } from 'lucide-react';
+import { getAdminSettings } from '@/utils/safeLocalStorage';
 
 interface MediaGridProps {
   filterType?: 'image' | 'video';
@@ -85,9 +86,8 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
     );
   }
 
-  // Get grid columns from localStorage
-  const savedSettings = localStorage.getItem('mediavault-admin-settings');
-  const gridColumns = savedSettings ? JSON.parse(savedSettings).gridColumns : 3;
+  // Get grid columns from validated localStorage settings
+  const gridColumns = getAdminSettings().gridColumns;
 
   const getGridClasses = () => {
     switch (viewMode) {
