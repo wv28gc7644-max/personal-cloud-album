@@ -80,9 +80,11 @@ export function UpdatesSettings() {
   }, []);
 
   const downloadServerCjs = useCallback(() => {
-    import('@/assets/serverTemplate').then(({ serverTemplate }) => {
-      downloadTextFile('server.cjs', serverTemplate, 'application/javascript');
-      toast.success('server.cjs téléchargé', { description: 'Placez-le dans le même dossier que vos .bat (ex: C:\\MediaVault\\)' });
+    import('../../../server.cjs?raw').then(({ default: serverCjs }) => {
+      downloadTextFile('server.cjs', serverCjs, 'application/javascript');
+      toast.success('server.cjs téléchargé', {
+        description: 'Placez-le dans le même dossier que vos .bat (ex: C:\\MediaVault\\)'
+      });
     });
   }, []);
 
