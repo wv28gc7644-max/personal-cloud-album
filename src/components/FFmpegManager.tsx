@@ -283,17 +283,19 @@ export const FFmpegManager = () => {
     await checkFFmpeg();
   };
 
-  // Télécharger server.cjs (serveur local) - version "infaillible" via template embarqué
+  // Télécharger server.cjs (serveur local) - version synchronisée avec le repo
   const downloadLocalServerFile = useCallback(() => {
-    import('@/assets/serverTemplate').then(({ serverTemplate }) => {
-      const blob = new Blob([serverTemplate], { type: 'application/javascript' });
+    import('../../server.cjs?raw').then(({ default: serverCjs }) => {
+      const blob = new Blob([serverCjs], { type: 'application/javascript' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = 'server.cjs';
       link.click();
       URL.revokeObjectURL(url);
-      toast.success('server.cjs téléchargé', { description: 'Placez-le avec le .bat dans un même dossier (ex: C:\\MediaVault\\)' });
+      toast.success('server.cjs téléchargé', {
+        description: 'Placez-le avec le .bat dans un même dossier (ex: C:\\MediaVault\\)'
+      });
     });
   }, []);
 
