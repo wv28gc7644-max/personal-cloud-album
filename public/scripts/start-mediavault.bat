@@ -42,7 +42,7 @@ if %errorlevel% equ 0 (
 echo.
 echo [4/4] Ouverture du navigateur...
 timeout /t 1 /nobreak >nul
-start http://localhost:8080
+start http://localhost:3001
 
 echo.
 echo  ╔══════════════════════════════════════════╗
