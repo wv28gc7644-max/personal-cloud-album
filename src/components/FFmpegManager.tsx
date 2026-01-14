@@ -301,15 +301,52 @@ export const FFmpegManager = () => {
 
   // Télécharger un script de démarrage (Windows)
   const downloadStartMediaVaultBat = useCallback(() => {
+    // Version avec logs ok/fail + infos machine
     const batContent = [
       '@echo off',
+      'setlocal enabledelayedexpansion',
       'title MediaVault - Demarrage',
       'color 0A',
+      'chcp 65001 >nul',
       '',
+      'set "MV_NAME=%~n0"',
+      'set "MV_ROOT=%~dp0"',
+      'set "MV_LOGROOT=%MV_ROOT%logs"',
+      'set "MV_LOGTMP=%MV_LOGROOT%\\_tmp"',
+      'set "MV_TS=%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%"',
+      'set "MV_TS=%MV_TS: =0%"',
+      'set "MV_RUN=%MV_NAME%-%MV_TS%"',
+      'if not exist "%MV_LOGROOT%" mkdir "%MV_LOGROOT%" >nul 2>&1',
+      'if not exist "%MV_LOGTMP%" mkdir "%MV_LOGTMP%" >nul 2>&1',
+      'set "MV_LOGFILE=%MV_LOGTMP%\\%MV_RUN%.log"',
+      '',
+      'call :MAIN > "%MV_LOGFILE%" 2>&1',
+      'set "MV_EXIT=%errorlevel%"',
+      'if %MV_EXIT% equ 0 (',
+      '  if not exist "%MV_LOGROOT%\\ok" mkdir "%MV_LOGROOT%\\ok" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\ok\\%MV_RUN%.log" >nul',
+      ') else (',
+      '  if not exist "%MV_LOGROOT%\\fail" mkdir "%MV_LOGROOT%\\fail" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\fail\\%MV_RUN%.log" >nul',
+      ')',
+      'echo.',
+      'echo Log: %MV_LOGROOT%',
+      'pause',
+      'exit /b %MV_EXIT%',
+      '',
+      ':MAIN',
       'echo.',
       'echo  ============================================',
       'echo           MediaVault - Demarrage',
       'echo  ============================================',
+      'echo.',
+      'echo [SYS] Windows:',
+      'ver',
+      'echo.',
+      'echo [SYS] CPU / RAM / GPU:',
+      'wmic cpu get name /value 2>nul',
+      'wmic computersystem get totalphysicalmemory /value 2>nul',
+      'wmic path win32_videocontroller get name /value 2>nul',
       'echo.',
       '',
       ':: Verifier Node.js',
@@ -318,7 +355,6 @@ export const FFmpegManager = () => {
       'if %errorlevel% neq 0 (',
       '    echo [ERREUR] Node.js n\'est pas installe!',
       '    echo Telecharger depuis: https://nodejs.org/',
-      '    pause',
       '    exit /b 1',
       ')',
       'for /f "tokens=1" %%i in (\'node -v\') do set NODE_VERSION=%%i',
@@ -351,7 +387,7 @@ export const FFmpegManager = () => {
       'echo.',
       'echo  MediaVault est pret : http://localhost:3001',
       'echo.',
-      'pause >nul'
+      'exit /b 0'
     ].join('\r\n');
 
     const blob = new Blob([batContent], { type: 'application/x-bat' });
@@ -361,7 +397,9 @@ export const FFmpegManager = () => {
     link.download = 'Lancer MediaVault.bat';
     link.click();
     URL.revokeObjectURL(url);
-    toast.success('Lancer MediaVault.bat téléchargé');
+    toast.success('Lancer MediaVault.bat téléchargé', {
+      description: 'Crée un dossier logs\\ok et logs\\fail pour diagnostiquer en 1 seule fois.'
+    });
   }, []);
 
   // Télécharger le script d'installation FFmpeg (manuel)

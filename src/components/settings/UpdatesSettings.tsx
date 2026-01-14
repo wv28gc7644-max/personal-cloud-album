@@ -4,6 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Download,
   RefreshCw,
   CheckCircle,
@@ -89,15 +95,65 @@ export function UpdatesSettings() {
   }, []);
 
   const downloadStartBat = useCallback(() => {
+    // Script avec journalisation + capture d’infos système (pour réduire les allers-retours)
     const bat = [
       '@echo off',
+      'setlocal enabledelayedexpansion',
       'title MediaVault - Demarrage',
       'color 0A',
+      'chcp 65001 >nul',
       '',
+      'set "MV_NAME=%~n0"',
+      'set "MV_ROOT=%~dp0"',
+      'set "MV_LOGROOT=%MV_ROOT%logs"',
+      'for /f "tokens=1-3 delims=/:. " %%a in ("%date% %time%") do (set "MV_TS=%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%")',
+      'set "MV_TS=%MV_TS: =0%"',
+      'set "MV_RUN=%MV_NAME%-%MV_TS%"',
+      'set "MV_LOGTMP=%MV_LOGROOT%\\_tmp"',
+      'if not exist "%MV_LOGROOT%" mkdir "%MV_LOGROOT%" >nul 2>&1',
+      'if not exist "%MV_LOGTMP%" mkdir "%MV_LOGTMP%" >nul 2>&1',
+      'set "MV_LOGFILE=%MV_LOGTMP%\\%MV_RUN%.log"',
+      '',
+      'call :MAIN > "%MV_LOGFILE%" 2>&1',
+      'set "MV_EXIT=%errorlevel%"',
+      'if %MV_EXIT% equ 0 (',
+      '  if not exist "%MV_LOGROOT%\\ok" mkdir "%MV_LOGROOT%\\ok" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\ok\\%MV_RUN%.log" >nul',
+      ') else (',
+      '  if not exist "%MV_LOGROOT%\\fail" mkdir "%MV_LOGROOT%\\fail" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\fail\\%MV_RUN%.log" >nul',
+      ')',
+      'echo.',
+      'echo =====================================================================',
+      'echo Log genere dans: %MV_LOGROOT%',
+      'echo   OK:   %MV_LOGROOT%\\ok',
+      'echo   FAIL: %MV_LOGROOT%\\fail',
+      'echo =====================================================================',
+      'echo.',
+      'pause',
+      'exit /b %MV_EXIT%',
+      '',
+      ':MAIN',
       'echo.',
       'echo  ============================================',
       'echo           MediaVault - Demarrage',
       'echo  ============================================',
+      'echo.',
+      'echo [META] Script: %~nx0',
+      'echo [META] Dossier: %MV_ROOT%',
+      'echo [META] Date: %date% %time%',
+      'echo.',
+      '',
+      'echo [SYS] Windows:',
+      'ver',
+      'echo.',
+      'echo [SYS] CPU / RAM / GPU (si dispo):',
+      'wmic cpu get name /value 2>nul',
+      'wmic computersystem get totalphysicalmemory /value 2>nul',
+      'wmic path win32_videocontroller get name /value 2>nul',
+      'echo.',
+      'echo [SYS] Reseau (resume):',
+      'ipconfig | findstr /i "IPv4 DNS"',
       'echo.',
       '',
       ':: Verifier Node.js',
@@ -106,84 +162,131 @@ export function UpdatesSettings() {
       'if %errorlevel% neq 0 (',
       '    echo [ERREUR] Node.js n\'est pas installe!',
       '    echo Telecharger depuis: https://nodejs.org/',
-      '    pause',
       '    exit /b 1',
       ')',
-      'echo       OK',
+      'for /f "tokens=1" %%i in (\'node -v\') do set NODE_VERSION=%%i',
+      'echo       OK (Node.js %NODE_VERSION%)',
       '',
       ':: Aller au dossier du script',
       'echo [2/3] Navigation vers le dossier...',
-      'cd /d "%~dp0"',
+      'cd /d "%MV_ROOT%"',
       'echo       Dossier: %CD%',
       '',
       ':: Lancer le serveur + ouvrir le navigateur',
       'echo [3/3] Demarrage du serveur...',
       'start "" "http://localhost:3001"',
       'node server.cjs',
+      'exit /b %errorlevel%',
       '',
-      'pause'
     ].join('\r\n');
 
     downloadTextFile('Lancer MediaVault.bat', bat, 'application/x-bat');
-    toast.success('Lancer MediaVault.bat téléchargé');
+    toast.success('Lancer MediaVault.bat téléchargé', {
+      description: 'Crée un dossier logs\\ok et logs\\fail pour tout diagnostiquer en 1 fois.'
+    });
   }, []);
 
   const downloadUpdateBat = useCallback(() => {
+    // Script de mise à jour robuste:
+    // - si pas de repo git: explique quoi faire (télécharger server.cjs via l’UI)
+    // - si repo git: fixe l’upstream automatiquement puis pull
     const bat = [
       '@echo off',
+      'setlocal enabledelayedexpansion',
       'title MediaVault - Mise a jour',
       'color 0A',
+      'chcp 65001 >nul',
       '',
+      'set "MV_NAME=%~n0"',
+      'set "MV_ROOT=%~dp0"',
+      'set "MV_LOGROOT=%MV_ROOT%logs"',
+      'for /f "tokens=1-3 delims=/:. " %%a in ("%date% %time%") do (set "MV_TS=%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%")',
+      'set "MV_TS=%MV_TS: =0%"',
+      'set "MV_RUN=%MV_NAME%-%MV_TS%"',
+      'set "MV_LOGTMP=%MV_LOGROOT%\\_tmp"',
+      'if not exist "%MV_LOGROOT%" mkdir "%MV_LOGROOT%" >nul 2>&1',
+      'if not exist "%MV_LOGTMP%" mkdir "%MV_LOGTMP%" >nul 2>&1',
+      'set "MV_LOGFILE=%MV_LOGTMP%\\%MV_RUN%.log"',
+      '',
+      'call :MAIN > "%MV_LOGFILE%" 2>&1',
+      'set "MV_EXIT=%errorlevel%"',
+      'if %MV_EXIT% equ 0 (',
+      '  if not exist "%MV_LOGROOT%\\ok" mkdir "%MV_LOGROOT%\\ok" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\ok\\%MV_RUN%.log" >nul',
+      ') else (',
+      '  if not exist "%MV_LOGROOT%\\fail" mkdir "%MV_LOGROOT%\\fail" >nul 2>&1',
+      '  move /y "%MV_LOGFILE%" "%MV_LOGROOT%\\fail\\%MV_RUN%.log" >nul',
+      ')',
+      'echo.',
+      'echo =====================================================================',
+      'echo Log genere dans: %MV_LOGROOT%',
+      'echo   OK:   %MV_LOGROOT%\\ok',
+      'echo   FAIL: %MV_LOGROOT%\\fail',
+      'echo =====================================================================',
+      'echo.',
+      'pause',
+      'exit /b %MV_EXIT%',
+      '',
+      ':MAIN',
       'echo ============================================',
       'echo        MediaVault - Mise a jour',
       'echo ============================================',
       'echo.',
-      'echo Ce script doit etre dans le MEME DOSSIER que server.cjs',
+      'echo Ce script fonctionne UNIQUEMENT si ce dossier est un clone Git du projet.',
+      "echo Si vous avez juste server.cjs + .bat (sans .git), utilisez la mise a jour par telechargement (dans l'interface).",
+      'echo.',
+      'cd /d "%MV_ROOT%"',
+      'echo [META] Dossier: %CD%',
       'echo.',
       '',
-      ':: Aller au dossier du script (dossier du serveur local)',
-      'cd /d "%~dp0"',
-      '',
-      ':: Securite: verifier git',
       'where git >nul 2>nul',
       'if %errorlevel% neq 0 (',
-      '  echo [ERREUR] Git n\'est pas installe. Installez Git puis relancez.',
-      '  echo https://git-scm.com/downloads',
-      '  pause',
+      "  echo [ERREUR] Git n'est pas installe. https://git-scm.com/downloads",
       '  exit /b 1',
       ')',
       '',
-      ':: Mettre a jour le code',
-      'echo [1/3] Mise a jour du code (git pull)...',
+      'if not exist .git (',
+      '  echo [INFO] Aucun dossier .git detecte ici.',
+      '  echo [SOLUTION] Ouvrez MediaVault > Parametres > Mises a jour > telechargez server.cjs (et remplacez le fichier).',
+      '  exit /b 2',
+      ')',
+      '',
+      'echo [1/3] Verification du repo...',
+      'git status --porcelain',
+      'echo.',
+      '',
+      "for /f \"delims=\" %%b in ('git rev-parse --abbrev-ref HEAD') do set \"BRANCH=%%b\"",
+      'if "%BRANCH%"=="" set "BRANCH=main"',
+      'echo Branche locale: %BRANCH%',
+      '',
+      ":: Si pas d'upstream, on l'attache automatiquement (origin/main puis origin/master)",
+      'git rev-parse --abbrev-ref --symbolic-full-name @{u} >nul 2>nul',
+      'if %errorlevel% neq 0 (',
+      '  echo [INFO] Upstream non configure, tentative de configuration...',
+      '  git branch --set-upstream-to=origin/main %BRANCH% >nul 2>nul',
+      '  if %errorlevel% neq 0 (',
+      '    git branch --set-upstream-to=origin/master %BRANCH% >nul 2>nul',
+      '  )',
+      ')',
+      '',
+      'echo [2/3] Mise a jour du code (git pull)...',
       'git pull',
       'if %errorlevel% neq 0 (',
       '  echo [ERREUR] git pull a echoue.',
-      '  pause',
+      '  echo [TIP] Essayez: git pull origin main',
       '  exit /b 1',
       ')',
       '',
-      ':: (Optionnel) installer deps si le projet contient package-lock',
-      'if exist package.json (',
-      '  echo [2/3] Installation des dependances...',
-      '  where npm >nul 2>nul',
-      '  if %errorlevel% neq 0 (',
-      '    echo [ERREUR] npm introuvable (Node.js). Installez Node.js LTS.',
-      '    pause',
-      '    exit /b 1',
-      '  )',
-      '  npm ci',
-      ') else (',
-      '  echo [2/3] package.json non trouve: ok (mode serveur seul).',
-      ')',
-      '',
-      'echo [3/3] Terminee. Redemarrez MediaVault si necessaire.',
+      'echo [3/3] Terminee.',
       'echo.',
-      'pause'
+      'exit /b 0',
+      '',
     ].join('\r\n');
 
-    // IMPORTANT: le serveur local cherche EXACTEMENT ce nom
     downloadTextFile('Mettre a jour MediaVault.bat', bat, 'application/x-bat');
-    toast.success('Script de mise à jour téléchargé', { description: 'Placez-le à côté de server.cjs' });
+    toast.success('Mettre a jour MediaVault.bat téléchargé', {
+      description: "Crée des logs ok/fail et tente de corriger l'upstream Git automatiquement."
+    });
   }, []);
 
   const checkForUpdates = async () => {
@@ -376,7 +479,7 @@ export function UpdatesSettings() {
             Démarrer / Mettre à jour (scripts)
           </CardTitle>
           <CardDescription>
-            Tout ce qu’il faut pour lancer le serveur local et avoir le bon script de mise à jour.
+            Téléchargements + logs automatiques (OK/FAIL) pour diagnostiquer en une seule fois.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -401,9 +504,42 @@ export function UpdatesSettings() {
               <li>Créez <code>C:\\MediaVault\\</code></li>
               <li>Mettez dedans : <code>server.cjs</code>, <code>Lancer MediaVault.bat</code>, <code>Mettre a jour MediaVault.bat</code></li>
               <li>Double-cliquez <code>Lancer MediaVault.bat</code> → ça ouvre <code>http://localhost:3001</code></li>
-              <li>Pour mettre à jour : double-cliquez <code>Mettre a jour MediaVault.bat</code></li>
+              <li>Pour diagnostiquer : ouvrez <code>C:\\MediaVault\\logs\\fail</code> et envoyez-moi le dernier fichier</li>
             </ol>
           </div>
+
+          <Accordion type="single" collapsible>
+            <AccordionItem value="manual">
+              <AccordionTrigger>Procédure manuelle (dérouler)</AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <div>
+                    <p className="font-medium text-foreground">Démarrage serveur (manuel)</p>
+                    <ol className="list-decimal pl-5 space-y-1">
+                      <li>Installez Node.js LTS.</li>
+                      <li>Créez <code>C:\\MediaVault\\</code>.</li>
+                      <li>Copiez <code>server.cjs</code> dans ce dossier.</li>
+                      <li>Ouvrez un terminal dans <code>C:\\MediaVault\\</code> et lancez : <code>node server.cjs</code></li>
+                      <li>Ouvrez ensuite : <code>http://localhost:3001</code></li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <p className="font-medium text-foreground">Mise à jour (2 méthodes)</p>
+                    <ol className="list-decimal pl-5 space-y-1">
+                      <li>
+                        <span className="font-medium">Sans Git (recommandé)</span> : retéléchargez <code>server.cjs</code> ici, puis remplacez le fichier dans <code>C:\\MediaVault\\</code>.
+                      </li>
+                      <li>
+                        <span className="font-medium">Avec Git (avancé)</span> : le dossier doit être un clone (avec <code>.git</code>). Ensuite lancez le script <code>Mettre a jour MediaVault.bat</code>.
+                      </li>
+                    </ol>
+                    <p className="mt-2">Astuce : si la mise à jour échoue, envoyez le dernier log dans <code>logs\\fail</code> (il contient aussi les infos machine utiles).</p>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </CardContent>
       </Card>
 
