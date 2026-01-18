@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Terminal,
   Play,
@@ -99,11 +99,6 @@ export default function LocalAgent() {
   useEffect(() => {
     testConnection();
   }, [testConnection]);
-
-  // Par défaut: si déjà connecté, on replie la carte "Télécharger & Démarrer" (pour éviter d'encombrer)
-  useEffect(() => {
-    if (isConnected) setSetupOpen(false);
-  }, [isConnected]);
 
   // Rafraîchir les données quand connecté
   useEffect(() => {
@@ -352,87 +347,78 @@ export default function LocalAgent() {
         </motion.div>
       )}
 
-      {/* Section Téléchargement & Configuration (toujours visible) */}
-      <motion.div
-        initial={{ opacity: 0, height: 0 }}
-        animate={{ opacity: 1, height: 'auto' }}
-        exit={{ opacity: 0, height: 0 }}
-      >
-        <Collapsible open={setupOpen} onOpenChange={setSetupOpen}>
-          <Card className="border-dashed border-2">
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Package className="w-5 h-5 text-primary" />
-                    <div>
-                      <CardTitle className="text-base">Télécharger & Démarrer le serveur</CardTitle>
-                      <CardDescription>
-                        {isConnected
-                          ? 'Toujours disponible (même si le serveur est déjà connecté)'
-                          : 'Configurez votre serveur local en 3 étapes'}
-                      </CardDescription>
+      {/* Section Téléchargement & Configuration (si non connecté) */}
+      <AnimatePresence>
+        {!isConnected && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <Collapsible open={setupOpen} onOpenChange={setSetupOpen}>
+              <Card className="border-dashed border-2">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Package className="w-5 h-5 text-primary" />
+                        <div>
+                          <CardTitle className="text-base">Télécharger & Démarrer le serveur</CardTitle>
+                          <CardDescription>Configurez votre serveur local en 3 étapes</CardDescription>
+                        </div>
+                      </div>
+                      <ChevronDown className={cn("w-5 h-5 transition-transform", setupOpen && "rotate-180")} />
                     </div>
-                  </div>
-                  <ChevronDown className={cn("w-5 h-5 transition-transform", setupOpen && "rotate-180")} />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-0 space-y-4">
-                {/* Boutons de téléchargement */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadServerFile}>
-                    <Download className="w-4 h-4" />
-                    <div className="text-left">
-                      <div className="font-medium">server.cjs</div>
-                      <div className="text-xs text-muted-foreground">Fichier serveur</div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0 space-y-4">
+                    {/* Boutons de téléchargement */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadServerFile}>
+                        <Download className="w-4 h-4" />
+                        <div className="text-left">
+                          <div className="font-medium">server.cjs</div>
+                          <div className="text-xs text-muted-foreground">Fichier serveur</div>
+                        </div>
+                      </Button>
+                      <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadStartScript}>
+                        <Download className="w-4 h-4" />
+                        <div className="text-left">
+                          <div className="font-medium">Lancer MediaVault.bat</div>
+                          <div className="text-xs text-muted-foreground">Script de démarrage</div>
+                        </div>
+                      </Button>
                     </div>
-                  </Button>
-                  <Button variant="outline" className="gap-2 h-auto py-3" onClick={downloadStartScript}>
-                    <Download className="w-4 h-4" />
-                    <div className="text-left">
-                      <div className="font-medium">Lancer MediaVault.bat</div>
-                      <div className="text-xs text-muted-foreground">Script de démarrage</div>
-                    </div>
-                  </Button>
-                </div>
 
-                {/* Mini-guide */}
-                <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                  <p className="text-sm font-medium">Guide rapide :</p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-start gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
-                      <span>Téléchargez les 2 fichiers ci-dessus</span>
+                    {/* Mini-guide */}
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium">Guide rapide :</p>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">1</span>
+                          <span>Téléchargez les 2 fichiers ci-dessus</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
+                          <span>Placez-les dans <code className="bg-muted px-1 rounded">C:\MediaVault\</code></span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
+                          <span>Double-cliquez sur <code className="bg-muted px-1 rounded">Lancer MediaVault.bat</code></span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Prérequis : <a href="https://nodejs.org/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Node.js</a> doit être installé.
+                      </p>
                     </div>
-                    <div className="flex items-start gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">2</span>
-                      <span>Placez-les dans <code className="bg-muted px-1 rounded">C:\MediaVault\</code></span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs flex-shrink-0">3</span>
-                      <span>Double-cliquez sur <code className="bg-muted px-1 rounded">Lancer MediaVault.bat</code></span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Prérequis :{' '}
-                    <a
-                      href="https://nodejs.org/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      Node.js
-                    </a>{' '}
-                    doit être installé.
-                  </p>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      </motion.div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bouton Installation 1-Clic (si connecté) */}
       {isConnected && (
