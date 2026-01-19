@@ -12,13 +12,16 @@ import AICreationsView from '@/components/AICreationsView';
 import LocalAgent from '@/components/LocalAgent';
 import { SmartHomeDashboard } from '@/components/home';
 import { useMediaStore } from '@/hooks/useMediaStore';
+import { SelectionToolbar } from '@/components/SelectionToolbar';
+import { KioskMode } from '@/components/KioskMode';
 
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'smart-home';
+type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'smart-home' | 'timeline' | 'calendar';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [kioskOpen, setKioskOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const { getFilteredMedia, getFavorites } = useMediaStore();
 
@@ -105,6 +108,12 @@ const Index = () => {
         onClose={() => setSlideshowOpen(false)}
         items={getDisplayMedia()}
       />
+      <KioskMode
+        open={kioskOpen}
+        onClose={() => setKioskOpen(false)}
+        items={getDisplayMedia()}
+      />
+      <SelectionToolbar />
     </div>
   );
 };
