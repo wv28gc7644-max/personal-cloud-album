@@ -18,7 +18,7 @@ const { exec, spawn } = require('child_process');
 // CONFIGURATION - MODIFIEZ CES VALEURS
 // ═══════════════════════════════════════════════════════════════════
 
-let MEDIA_FOLDER = process.env.MEDIAVAULT_MEDIA_FOLDER || 'C:/Users/VotreNom/Pictures';
+let MEDIA_FOLDER = process.env.MEDIAVAULT_MEDIA_FOLDER || 'C:\MediaVault\media';
 const PORT = 3001;
 const DIST_FOLDER = path.join(__dirname, 'dist');
 const DATA_FILE = path.join(__dirname, 'data.json');
