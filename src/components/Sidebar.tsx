@@ -17,12 +17,20 @@ import {
   Sparkles,
   Palette,
   Terminal,
-  Download,
-  Server,
   CheckCircle2,
   XCircle,
   PenTool,
-  Home as HomeIcon
+  Home as HomeIcon,
+  Clock,
+  Calendar,
+  FolderTree,
+  Tv,
+  QrCode,
+  RefreshCw,
+  Columns,
+  Filter,
+  Gift,
+  Wrench
 } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useUpdateStatus } from '@/hooks/useUpdateStatus';
@@ -31,29 +39,52 @@ import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { EditableElement } from './EditableElement';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
-type ViewType = 'home' | 'photos' | 'videos' | 'favorites' | 'stats' | 'admin' | 'ai-studio' | 'ai-creations' | 'agent' | 'smart-home';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { ViewType } from '@/types/views';
 
 interface SidebarProps {
   onCreatePlaylist: () => void;
   currentView: ViewType;
   onViewChange: (view: ViewType) => void;
   onStartSlideshow?: () => void;
+  onOpenKiosk?: () => void;
+  onOpenQRCode?: () => void;
+  onOpenUpdate?: () => void;
+  onOpenCompare?: () => void;
+  onOpenFilters?: () => void;
+  onOpenWhatsNew?: () => void;
 }
 
-export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSlideshow }: SidebarProps) {
+export function Sidebar({ 
+  onCreatePlaylist, 
+  currentView, 
+  onViewChange, 
+  onStartSlideshow,
+  onOpenKiosk,
+  onOpenQRCode,
+  onOpenUpdate,
+  onOpenCompare,
+  onOpenFilters,
+  onOpenWhatsNew
+}: SidebarProps) {
   const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites } = useMediaStore();
   const { hasUpdate, commitsBehind } = useUpdateStatus();
   const { isConnected, testConnection } = useLocalServer();
   const { isEditMode, toggleEditMode } = useGlobalEditorContext();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
 
   // Vérifier la connexion au serveur local au chargement
   useEffect(() => {
@@ -69,7 +100,18 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
     { icon: Images, label: 'Photos', view: 'photos' },
     { icon: Video, label: 'Vidéos', view: 'videos' },
     { icon: Heart, label: 'Favoris', view: 'favorites', badge: favoritesCount },
+    { icon: FolderTree, label: 'Albums', view: 'albums' },
+    { icon: Clock, label: 'Timeline', view: 'timeline' },
+    { icon: Calendar, label: 'Calendrier', view: 'calendar' },
     { icon: BarChart3, label: 'Statistiques', view: 'stats' },
+  ];
+
+  const toolItems = [
+    { icon: Tv, label: 'Mode Kiosque', onClick: onOpenKiosk, isNew: true },
+    { icon: QrCode, label: 'QR Code Mobile', onClick: onOpenQRCode, isNew: true },
+    { icon: Columns, label: 'Comparer', onClick: onOpenCompare, isNew: true },
+    { icon: Filter, label: 'Filtres avancés', onClick: onOpenFilters, isNew: true },
+    { icon: RefreshCw, label: 'Mise à jour', onClick: onOpenUpdate, badge: hasUpdate },
   ];
 
   return (
@@ -92,6 +134,22 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
         </EditableElement>
       </div>
 
+      {/* What's New Button */}
+      {onOpenWhatsNew && (
+        <div className="px-3 mb-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full gap-2 border-dashed"
+            onClick={onOpenWhatsNew}
+          >
+            <Gift className="w-4 h-4 text-primary" />
+            <span>Nouveautés</span>
+            <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs">9</Badge>
+          </Button>
+        </div>
+      )}
+
       {/* Navigation */}
       <EditableElement id="sidebar-navigation" type="container" name="Navigation">
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
@@ -113,6 +171,11 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
               >
                 <item.icon className={cn("w-5 h-5", item.view === 'favorites' && currentView === 'favorites' && "fill-current text-yellow-500")} />
                 <span className="font-medium">{item.label}</span>
+                {['albums', 'timeline', 'calendar'].includes(item.view) && (
+                  <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs px-1.5">
+                    New
+                  </Badge>
+                )}
                 {item.badge !== undefined && item.badge > 0 && (
                   <motion.span 
                     initial={{ scale: 0 }}
@@ -137,6 +200,57 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
           </button>
         )}
 
+        {/* Tools Section */}
+        <Collapsible open={toolsExpanded} onOpenChange={setToolsExpanded} className="mt-4">
+          <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2 text-sm font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+            <span className="flex items-center gap-2">
+              <Wrench className="w-4 h-4" />
+              Outils
+            </span>
+            <div className="flex items-center gap-1">
+              <Badge className="bg-green-500/20 text-green-500 text-xs">5</Badge>
+              {toolsExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-1 mt-1"
+            >
+              {toolItems.map((tool, index) => (
+                <motion.button
+                  key={tool.label}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={{ x: 4 }}
+                  onClick={tool.onClick}
+                  className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+                >
+                  <tool.icon className="w-4 h-4" />
+                  <span>{tool.label}</span>
+                  {tool.isNew && (
+                    <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs px-1.5">
+                      New
+                    </Badge>
+                  )}
+                  {tool.badge && (
+                    <span className="ml-auto flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                  )}
+                </motion.button>
+              ))}
+            </motion.div>
+          </CollapsibleContent>
+        </Collapsible>
+
         {/* AI Studio button */}
         <EditableElement id="sidebar-ai-studio" type="button" name="Studio IA">
           <button
@@ -151,7 +265,7 @@ export function Sidebar({ onCreatePlaylist, currentView, onViewChange, onStartSl
             <Sparkles className={cn("w-5 h-5", currentView === 'ai-studio' && "animate-pulse")} />
             <span className="font-medium">Studio IA</span>
             <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
-              Nouveau
+              Beta
             </span>
           </button>
         </EditableElement>
