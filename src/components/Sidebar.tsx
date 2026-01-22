@@ -217,7 +217,7 @@ export function Sidebar({
   };
 
   return (
-    <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col min-h-0">
       {/* Logo */}
       <div className="p-6">
         <EditableElement id="sidebar-logo" type="container" name="Logo">
@@ -253,7 +253,7 @@ export function Sidebar({
       )}
 
       {/* Dynamic Sections */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 space-y-1 overflow-y-auto">
         {config.sections.map((section) => {
           const SectionIcon = getIcon(section.icon);
           

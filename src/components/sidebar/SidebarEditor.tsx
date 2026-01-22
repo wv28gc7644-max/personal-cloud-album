@@ -139,7 +139,12 @@ export function SidebarEditor({ open, onClose }: SidebarEditorProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      {/*
+        NOTE: In a flex column, children that need to scroll require the parent
+        to allow shrinking (`min-h-0`), otherwise the scroll container can’t
+        compute a scrollable height and the dialog feels “non-scrollable”.
+      */}
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col min-h-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit2 className="w-5 h-5" />
@@ -185,7 +190,7 @@ export function SidebarEditor({ open, onClose }: SidebarEditorProps) {
           </AlertDialog>
         </div>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <Reorder.Group
             axis="y"
             values={config.sections}
