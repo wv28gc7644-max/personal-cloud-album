@@ -144,7 +144,12 @@ export function SidebarEditor({ open, onClose }: SidebarEditorProps) {
         to allow shrinking (`min-h-0`), otherwise the scroll container can’t
         compute a scrollable height and the dialog feels “non-scrollable”.
       */}
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col min-h-0">
+      {/*
+        IMPORTANT: `max-h` alone can still leave the flex layout unconstrained in some
+        browsers/contexts (Radix Dialog uses fixed positioning). Using an explicit
+        height ensures the ScrollArea receives a real computed height and can scroll.
+      */}
+      <DialogContent className="max-w-2xl h-[85vh] flex flex-col min-h-0 overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Edit2 className="w-5 h-5" />
