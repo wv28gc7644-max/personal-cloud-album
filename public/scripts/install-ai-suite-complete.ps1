@@ -1,11 +1,13 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-    MediaVault AI Suite - Installation Complete v4.0 (Ultra-Robuste)
+    MediaVault AI Suite - Installation Complete v5.0 (Sans Microsoft Store)
 .DESCRIPTION
-    Installe 8 services IA avec verification stricte de chaque etape
+    Installe 8 services IA SANS dependre du Microsoft Store
+    - Bootstrap automatique de winget via GitHub
+    - Fallback telechargements directs si winget echoue
 .NOTES
-    Version: 4.0 - Chaque etape verifiee, logs detailles, support Intel Arc
+    Version: 5.0 - Installation robuste sans Microsoft Store
 #>
 
 param(
@@ -15,12 +17,17 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$ProgressPreference = 'Continue'  # Show download progress bars
+$ProgressPreference = 'Continue'
 
 # ============================================
 # CONFIGURATION
 # ============================================
-$PYTHON_VERSION = "3.11"
+$SCRIPT_VERSION = "5.0"
+$PYTHON_VERSION = "3.11.9"
+$PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VERSION/python-$PYTHON_VERSION-amd64.exe"
+$GIT_URL = "https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.1/Git-2.43.0-64-bit.exe"
+$OLLAMA_URL = "https://ollama.com/download/OllamaSetup.exe"
+
 $SERVICES = @{
     "ollama" = @{ Port = 11434; Health = "http://localhost:11434/api/tags" }
     "comfyui" = @{ Port = 8188; Health = "http://localhost:8188/" }
@@ -33,9 +40,10 @@ $SERVICES = @{
 }
 
 # ============================================
-# LOGGING
+# LOGGING AVANCE
 # ============================================
 $LogDir = "$InstallDir\logs"
+$DownloadDir = "$InstallDir\downloads"
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $MainLog = "$LogDir\install-$Timestamp.log"
 $ErrorLog = "$LogDir\errors-$Timestamp.log"
@@ -53,20 +61,8 @@ function Write-Log {
         }
         "ATTENTION" { Write-Host "  [ATTENTION] $Message" -ForegroundColor Yellow }
         "ETAPE" { Write-Host "`n[ETAPE] $Message" -ForegroundColor Cyan }
+        "DEBUG" { Write-Host "  [DEBUG] $Message" -ForegroundColor DarkGray }
         default { Write-Host "  [INFO] $Message" -ForegroundColor Gray }
-    }
-}
-
-function Test-CommandResult {
-    param([string]$Name, [scriptblock]$Command, [string]$SuccessPattern = "")
-    try {
-        $result = & $Command 2>&1
-        if ($LASTEXITCODE -eq 0 -or $result -match $SuccessPattern -or $result) {
-            return $true
-        }
-        return $false
-    } catch {
-        return $false
     }
 }
 
@@ -74,15 +70,37 @@ function Refresh-Path {
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
 }
 
+function Download-File {
+    param([string]$Url, [string]$OutFile, [string]$Description = "fichier")
+    Write-Log "Telechargement de $Description..." -Level "INFO"
+    try {
+        # Use BITS for reliability, fallback to WebClient
+        $startBits = Start-BitsTransfer -Source $Url -Destination $OutFile -ErrorAction Stop
+        Write-Log "$Description telecharge" -Level "OK"
+        return $true
+    } catch {
+        try {
+            Write-Log "BITS echoue, utilisation WebClient..." -Level "DEBUG"
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($Url, $OutFile)
+            Write-Log "$Description telecharge" -Level "OK"
+            return $true
+        } catch {
+            Write-Log "Echec telechargement $Description : $($_.Exception.Message)" -Level "ERREUR"
+            return $false
+        }
+    }
+}
+
 # ============================================
-# BANNER + SETUP
+# BANNER + DIAGNOSTICS SYSTEME
 # ============================================
 Clear-Host
 Write-Host @"
 
 ==============================================================================
-          MEDIAVAULT AI SUITE - INSTALLATION v4.0 (ULTRA-ROBUSTE)
-                    8 Services IA - Support Intel Arc
+       MEDIAVAULT AI SUITE - INSTALLATION v$SCRIPT_VERSION (SANS STORE)
+                  8 Services IA - Installation Autonome
 ==============================================================================
 
 "@ -ForegroundColor Magenta
@@ -90,33 +108,156 @@ Write-Host @"
 # Create directories
 if (!(Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null }
 if (!(Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir -Force | Out-Null }
+if (!(Test-Path $DownloadDir)) { New-Item -ItemType Directory -Path $DownloadDir -Force | Out-Null }
 
 Set-Location $InstallDir
-"Installation demarree: $(Get-Date)" | Out-File $MainLog
+
+# Initialize logs with system info
+$sysInfo = @"
+========================================
+INSTALLATION MEDIAVAULT AI SUITE v$SCRIPT_VERSION
+========================================
+Date: $(Get-Date)
+Dossier: $InstallDir
+
+INFORMATIONS SYSTEME:
+- Windows: $([System.Environment]::OSVersion.VersionString)
+- Build: $((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').DisplayVersion) ($((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild))
+- PowerShell: $($PSVersionTable.PSVersion)
+- Execution Policy: $(Get-ExecutionPolicy)
+- Architecture: $([System.Environment]::Is64BitOperatingSystem)
+- RAM: $([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)) GB
+========================================
+
+"@
+$sysInfo | Out-File $MainLog
 "" | Out-File $ErrorLog
 
 Write-Host "Dossier: $InstallDir" -ForegroundColor Gray
 Write-Host "Logs:    $LogDir" -ForegroundColor Gray
 Write-Host ""
 
-# Track installation status
 $InstallStatus = @{}
 
 # ============================================
-# ETAPE 1: PREREQUIS
+# ETAPE 0: BOOTSTRAP WINGET (SANS STORE)
 # ============================================
-Write-Log "Verification des prerequis" -Level "ETAPE"
+Write-Log "Verification/Installation de WinGet (sans Microsoft Store)" -Level "ETAPE"
 
-# Check winget
-if (Get-Command winget -ErrorAction SilentlyContinue) {
-    Write-Log "winget disponible" -Level "OK"
-} else {
-    Write-Log "winget non trouve - Installez App Installer depuis le Microsoft Store" -Level "ERREUR"
-    exit 1
+function Ensure-WinGet {
+    # Check if winget already works
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        try {
+            $wingetTest = winget --version 2>&1
+            if ($wingetTest -match "v\d") {
+                Write-Log "WinGet deja disponible: $wingetTest" -Level "OK"
+                return $true
+            }
+        } catch {}
+    }
+    
+    Write-Log "WinGet absent - Installation depuis GitHub (sans Store)..." -Level "ATTENTION"
+    
+    # URLs officielles Microsoft pour les dependances
+    $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+    $uiXamlUrl = "https://github.com/nicovon24/Microsoft.UI.Xaml.2.8/raw/main/Microsoft.UI.Xaml.2.8.x64.appx"
+    $wingetUrl = "https://github.com/microsoft/winget-cli/releases/latest/download/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+    $wingetLicense = "https://github.com/microsoft/winget-cli/releases/latest/download/9fcb6e11d38f47fcb59a41eb733fd322_License1.xml"
+    
+    $vcLibsPath = "$DownloadDir\VCLibs.appx"
+    $uiXamlPath = "$DownloadDir\UIXaml.appx"
+    $wingetPath = "$DownloadDir\AppInstaller.msixbundle"
+    $licensePath = "$DownloadDir\License.xml"
+    
+    try {
+        # 1. Telecharger VCLibs
+        if (!(Test-Path $vcLibsPath) -or (Get-Item $vcLibsPath).Length -lt 1MB) {
+            if (!(Download-File -Url $vcLibsUrl -OutFile $vcLibsPath -Description "VCLibs (dependance)")) {
+                throw "Echec telechargement VCLibs"
+            }
+        }
+        
+        # 2. Telecharger UI.Xaml
+        if (!(Test-Path $uiXamlPath) -or (Get-Item $uiXamlPath).Length -lt 1MB) {
+            if (!(Download-File -Url $uiXamlUrl -OutFile $uiXamlPath -Description "UI.Xaml (dependance)")) {
+                throw "Echec telechargement UI.Xaml"
+            }
+        }
+        
+        # 3. Telecharger WinGet
+        if (!(Test-Path $wingetPath) -or (Get-Item $wingetPath).Length -lt 10MB) {
+            if (!(Download-File -Url $wingetUrl -OutFile $wingetPath -Description "WinGet (App Installer)")) {
+                throw "Echec telechargement WinGet"
+            }
+        }
+        
+        # 4. Telecharger la licence (optionnel)
+        Download-File -Url $wingetLicense -OutFile $licensePath -Description "Licence WinGet" | Out-Null
+        
+        # 5. Installer les dependances
+        Write-Log "Installation des dependances WinGet..." -Level "INFO"
+        
+        try {
+            Add-AppxPackage -Path $vcLibsPath -ErrorAction Stop
+            Write-Log "VCLibs installe" -Level "OK"
+        } catch {
+            Write-Log "VCLibs: $($_.Exception.Message)" -Level "DEBUG"
+        }
+        
+        try {
+            Add-AppxPackage -Path $uiXamlPath -ErrorAction Stop
+            Write-Log "UI.Xaml installe" -Level "OK"
+        } catch {
+            Write-Log "UI.Xaml: $($_.Exception.Message)" -Level "DEBUG"
+        }
+        
+        # 6. Installer WinGet
+        Write-Log "Installation de WinGet..." -Level "INFO"
+        try {
+            if (Test-Path $licensePath) {
+                Add-AppxProvisionedPackage -Online -PackagePath $wingetPath -LicensePath $licensePath -ErrorAction Stop | Out-Null
+            } else {
+                Add-AppxPackage -Path $wingetPath -ErrorAction Stop
+            }
+            Write-Log "WinGet installe via Add-AppxPackage" -Level "OK"
+        } catch {
+            # Essayer sans licence
+            try {
+                Add-AppxPackage -Path $wingetPath -ErrorAction Stop
+                Write-Log "WinGet installe (methode alternative)" -Level "OK"
+            } catch {
+                Write-Log "Add-AppxPackage echoue: $($_.Exception.Message)" -Level "DEBUG"
+            }
+        }
+        
+        # Attendre et rafraichir
+        Start-Sleep -Seconds 3
+        Refresh-Path
+        
+        # Verifier
+        if (Get-Command winget -ErrorAction SilentlyContinue) {
+            $ver = winget --version 2>&1
+            Write-Log "WinGet bootstrap reussi: $ver" -Level "OK"
+            return $true
+        }
+        
+        Write-Log "WinGet non disponible apres installation" -Level "ATTENTION"
+        return $false
+        
+    } catch {
+        Write-Log "Erreur bootstrap WinGet: $($_.Exception.Message)" -Level "ERREUR"
+        return $false
+    }
+}
+
+$WinGetAvailable = Ensure-WinGet
+
+if (!$WinGetAvailable) {
+    Write-Log "Mode FALLBACK active - Telechargements directs sans WinGet" -Level "ATTENTION"
 }
 
 # ============================================
-# ETAPE 2: GPU DETECTION
+# ETAPE 1: GPU DETECTION
 # ============================================
 Write-Log "Detection du GPU" -Level "ETAPE"
 
@@ -125,24 +266,16 @@ $GPUName = "CPU Only"
 $TorchExtra = ""
 
 if (!$CPUOnly) {
-    # NVIDIA - verification robuste du driver
     try {
         $nvidiaResult = & nvidia-smi --query-gpu=name --format=csv,noheader 2>&1
-        $nvidiaExitCode = $LASTEXITCODE
-        
-        if ($nvidiaExitCode -eq 0 -and $nvidiaResult -notmatch "failed|error|could not") {
+        if ($LASTEXITCODE -eq 0 -and $nvidiaResult -notmatch "failed|error|could not") {
             $GPUType = "nvidia"
             $GPUName = ($nvidiaResult | Select-Object -First 1).ToString().Trim()
             $TorchExtra = "--index-url https://download.pytorch.org/whl/cu121"
             Write-Log "GPU NVIDIA detecte: $GPUName" -Level "OK"
-        } else {
-            Write-Log "Driver NVIDIA non fonctionnel (code $nvidiaExitCode) - Mode CPU" -Level "ATTENTION"
         }
-    } catch {
-        Write-Log "Erreur detection NVIDIA: $($_.Exception.Message)" -Level "ATTENTION"
-    }
+    } catch {}
     
-    # Intel Arc (si pas NVIDIA)
     if ($GPUType -eq "cpu") {
         try {
             $intelGPU = Get-CimInstance Win32_VideoController | Where-Object { $_.Name -match "Intel.*Arc|Intel.*A[357][58]0" }
@@ -150,63 +283,99 @@ if (!$CPUOnly) {
                 $GPUType = "intel-arc"
                 $GPUName = $intelGPU.Name
                 Write-Log "GPU Intel Arc detecte: $GPUName" -Level "OK"
-                Write-Log "Mode Intel Extension for PyTorch (IPEX) active" -Level "INFO"
             }
         } catch {}
     }
     
     if ($GPUType -eq "cpu") {
-        Write-Log "Aucun GPU compatible detecte - Mode CPU uniquement" -Level "ATTENTION"
+        Write-Log "Aucun GPU compatible - Mode CPU" -Level "ATTENTION"
     }
 }
 
 # ============================================
-# ETAPE 3: PYTHON 3.11
+# ETAPE 2: PYTHON 3.11 (avec fallback direct)
 # ============================================
 Write-Log "Installation de Python 3.11" -Level "ETAPE"
 
 $Python311Path = $null
 $PythonCmd = $null
 
-# Check for existing Python 3.11
+# Chercher Python existant (chemins explicites pour eviter alias Store)
 $possiblePaths = @(
     "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
     "$env:ProgramFiles\Python311\python.exe",
-    "C:\Python311\python.exe"
+    "C:\Python311\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python311-64\python.exe"
 )
 
 foreach ($path in $possiblePaths) {
     if (Test-Path $path) {
-        $version = & $path --version 2>&1
-        if ($version -match "3\.11") {
-            $Python311Path = $path
-            break
-        }
+        try {
+            $version = & $path --version 2>&1
+            if ($version -match "3\.11") {
+                $Python311Path = $path
+                Write-Log "Python 3.11 trouve: $path" -Level "OK"
+                break
+            }
+        } catch {}
     }
 }
 
+# Essayer py launcher
 if (!$Python311Path) {
-    # Check via py launcher
     try {
-        $pyVersion = & py -3.11 --version 2>&1
-        if ($pyVersion -match "3\.11") {
+        $pyResult = & py -3.11 --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $pyResult -match "3\.11") {
             $PythonCmd = "py -3.11"
-            Write-Log "Python 3.11 trouve via py launcher" -Level "OK"
+            Write-Log "Python 3.11 via py launcher" -Level "OK"
         }
     } catch {}
 }
 
+# Installer si necessaire
 if (!$Python311Path -and !$PythonCmd) {
-    Write-Log "Installation de Python 3.11 via winget..." -Level "INFO"
-    $installResult = winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1
-    Start-Sleep -Seconds 10
-    Refresh-Path
+    $pythonInstaller = "$DownloadDir\python-installer.exe"
     
-    # Re-check
+    if ($WinGetAvailable) {
+        Write-Log "Installation Python 3.11 via winget..." -Level "INFO"
+        winget install --id Python.Python.3.11 -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Null
+        Start-Sleep -Seconds 10
+        Refresh-Path
+    }
+    
+    # Verifier
     foreach ($path in $possiblePaths) {
         if (Test-Path $path) {
             $Python311Path = $path
             break
+        }
+    }
+    
+    # FALLBACK: telechargement direct
+    if (!$Python311Path) {
+        Write-Log "Telechargement direct de Python $PYTHON_VERSION..." -Level "INFO"
+        
+        if (Download-File -Url $PYTHON_URL -OutFile $pythonInstaller -Description "Python $PYTHON_VERSION") {
+            Write-Log "Installation silencieuse de Python..." -Level "INFO"
+            
+            $pythonArgs = "/quiet InstallAllUsers=0 PrependPath=1 Include_launcher=1 DefaultJustForMeTargetDir=`"$env:LOCALAPPDATA\Programs\Python\Python311`""
+            $proc = Start-Process -FilePath $pythonInstaller -ArgumentList $pythonArgs -Wait -PassThru
+            
+            if ($proc.ExitCode -eq 0) {
+                Write-Log "Python installe avec succes" -Level "OK"
+            } else {
+                Write-Log "Code retour Python: $($proc.ExitCode)" -Level "DEBUG"
+            }
+            
+            Start-Sleep -Seconds 5
+            Refresh-Path
+            
+            foreach ($path in $possiblePaths) {
+                if (Test-Path $path) {
+                    $Python311Path = $path
+                    break
+                }
+            }
         }
     }
 }
@@ -215,53 +384,96 @@ if ($Python311Path) {
     $PythonCmd = "`"$Python311Path`""
     Write-Log "Python 3.11 disponible: $Python311Path" -Level "OK"
 } elseif ($PythonCmd) {
-    Write-Log "Python 3.11 disponible via: $PythonCmd" -Level "OK"
+    Write-Log "Python 3.11 via: $PythonCmd" -Level "OK"
 } else {
-    Write-Log "Impossible d'installer Python 3.11" -Level "ERREUR"
+    Write-Log "ECHEC: Python 3.11 non disponible" -Level "ERREUR"
+    Write-Host ""
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Red
+    Write-Host "  INSTALLATION MANUELLE REQUISE" -ForegroundColor Red
+    Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  1. Telechargez Python 3.11 depuis:" -ForegroundColor Yellow
+    Write-Host "     $PYTHON_URL" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  2. Lancez l'installateur et cochez:" -ForegroundColor Yellow
+    Write-Host "     [x] Add Python to PATH" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  3. Relancez ce script" -ForegroundColor Yellow
+    Write-Host ""
     exit 1
 }
 
 # ============================================
-# ETAPE 4: GIT
+# ETAPE 3: GIT (avec fallback direct)
 # ============================================
 Write-Log "Verification de Git" -Level "ETAPE"
 
 if (Get-Command git -ErrorAction SilentlyContinue) {
     Write-Log "Git disponible" -Level "OK"
 } else {
-    Write-Log "Installation de Git..." -Level "INFO"
-    winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1
-    Start-Sleep -Seconds 5
-    Refresh-Path
+    if ($WinGetAvailable) {
+        Write-Log "Installation Git via winget..." -Level "INFO"
+        winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Null
+        Start-Sleep -Seconds 5
+        Refresh-Path
+    }
+    
+    if (!(Get-Command git -ErrorAction SilentlyContinue)) {
+        # FALLBACK: telechargement direct
+        Write-Log "Telechargement direct de Git..." -Level "INFO"
+        $gitInstaller = "$DownloadDir\git-installer.exe"
+        
+        if (Download-File -Url $GIT_URL -OutFile $gitInstaller -Description "Git") {
+            Write-Log "Installation silencieuse de Git..." -Level "INFO"
+            $proc = Start-Process -FilePath $gitInstaller -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS=`"icons,ext\reg\shellhere,assoc,assoc_sh`"" -Wait -PassThru
+            Start-Sleep -Seconds 5
+            Refresh-Path
+        }
+    }
     
     if (Get-Command git -ErrorAction SilentlyContinue) {
         Write-Log "Git installe" -Level "OK"
     } else {
-        Write-Log "Impossible d'installer Git" -Level "ERREUR"
-        exit 1
+        Write-Log "ATTENTION: Git non disponible - ComfyUI ne sera pas installe" -Level "ATTENTION"
     }
 }
 
 # ============================================
-# ETAPE 5: OLLAMA
+# ETAPE 4: OLLAMA (avec fallback direct)
 # ============================================
 Write-Log "[1/8] Installation de Ollama (LLM)" -Level "ETAPE"
 
 $ollamaInstalled = $false
+
 if (Get-Command ollama -ErrorAction SilentlyContinue) {
     $ollamaInstalled = $true
     Write-Log "Ollama deja installe" -Level "OK"
 } else {
-    Write-Log "Installation de Ollama..." -Level "INFO"
-    winget install --id Ollama.Ollama -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1
-    Start-Sleep -Seconds 5
-    Refresh-Path
+    if ($WinGetAvailable) {
+        Write-Log "Installation Ollama via winget..." -Level "INFO"
+        winget install --id Ollama.Ollama -e --source winget --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Null
+        Start-Sleep -Seconds 5
+        Refresh-Path
+    }
+    
+    if (!(Get-Command ollama -ErrorAction SilentlyContinue)) {
+        # FALLBACK: telechargement direct
+        Write-Log "Telechargement direct de Ollama..." -Level "INFO"
+        $ollamaInstaller = "$DownloadDir\OllamaSetup.exe"
+        
+        if (Download-File -Url $OLLAMA_URL -OutFile $ollamaInstaller -Description "Ollama") {
+            Write-Log "Installation de Ollama..." -Level "INFO"
+            $proc = Start-Process -FilePath $ollamaInstaller -ArgumentList "/S" -Wait -PassThru
+            Start-Sleep -Seconds 5
+            Refresh-Path
+        }
+    }
     
     if (Get-Command ollama -ErrorAction SilentlyContinue) {
         $ollamaInstalled = $true
         Write-Log "Ollama installe" -Level "OK"
     } else {
-        Write-Log "Echec installation Ollama - verifiez manuellement" -Level "ERREUR"
+        Write-Log "Echec installation Ollama" -Level "ERREUR"
     }
 }
 
@@ -269,14 +481,11 @@ if ($ollamaInstalled -and !$SkipModels) {
     Write-Log "Demarrage Ollama..." -Level "INFO"
     Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
     
-    # Attendre qu'Ollama soit vraiment pret (max 30 secondes)
     $ollamaReady = $false
-    Write-Log "Attente demarrage Ollama (max 30s)..." -Level "INFO"
     for ($i = 0; $i -lt 10; $i++) {
         try {
             $response = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 3 -ErrorAction Stop
             $ollamaReady = $true
-            Write-Log "Ollama pret" -Level "OK"
             break
         } catch {
             Start-Sleep -Seconds 3
@@ -287,25 +496,19 @@ if ($ollamaInstalled -and !$SkipModels) {
         foreach ($model in @("llama3.2:3b", "nomic-embed-text")) {
             Write-Log "Telechargement $model..." -Level "INFO"
             try {
-                $pullResult = & ollama pull $model 2>&1
+                & ollama pull $model 2>&1 | Out-Null
                 if ($LASTEXITCODE -eq 0) {
                     Write-Log "Modele $model telecharge" -Level "OK"
-                } else {
-                    Write-Log "Echec telechargement $model (code $LASTEXITCODE)" -Level "ATTENTION"
                 }
-            } catch {
-                Write-Log "Impossible de telecharger $model : $($_.Exception.Message)" -Level "ATTENTION"
-            }
+            } catch {}
         }
-    } else {
-        Write-Log "Ollama non pret apres 30s - modeles non telecharges" -Level "ATTENTION"
     }
 }
 
 $InstallStatus["ollama"] = $ollamaInstalled
 
 # ============================================
-# HELPER: CREATE PYTHON SERVICE (avec visibilite)
+# HELPER: CREATE PYTHON SERVICE
 # ============================================
 function New-PythonService {
     param(
@@ -321,17 +524,12 @@ function New-PythonService {
     $ServiceDir = "$InstallDir\$DirName"
     $LogFile = "$LogDir\install-$DirName.log"
     
-    # Heartbeat function for long operations
-    $heartbeatJob = $null
-    
     try {
-        # Create directory
         if (!(Test-Path $ServiceDir)) {
             New-Item -ItemType Directory -Path $ServiceDir -Force | Out-Null
         }
         Set-Location $ServiceDir
         
-        # Create venv
         Write-Log "Creation venv pour $Name..." -Level "INFO"
         if ($Python311Path) {
             & $Python311Path -m venv venv 2>&1 | Tee-Object -FilePath $LogFile -Append
@@ -343,46 +541,32 @@ function New-PythonService {
             throw "Echec creation venv"
         }
         
-        # Activate and install
         $pipExe = "$ServiceDir\venv\Scripts\pip.exe"
         $pythonExe = "$ServiceDir\venv\Scripts\python.exe"
         
-        # Upgrade pip (visible)
         Write-Log "  Mise a jour pip..." -Level "INFO"
         & $pythonExe -m pip install --upgrade pip 2>&1 | Tee-Object -FilePath $LogFile -Append
         
-        # Install packages with VISIBLE output
         $totalPkgs = $Packages.Count
         $pkgIndex = 0
         foreach ($pkg in $Packages) {
             $pkgIndex++
-            Write-Log "  [$pkgIndex/$totalPkgs] Installation $pkg (peut prendre plusieurs minutes)..." -Level "INFO"
-            
-            $startTime = Get-Date
+            Write-Log "  [$pkgIndex/$totalPkgs] Installation $pkg..." -Level "INFO"
             
             if ($pkg -eq "torch" -and $TorchExtra) {
-                # Torch is large - show progress
-                Write-Host "    >> Telechargement PyTorch (500-2000 MB selon GPU)..." -ForegroundColor DarkYellow
                 & $pipExe install torch $TorchExtra.Split(" ") 2>&1 | Tee-Object -FilePath $LogFile -Append
             } else {
                 & $pipExe install $pkg 2>&1 | Tee-Object -FilePath $LogFile -Append
             }
-            
-            $elapsed = (Get-Date) - $startTime
-            Write-Log "    $pkg installe en $([math]::Round($elapsed.TotalSeconds))s" -Level "OK"
         }
         
-        # Intel Arc specific
         if ($GPUType -eq "intel-arc" -and $Packages -contains "torch") {
             Write-Log "  Installation Intel Extension for PyTorch..." -Level "INFO"
-            Write-Host "    >> IPEX: telechargement en cours..." -ForegroundColor DarkYellow
             & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath $LogFile -Append
-            Write-Log "    IPEX installe" -Level "OK"
         }
         
-        # Write server code
         $ServerCode | Out-File -FilePath "$ServiceDir\server.py" -Encoding UTF8
-        Write-Log "  Fichier server.py cree" -Level "OK"
+        Write-Log "  server.py cree" -Level "OK"
         
         Set-Location $InstallDir
         return $true
@@ -396,7 +580,7 @@ function New-PythonService {
 }
 
 # ============================================
-# ETAPE 6: COMFYUI
+# ETAPE 5: COMFYUI
 # ============================================
 Write-Log "[2/8] Installation de ComfyUI (Images)" -Level "ETAPE"
 
@@ -406,23 +590,16 @@ $comfyInstalled = $false
 if (Test-Path "$ComfyUIPath\main.py") {
     $comfyInstalled = $true
     Write-Log "ComfyUI deja installe" -Level "OK"
-} else {
+} elseif (Get-Command git -ErrorAction SilentlyContinue) {
     try {
         Write-Log "Clonage de ComfyUI..." -Level "INFO"
         
-        # Utiliser Start-Process pour eviter les erreurs stderr de git
         $gitLogFile = "$LogDir\comfyui-git.log"
-        $gitProcess = Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/comfyanonymous/ComfyUI.git", "`"$ComfyUIPath`"" -Wait -PassThru -NoNewWindow -RedirectStandardError $gitLogFile -RedirectStandardOutput "$LogDir\comfyui-git-out.log"
-        
-        if ($gitProcess.ExitCode -ne 0 -and !(Test-Path "$ComfyUIPath\main.py")) {
-            $gitError = Get-Content $gitLogFile -Raw -ErrorAction SilentlyContinue
-            Write-Log "Erreur git clone (code $($gitProcess.ExitCode)) - voir $gitLogFile" -Level "ERREUR"
-        }
+        $gitProcess = Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/comfyanonymous/ComfyUI.git", "`"$ComfyUIPath`"" -Wait -PassThru -NoNewWindow -RedirectStandardError $gitLogFile
         
         if (Test-Path "$ComfyUIPath\main.py") {
             Set-Location $ComfyUIPath
             
-            # Create venv
             Write-Log "Creation venv ComfyUI..." -Level "INFO"
             if ($Python311Path) {
                 & $Python311Path -m venv venv 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
@@ -433,53 +610,44 @@ if (Test-Path "$ComfyUIPath\main.py") {
             $pipExe = "$ComfyUIPath\venv\Scripts\pip.exe"
             $pythonExe = "$ComfyUIPath\venv\Scripts\python.exe"
             
-            Write-Log "  Mise a jour pip ComfyUI..." -Level "INFO"
-            & $pythonExe -m pip install --upgrade pip 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+            & $pythonExe -m pip install --upgrade pip 2>&1 | Out-Null
             
-            # PyTorch (visible progress)
-            Write-Log "Installation PyTorch pour ComfyUI (peut prendre 5-15 min)..." -Level "INFO"
+            Write-Log "Installation PyTorch pour ComfyUI..." -Level "INFO"
             if ($GPUType -eq "nvidia") {
-                Write-Host "    >> Telechargement PyTorch CUDA (1-2 GB)..." -ForegroundColor DarkYellow
                 & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } elseif ($GPUType -eq "intel-arc") {
-                Write-Host "    >> Telechargement PyTorch + IPEX..." -ForegroundColor DarkYellow
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
                 & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } else {
-                Write-Host "    >> Telechargement PyTorch CPU..." -ForegroundColor DarkYellow
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             }
-            Write-Log "  PyTorch installe" -Level "OK"
             
-            # Requirements (visible)
             Write-Log "Installation requirements ComfyUI..." -Level "INFO"
             & $pipExe install -r requirements.txt 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
-            Write-Log "  Requirements installes" -Level "OK"
             
-            # ComfyUI Manager - aussi avec Start-Process
             Write-Log "Installation ComfyUI Manager..." -Level "INFO"
             if (!(Test-Path "$ComfyUIPath\custom_nodes")) {
                 New-Item -ItemType Directory -Path "$ComfyUIPath\custom_nodes" -Force | Out-Null
             }
             $managerPath = "$ComfyUIPath\custom_nodes\ComfyUI-Manager"
-            Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/ltdrdata/ComfyUI-Manager.git", "`"$managerPath`"" -Wait -NoNewWindow -RedirectStandardError "$LogDir\comfyui-manager-git.log"
+            Start-Process -FilePath "git" -ArgumentList "clone", "https://github.com/ltdrdata/ComfyUI-Manager.git", "`"$managerPath`"" -Wait -NoNewWindow
             
             Set-Location $InstallDir
             $comfyInstalled = $true
             Write-Log "ComfyUI installe" -Level "OK"
-        } else {
-            throw "Clonage echoue - main.py introuvable"
         }
     } catch {
         Write-Log "Echec ComfyUI: $($_.Exception.Message)" -Level "ERREUR"
         Set-Location $InstallDir
     }
+} else {
+    Write-Log "Git non disponible - ComfyUI ignore" -Level "ATTENTION"
 }
 
 $InstallStatus["comfyui"] = $comfyInstalled
 
 # ============================================
-# ETAPE 7: WHISPER (STT)
+# ETAPE 6: WHISPER (STT)
 # ============================================
 Write-Log "[3/8] Installation de Whisper (STT)" -Level "ETAPE"
 
@@ -529,7 +697,7 @@ if ($whisperInstalled) { Write-Log "Whisper installe" -Level "OK" }
 $InstallStatus["whisper"] = $whisperInstalled
 
 # ============================================
-# ETAPE 8: XTTS (TTS)
+# ETAPE 7: XTTS (TTS)
 # ============================================
 Write-Log "[4/8] Installation de XTTS (TTS)" -Level "ETAPE"
 
@@ -574,7 +742,7 @@ if ($xttsInstalled) { Write-Log "XTTS installe" -Level "OK" }
 $InstallStatus["xtts"] = $xttsInstalled
 
 # ============================================
-# ETAPE 9: MUSICGEN
+# ETAPE 8: MUSICGEN
 # ============================================
 Write-Log "[5/8] Installation de MusicGen" -Level "ETAPE"
 
@@ -625,7 +793,7 @@ if ($musicgenInstalled) { Write-Log "MusicGen installe" -Level "OK" }
 $InstallStatus["musicgen"] = $musicgenInstalled
 
 # ============================================
-# ETAPE 10: DEMUCS
+# ETAPE 9: DEMUCS
 # ============================================
 Write-Log "[6/8] Installation de Demucs (Separation)" -Level "ETAPE"
 
@@ -650,7 +818,6 @@ def separate():
         return jsonify({"error": "No audio"}), 400
     
     audio = request.files["audio"]
-    stems = request.form.get("stems", "all")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.mp3")
@@ -680,7 +847,7 @@ if ($demucsInstalled) { Write-Log "Demucs installe" -Level "OK" }
 $InstallStatus["demucs"] = $demucsInstalled
 
 # ============================================
-# ETAPE 11: CLIP
+# ETAPE 10: CLIP
 # ============================================
 Write-Log "[7/8] Installation de CLIP (Analyse)" -Level "ETAPE"
 
@@ -727,7 +894,7 @@ if ($clipInstalled) { Write-Log "CLIP installe" -Level "OK" }
 $InstallStatus["clip"] = $clipInstalled
 
 # ============================================
-# ETAPE 12: ESRGAN
+# ETAPE 11: ESRGAN
 # ============================================
 Write-Log "[8/8] Installation de ESRGAN (Upscale)" -Level "ETAPE"
 
@@ -761,7 +928,6 @@ def upscale():
         image = Image.open(io.BytesIO(request.files["image"].read()))
         image.save(input_path)
         
-        # Use realesrgan-ncnn-vulkan or fallback to simple resize
         try:
             subprocess.run([
                 "realesrgan-ncnn-vulkan",
@@ -770,7 +936,6 @@ def upscale():
                 "-s", str(scale)
             ], check=True, capture_output=True)
         except:
-            # Fallback: simple resize
             new_size = (image.width * scale, image.height * scale)
             image = image.resize(new_size, Image.LANCZOS)
             image.save(output_path)
@@ -794,7 +959,6 @@ $InstallStatus["esrgan"] = $esrganInstalled
 # ============================================
 Write-Log "Creation des scripts de gestion" -Level "ETAPE"
 
-# START SCRIPT
 $startScript = @"
 @echo off
 title MediaVault AI Services
@@ -867,7 +1031,6 @@ pause
 "@
 $startScript | Out-File -FilePath "$InstallDir\start-ai-services.bat" -Encoding ASCII
 
-# STOP SCRIPT
 $stopScript = @"
 @echo off
 title MediaVault AI - Arret
@@ -905,6 +1068,7 @@ Write-Host "                    INSTALLATION TERMINEE" -ForegroundColor Magenta
 Write-Host "==============================================================================" -ForegroundColor Magenta
 Write-Host ""
 Write-Host "GPU detecte: $GPUName" -ForegroundColor Cyan
+Write-Host "WinGet: $(if ($WinGetAvailable) { 'Disponible' } else { 'Mode Fallback' })" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Status des services:" -ForegroundColor Cyan
 
@@ -930,10 +1094,10 @@ Write-Host ""
 Write-Host "Prochaine etape: Lancer start-ai-services.bat" -ForegroundColor Cyan
 Write-Host ""
 
-# Write final config
 $config = @{
-    version = "4.0"
+    version = $SCRIPT_VERSION
     installed = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    winget_available = $WinGetAvailable
     gpu = @{
         type = $GPUType
         name = $GPUName
