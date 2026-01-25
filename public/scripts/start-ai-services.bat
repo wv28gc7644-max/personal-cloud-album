@@ -9,9 +9,19 @@ echo          MEDIAVAULT AI SUITE - DEMARRAGE DES 8 SERVICES
 echo ==============================================================================
 echo.
 
-:: Detect install directory
+:: UTILISER CHEMIN ABSOLU - %USERPROFILE%\MediaVault-AI
 set "AI_DIR=%USERPROFILE%\MediaVault-AI"
-if not exist "%AI_DIR%" set "AI_DIR=C:\AI"
+echo Dossier IA: %AI_DIR%
+
+:: Vérifier que le dossier existe
+if not exist "%AI_DIR%" (
+    echo.
+    echo [ERREUR CRITIQUE] Dossier non trouve: %AI_DIR%
+    echo Veuillez d'abord executer l'installation avec install-ai-suite-complete.ps1
+    echo.
+    pause
+    exit /b 1
+)
 
 set "ERRORS=0"
 set "LOG_DIR=%AI_DIR%\logs"
@@ -19,6 +29,7 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
 set "LOG_FILE=%LOG_DIR%\startup-%date:~-4,4%%date:~-10,2%%date:~-7,2%.log"
 echo [%date% %time%] === DEMARRAGE DES SERVICES === > "%LOG_FILE%"
+echo AI_DIR=%AI_DIR% >> "%LOG_FILE%"
 
 :: 1. Ollama
 echo [1/8] Demarrage de Ollama (LLM)...
@@ -26,51 +37,85 @@ echo [%time%] Demarrage Ollama >> "%LOG_FILE%"
 start "Ollama" /min ollama serve
 timeout /t 3 /nobreak >nul
 
-:: 2. ComfyUI
+:: 2. ComfyUI (chemin absolu avec venv)
 echo [2/8] Demarrage de ComfyUI (Images)...
-if exist "%AI_DIR%\ComfyUI" (
-    echo [%time%] Demarrage ComfyUI >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\ComfyUI"
-    start "ComfyUI" /min cmd /c "call venv\Scripts\activate.bat && python main.py --listen 0.0.0.0 --port 8188 2>> "%LOG_DIR%\comfyui.log""
+set "COMFY_DIR=%AI_DIR%\ComfyUI"
+set "COMFY_VENV=%COMFY_DIR%\venv\Scripts\activate.bat"
+echo   Test: %COMFY_DIR% >> "%LOG_FILE%"
+if exist "%COMFY_DIR%\main.py" (
+    if exist "%COMFY_VENV%" (
+        echo [%time%] Demarrage ComfyUI >> "%LOG_FILE%"
+        start "ComfyUI" /min cmd /c "cd /d "%COMFY_DIR%" && call venv\Scripts\activate.bat && python main.py --listen 0.0.0.0 --port 8188 2>> "%LOG_DIR%\comfyui.log""
+    ) else (
+        echo   [ERREUR] ComfyUI venv non trouve: %COMFY_VENV%
+        echo [%time%] ERREUR: ComfyUI venv manquant >> "%LOG_FILE%"
+        set /a ERRORS+=1
+    )
 ) else (
-    echo   [ERREUR] ComfyUI non installe - dossier introuvable
+    echo   [ERREUR] ComfyUI non installe - dossier introuvable: %COMFY_DIR%
     echo [%time%] ERREUR: ComfyUI non installe >> "%LOG_FILE%"
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 3. Whisper
+:: 3. Whisper (chemin absolu - vérifier server.py)
 echo [3/8] Demarrage de Whisper (STT)...
-if exist "%AI_DIR%\whisper-api\whisper_server.py" (
-    echo [%time%] Demarrage Whisper >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\whisper-api"
-    start "Whisper" /min cmd /c "call venv\Scripts\activate.bat && python whisper_server.py 2>> "%LOG_DIR%\whisper.log""
+set "WHISPER_DIR=%AI_DIR%\whisper-api"
+set "WHISPER_VENV=%WHISPER_DIR%\venv\Scripts\activate.bat"
+set "WHISPER_SERVER=%WHISPER_DIR%\server.py"
+echo   Test: %WHISPER_DIR% >> "%LOG_FILE%"
+if exist "%WHISPER_SERVER%" (
+    if exist "%WHISPER_VENV%" (
+        echo [%time%] Demarrage Whisper >> "%LOG_FILE%"
+        start "Whisper" /min cmd /c "cd /d "%WHISPER_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\whisper.log""
+    ) else (
+        echo   [ERREUR] Whisper venv non trouve
+        echo [%time%] ERREUR: Whisper venv manquant >> "%LOG_FILE%"
+        set /a ERRORS+=1
+    )
 ) else (
-    echo   [ERREUR] Whisper non installe
+    echo   [ERREUR] Whisper non installe - server.py introuvable: %WHISPER_SERVER%
     echo [%time%] ERREUR: Whisper non installe >> "%LOG_FILE%"
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 4. XTTS
+:: 4. XTTS (chemin absolu)
 echo [4/8] Demarrage de XTTS (TTS)...
-if exist "%AI_DIR%\xtts-api\xtts_server.py" (
-    echo [%time%] Demarrage XTTS >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\xtts-api"
-    start "XTTS" /min cmd /c "call venv\Scripts\activate.bat && python xtts_server.py 2>> "%LOG_DIR%\xtts.log""
+set "XTTS_DIR=%AI_DIR%\xtts-api"
+set "XTTS_VENV=%XTTS_DIR%\venv\Scripts\activate.bat"
+set "XTTS_SERVER=%XTTS_DIR%\server.py"
+echo   Test: %XTTS_DIR% >> "%LOG_FILE%"
+if exist "%XTTS_SERVER%" (
+    if exist "%XTTS_VENV%" (
+        echo [%time%] Demarrage XTTS >> "%LOG_FILE%"
+        start "XTTS" /min cmd /c "cd /d "%XTTS_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\xtts.log""
+    ) else (
+        echo   [ERREUR] XTTS venv non trouve
+        echo [%time%] ERREUR: XTTS venv manquant >> "%LOG_FILE%"
+        set /a ERRORS+=1
+    )
 ) else (
-    echo   [ERREUR] XTTS non installe
+    echo   [ERREUR] XTTS non installe - server.py introuvable: %XTTS_SERVER%
     echo [%time%] ERREUR: XTTS non installe >> "%LOG_FILE%"
     set /a ERRORS+=1
 )
 timeout /t 2 /nobreak >nul
 
-:: 5. MusicGen
+:: 5. MusicGen (chemin absolu)
 echo [5/8] Demarrage de MusicGen...
-if exist "%AI_DIR%\musicgen-api\musicgen_server.py" (
-    echo [%time%] Demarrage MusicGen >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\musicgen-api"
-    start "MusicGen" /min cmd /c "call venv\Scripts\activate.bat && python musicgen_server.py 2>> "%LOG_DIR%\musicgen.log""
+set "MUSICGEN_DIR=%AI_DIR%\musicgen-api"
+set "MUSICGEN_VENV=%MUSICGEN_DIR%\venv\Scripts\activate.bat"
+set "MUSICGEN_SERVER=%MUSICGEN_DIR%\server.py"
+echo   Test: %MUSICGEN_DIR% >> "%LOG_FILE%"
+if exist "%MUSICGEN_SERVER%" (
+    if exist "%MUSICGEN_VENV%" (
+        echo [%time%] Demarrage MusicGen >> "%LOG_FILE%"
+        start "MusicGen" /min cmd /c "cd /d "%MUSICGEN_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\musicgen.log""
+    ) else (
+        echo   [ERREUR] MusicGen venv non trouve
+        set /a ERRORS+=1
+    )
 ) else (
     echo   [ERREUR] MusicGen non installe
     echo [%time%] ERREUR: MusicGen non installe >> "%LOG_FILE%"
@@ -78,12 +123,20 @@ if exist "%AI_DIR%\musicgen-api\musicgen_server.py" (
 )
 timeout /t 2 /nobreak >nul
 
-:: 6. Demucs
+:: 6. Demucs (chemin absolu)
 echo [6/8] Demarrage de Demucs...
-if exist "%AI_DIR%\demucs-api\demucs_server.py" (
-    echo [%time%] Demarrage Demucs >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\demucs-api"
-    start "Demucs" /min cmd /c "call venv\Scripts\activate.bat && python demucs_server.py 2>> "%LOG_DIR%\demucs.log""
+set "DEMUCS_DIR=%AI_DIR%\demucs-api"
+set "DEMUCS_VENV=%DEMUCS_DIR%\venv\Scripts\activate.bat"
+set "DEMUCS_SERVER=%DEMUCS_DIR%\server.py"
+echo   Test: %DEMUCS_DIR% >> "%LOG_FILE%"
+if exist "%DEMUCS_SERVER%" (
+    if exist "%DEMUCS_VENV%" (
+        echo [%time%] Demarrage Demucs >> "%LOG_FILE%"
+        start "Demucs" /min cmd /c "cd /d "%DEMUCS_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\demucs.log""
+    ) else (
+        echo   [ERREUR] Demucs venv non trouve
+        set /a ERRORS+=1
+    )
 ) else (
     echo   [ERREUR] Demucs non installe
     echo [%time%] ERREUR: Demucs non installe >> "%LOG_FILE%"
@@ -91,12 +144,20 @@ if exist "%AI_DIR%\demucs-api\demucs_server.py" (
 )
 timeout /t 2 /nobreak >nul
 
-:: 7. CLIP
+:: 7. CLIP (chemin absolu)
 echo [7/8] Demarrage de CLIP (Analyse)...
-if exist "%AI_DIR%\clip-api\clip_server.py" (
-    echo [%time%] Demarrage CLIP >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\clip-api"
-    start "CLIP" /min cmd /c "call venv\Scripts\activate.bat && python clip_server.py 2>> "%LOG_DIR%\clip.log""
+set "CLIP_DIR=%AI_DIR%\clip-api"
+set "CLIP_VENV=%CLIP_DIR%\venv\Scripts\activate.bat"
+set "CLIP_SERVER=%CLIP_DIR%\server.py"
+echo   Test: %CLIP_DIR% >> "%LOG_FILE%"
+if exist "%CLIP_SERVER%" (
+    if exist "%CLIP_VENV%" (
+        echo [%time%] Demarrage CLIP >> "%LOG_FILE%"
+        start "CLIP" /min cmd /c "cd /d "%CLIP_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\clip.log""
+    ) else (
+        echo   [ERREUR] CLIP venv non trouve
+        set /a ERRORS+=1
+    )
 ) else (
     echo   [ERREUR] CLIP non installe
     echo [%time%] ERREUR: CLIP non installe >> "%LOG_FILE%"
@@ -104,12 +165,20 @@ if exist "%AI_DIR%\clip-api\clip_server.py" (
 )
 timeout /t 2 /nobreak >nul
 
-:: 8. ESRGAN
+:: 8. ESRGAN (chemin absolu)
 echo [8/8] Demarrage de ESRGAN (Upscale)...
-if exist "%AI_DIR%\esrgan-api\esrgan_server.py" (
-    echo [%time%] Demarrage ESRGAN >> "%LOG_FILE%"
-    cd /d "%AI_DIR%\esrgan-api"
-    start "ESRGAN" /min cmd /c "call venv\Scripts\activate.bat && python esrgan_server.py 2>> "%LOG_DIR%\esrgan.log""
+set "ESRGAN_DIR=%AI_DIR%\esrgan-api"
+set "ESRGAN_VENV=%ESRGAN_DIR%\venv\Scripts\activate.bat"
+set "ESRGAN_SERVER=%ESRGAN_DIR%\server.py"
+echo   Test: %ESRGAN_DIR% >> "%LOG_FILE%"
+if exist "%ESRGAN_SERVER%" (
+    if exist "%ESRGAN_VENV%" (
+        echo [%time%] Demarrage ESRGAN >> "%LOG_FILE%"
+        start "ESRGAN" /min cmd /c "cd /d "%ESRGAN_DIR%" && call venv\Scripts\activate.bat && python server.py 2>> "%LOG_DIR%\esrgan.log""
+    ) else (
+        echo   [ERREUR] ESRGAN venv non trouve
+        set /a ERRORS+=1
+    )
 ) else (
     echo   [ERREUR] ESRGAN non installe
     echo [%time%] ERREUR: ESRGAN non installe >> "%LOG_FILE%"

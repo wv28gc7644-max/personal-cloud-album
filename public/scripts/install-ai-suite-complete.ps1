@@ -562,7 +562,15 @@ function New-PythonService {
         
         if ($GPUType -eq "intel-arc" -and $Packages -contains "torch") {
             Write-Log "  Installation Intel Extension for PyTorch..." -Level "INFO"
-            & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath $LogFile -Append
+            # IMPORTANT: IPEX nécessite le repository Intel officiel
+            $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+            $ipexResult | Tee-Object -FilePath $LogFile -Append
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Log "  [ATTENTION] IPEX non installé - mode CPU standard" -Level "ATTENTION"
+            } else {
+                Write-Log "  Intel Extension for PyTorch installé" -Level "OK"
+            }
         }
         
         $ServerCode | Out-File -FilePath "$ServiceDir\server.py" -Encoding UTF8
@@ -617,7 +625,10 @@ if (Test-Path "$ComfyUIPath\main.py") {
                 & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } elseif ($GPUType -eq "intel-arc") {
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
-                & $pipExe install intel-extension-for-pytorch 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                # IMPORTANT: IPEX nécessite le repository Intel officiel
+                Write-Log "Installation Intel Extension for PyTorch (ComfyUI)..." -Level "INFO"
+                & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                & $pipExe install openvino openvino-dev 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } else {
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             }

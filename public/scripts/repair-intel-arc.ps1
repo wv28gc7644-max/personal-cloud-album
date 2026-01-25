@@ -85,7 +85,15 @@ if (Test-Path $ComfyDir) {
         Write-Info "Installation de PyTorch avec Intel Extension..."
         # PyTorch CPU + Intel Extension for PyTorch (IPEX)
         & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        & $pipExe install intel-extension-for-pytorch
+        
+        # IMPORTANT: IPEX nécessite le repository Intel officiel
+        Write-Info "Installation Intel Extension for PyTorch (IPEX)..."
+        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "IPEX non installé - mode CPU standard utilisé"
+        } else {
+            Write-OK "IPEX installé avec succès"
+        }
         
         # Installer aussi OpenVINO pour certains modèles
         & $pipExe install openvino openvino-dev
@@ -142,7 +150,15 @@ if (Test-Path $XttsDir) {
         
         Write-Info "Installation de PyTorch CPU + Intel Extension..."
         & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        & $pipExe install intel-extension-for-pytorch
+        
+        # IMPORTANT: IPEX nécessite le repository Intel officiel
+        Write-Info "Installation Intel Extension for PyTorch (IPEX)..."
+        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "IPEX non installé - mode CPU standard utilisé"
+        } else {
+            Write-OK "IPEX installé avec succès"
+        }
         
         Write-OK "XTTS réparé avec support Intel"
         
