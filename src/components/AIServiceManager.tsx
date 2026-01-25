@@ -21,7 +21,8 @@ import {
   ChevronRight,
   ExternalLink,
   Package,
-  FolderOpen
+  FolderOpen,
+  Stethoscope
 } from 'lucide-react';
 import { useLocalAIDiagnostics, AIServiceStatus, DiagnosticLog } from '@/hooks/useLocalAIDiagnostics';
 import { useLocalAI } from '@/hooks/useLocalAI';
@@ -447,6 +448,33 @@ export function AIServiceManager() {
                     <Play className="w-6 h-6" />
                     <span className="font-semibold">Démarrer les services</span>
                     <span className="text-xs opacity-80">start-ai-services.bat</span>
+                  </Button>
+                </div>
+                
+                {/* Boutons Intel Arc + Diagnostic */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2 border-blue-500/50 hover:bg-blue-500/10"
+                    onClick={() => downloadScript('repair-intel-arc.ps1')}
+                  >
+                    <Cpu className="w-6 h-6 text-blue-500" />
+                    <span className="font-semibold">Réparation Intel Arc</span>
+                    <span className="text-xs opacity-80">repair-intel-arc.ps1</span>
+                    <Badge variant="secondary" className="text-[10px] mt-1">GPU Intel</Badge>
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2 border-green-500/50 hover:bg-green-500/10"
+                    onClick={() => downloadScript('diagnose-services.bat')}
+                  >
+                    <Stethoscope className="w-6 h-6 text-green-500" />
+                    <span className="font-semibold">Diagnostic rapide</span>
+                    <span className="text-xs opacity-80">diagnose-services.bat</span>
+                    <Badge variant="secondary" className="text-[10px] mt-1">Dossiers + Ports</Badge>
                   </Button>
                 </div>
               </div>
