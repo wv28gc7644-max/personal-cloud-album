@@ -1,6 +1,29 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Download, Trash2, RefreshCw, CheckCircle2, XCircle, AlertCircle, Loader2, Copy, FileText, Play, Square, Terminal, HardDrive, Cpu, Zap, ChevronDown, ChevronRight, ExternalLink, Package, FolderOpen } from 'lucide-react';
+import { 
+  Activity, 
+  Download, 
+  Trash2, 
+  RefreshCw, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle,
+  Loader2,
+  Copy,
+  FileText,
+  Play,
+  Square,
+  Terminal,
+  HardDrive,
+  Cpu,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Package,
+  FolderOpen,
+  Stethoscope
+} from 'lucide-react';
 import { useLocalAIDiagnostics, AIServiceStatus, DiagnosticLog } from '@/hooks/useLocalAIDiagnostics';
 import { useLocalAI } from '@/hooks/useLocalAI';
 import { Button } from '@/components/ui/button';
@@ -11,10 +34,8 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-const SERVICE_INSTALL_COMMANDS: Record<string, {
-  windows: string;
-  docker: string;
-}> = {
+
+const SERVICE_INSTALL_COMMANDS: Record<string, { windows: string; docker: string }> = {
   ollama: {
     windows: 'winget install Ollama.Ollama',
     docker: 'docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama'
@@ -48,10 +69,11 @@ const SERVICE_INSTALL_COMMANDS: Record<string, {
     docker: 'docker build -t mediavault-esrgan ./docker/esrgan && docker run -d -p 8070:8070 mediavault-esrgan'
   }
 };
+
 export function AIServiceManager() {
-  const {
-    services,
-    logs,
+  const { 
+    services, 
+    logs, 
     systemInfo,
     isRunningDiagnostics,
     runFullDiagnostics,
@@ -60,14 +82,15 @@ export function AIServiceManager() {
     downloadLogs,
     copyLogsToClipboard
   } = useLocalAIDiagnostics();
-  const {
-    config
-  } = useLocalAI();
+  
+  const { config } = useLocalAI();
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [installMethod, setInstallMethod] = useState<'windows' | 'docker'>('windows');
+
   useEffect(() => {
     runFullDiagnostics();
   }, []);
+
   const getStatusIcon = (status: AIServiceStatus['status']) => {
     switch (status) {
       case 'online':
@@ -82,6 +105,7 @@ export function AIServiceManager() {
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
     }
   };
+
   const getStatusBadge = (status: AIServiceStatus['status']) => {
     const variants: Record<typeof status, string> = {
       online: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -99,10 +123,13 @@ export function AIServiceManager() {
       checking: 'Vérification...',
       blocked: 'Bloqué (HTTPS)'
     };
-    return <Badge variant="outline" className={cn('text-xs', variants[status])}>
+    return (
+      <Badge variant="outline" className={cn('text-xs', variants[status])}>
         {labels[status]}
-      </Badge>;
+      </Badge>
+    );
   };
+
   const getLogIcon = (level: DiagnosticLog['level']) => {
     switch (level) {
       case 'success':
@@ -115,6 +142,7 @@ export function AIServiceManager() {
         return <Activity className="w-4 h-4 text-blue-500" />;
     }
   };
+
   const handleCopyLogs = async () => {
     const success = await copyLogsToClipboard();
     if (success) {
@@ -123,6 +151,7 @@ export function AIServiceManager() {
       toast.error('Impossible de copier les logs');
     }
   };
+
   const downloadScript = (scriptName: string) => {
     const link = document.createElement('a');
     link.href = `/scripts/${scriptName}`;
@@ -132,10 +161,17 @@ export function AIServiceManager() {
     document.body.removeChild(link);
     toast.success(`Script ${scriptName} téléchargé`);
   };
+
   const onlineCount = services.filter(s => s.status === 'online').length;
   const offlineCount = services.filter(s => s.status === 'offline' || s.status === 'not_installed').length;
-  const gpuLabel = systemInfo?.gpuType === 'intel-arc' ? 'Intel Arc' : systemInfo?.gpuType === 'nvidia' ? 'NVIDIA' : systemInfo?.gpuType === 'amd' ? 'AMD' : systemInfo?.gpu?.split('/')[0]?.slice(0, 20) || 'Non détecté';
-  return <div className="space-y-6">
+
+  const gpuLabel = systemInfo?.gpuType === 'intel-arc' ? 'Intel Arc' :
+                   systemInfo?.gpuType === 'nvidia' ? 'NVIDIA' :
+                   systemInfo?.gpuType === 'amd' ? 'AMD' :
+                   systemInfo?.gpu?.split('/')[0]?.slice(0, 20) || 'Non détecté';
+
+  return (
+    <div className="space-y-6">
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-card/50">
@@ -164,8 +200,16 @@ export function AIServiceManager() {
         
         <Card className="bg-card/50">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className={cn("p-3 rounded-lg", systemInfo?.gpuType === 'intel-arc' ? "bg-blue-500/20" : systemInfo?.gpuType === 'nvidia' ? "bg-green-500/20" : "bg-muted")}>
-              <Cpu className={cn("w-6 h-6", systemInfo?.gpuType === 'intel-arc' ? "text-blue-500" : systemInfo?.gpuType === 'nvidia' ? "text-green-500" : "text-muted-foreground")} />
+            <div className={cn(
+              "p-3 rounded-lg",
+              systemInfo?.gpuType === 'intel-arc' ? "bg-blue-500/20" :
+              systemInfo?.gpuType === 'nvidia' ? "bg-green-500/20" : "bg-muted"
+            )}>
+              <Cpu className={cn(
+                "w-6 h-6",
+                systemInfo?.gpuType === 'intel-arc' ? "text-blue-500" :
+                systemInfo?.gpuType === 'nvidia' ? "text-green-500" : "text-muted-foreground"
+              )} />
             </div>
             <div>
               <p className="text-sm font-medium truncate max-w-[150px]">{gpuLabel}</p>
@@ -198,8 +242,16 @@ export function AIServiceManager() {
         {/* Services Tab */}
         <TabsContent value="services" className="space-y-4">
           <div className="flex gap-2 flex-wrap">
-            <Button onClick={runFullDiagnostics} disabled={isRunningDiagnostics} className="gap-2">
-              {isRunningDiagnostics ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <Button 
+              onClick={runFullDiagnostics} 
+              disabled={isRunningDiagnostics}
+              className="gap-2"
+            >
+              {isRunningDiagnostics ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
               Vérifier tous les services
             </Button>
             
@@ -216,17 +268,24 @@ export function AIServiceManager() {
 
           <div className="grid gap-3">
             <AnimatePresence>
-              {services.map((service, index) => <motion.div key={service.id} initial={{
-              opacity: 0,
-              y: 10
-            }} animate={{
-              opacity: 1,
-              y: 0
-            }} transition={{
-              delay: index * 0.05
-            }}>
-                  <Collapsible open={expandedService === service.id} onOpenChange={open => setExpandedService(open ? service.id : null)}>
-                    <Card className={cn("transition-all", service.status === 'online' && "border-green-500/30", service.status === 'offline' && "border-red-500/30", service.status === 'not_installed' && "border-orange-500/30", service.status === 'error' && "border-yellow-500/30")}>
+              {services.map((service, index) => (
+                <motion.div
+                  key={service.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <Collapsible
+                    open={expandedService === service.id}
+                    onOpenChange={(open) => setExpandedService(open ? service.id : null)}
+                  >
+                    <Card className={cn(
+                      "transition-all",
+                      service.status === 'online' && "border-green-500/30",
+                      service.status === 'offline' && "border-red-500/30",
+                      service.status === 'not_installed' && "border-orange-500/30",
+                      service.status === 'error' && "border-yellow-500/30"
+                    )}>
                       <CollapsibleTrigger className="w-full">
                         <CardContent className="p-4 flex items-center justify-between">
                           <div className="flex items-center gap-4">
@@ -234,69 +293,109 @@ export function AIServiceManager() {
                             <div className="text-left">
                               <div className="flex items-center gap-2">
                                 <p className="font-medium">{service.name}</p>
-                                {service.portMode && <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                {service.portMode && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0">
                                     {service.portMode}
-                                  </Badge>}
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-muted-foreground">{service.url}</p>
                             </div>
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            {service.latency && <span className="text-xs text-muted-foreground">
+                            {service.latency && (
+                              <span className="text-xs text-muted-foreground">
                                 {service.latency}ms
-                              </span>}
+                              </span>
+                            )}
                             {getStatusBadge(service.status)}
-                            {expandedService === service.id ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                            {expandedService === service.id ? (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            )}
                           </div>
                         </CardContent>
                       </CollapsibleTrigger>
                       
                       <CollapsibleContent>
                         <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                          {service.error && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm">
+                          {service.error && (
+                            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm">
                               <p className="font-medium text-red-400 mb-1">Erreur:</p>
                               <p className="text-red-300">{service.error}</p>
-                            </div>}
+                            </div>
+                          )}
                           
-                          {service.installPath && <div className="p-2 rounded bg-muted/50 text-xs font-mono flex items-center gap-2">
+                          {service.installPath && (
+                            <div className="p-2 rounded bg-muted/50 text-xs font-mono flex items-center gap-2">
                               <FolderOpen className="w-3 h-3" />
                               <span>%USERPROFILE%\MediaVault-AI\{service.installPath}</span>
-                            </div>}
+                            </div>
+                          )}
                           
-                          {service.capabilities && <div>
+                          {service.capabilities && (
+                            <div>
                               <p className="text-sm text-muted-foreground mb-2">Fonctionnalités:</p>
                               <div className="flex flex-wrap gap-1">
-                                {service.capabilities.map(cap => <Badge key={cap} variant="secondary" className="text-xs">
+                                {service.capabilities.map(cap => (
+                                  <Badge key={cap} variant="secondary" className="text-xs">
                                     {cap}
-                                  </Badge>)}
+                                  </Badge>
+                                ))}
                               </div>
-                            </div>}
+                            </div>
+                          )}
                           
                           <div className="flex gap-2 flex-wrap">
-                            <Button size="sm" variant="outline" onClick={() => checkSingleService(service.id)} className="gap-1">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => checkSingleService(service.id)}
+                              className="gap-1"
+                            >
                               <RefreshCw className="w-3 h-3" />
                               Retester
                             </Button>
                             
-                            {service.status === 'online' && <Button size="sm" variant="outline" onClick={() => window.open(service.url, '_blank')} className="gap-1">
+                            {service.status === 'online' && (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => window.open(service.url, '_blank')}
+                                className="gap-1"
+                              >
                                 <ExternalLink className="w-3 h-3" />
                                 Ouvrir
-                              </Button>}
+                              </Button>
+                            )}
                             
-                            {(service.status === 'offline' || service.status === 'not_installed') && SERVICE_INSTALL_COMMANDS[service.id] && <Button size="sm" variant="default" onClick={() => {
-                          navigator.clipboard.writeText(installMethod === 'windows' ? SERVICE_INSTALL_COMMANDS[service.id].windows : SERVICE_INSTALL_COMMANDS[service.id].docker);
-                          toast.success('Commande copiée');
-                        }} className="gap-1">
+                            {(service.status === 'offline' || service.status === 'not_installed') && SERVICE_INSTALL_COMMANDS[service.id] && (
+                              <Button 
+                                size="sm" 
+                                variant="default"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    installMethod === 'windows' 
+                                      ? SERVICE_INSTALL_COMMANDS[service.id].windows
+                                      : SERVICE_INSTALL_COMMANDS[service.id].docker
+                                  );
+                                  toast.success('Commande copiée');
+                                }}
+                                className="gap-1"
+                              >
                                 <Copy className="w-3 h-3" />
                                 Copier commande
-                              </Button>}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CollapsibleContent>
                     </Card>
                   </Collapsible>
-                </motion.div>)}
+                </motion.div>
+              ))}
             </AnimatePresence>
           </div>
         </TabsContent>
@@ -319,22 +418,63 @@ export function AIServiceManager() {
               <div className="space-y-3">
                 <p className="text-sm font-medium">Mode normal (1 clic)</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Button size="lg" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('install-ai-suite-auto.bat')}>
+                  <Button
+                    size="lg"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('install-ai-suite-auto.bat')}
+                  >
                     <Download className="w-6 h-6" />
                     <span className="font-semibold">Installation + diagnostic</span>
                     <span className="text-xs opacity-80">install-ai-suite-auto.bat</span>
                   </Button>
 
-                  <Button size="lg" variant="secondary" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('install-ai-suite-complete.ps1')}>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('install-ai-suite-complete.ps1')}
+                  >
                     <Download className="w-6 h-6" />
                     <span className="font-semibold">Installation PowerShell</span>
                     <span className="text-xs opacity-80">install-ai-suite-complete.ps1</span>
                   </Button>
 
-                  <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('start-ai-services.bat')}>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2"
+                    onClick={() => downloadScript('start-ai-services.bat')}
+                  >
                     <Play className="w-6 h-6" />
                     <span className="font-semibold">Démarrer les services</span>
                     <span className="text-xs opacity-80">start-ai-services.bat</span>
+                  </Button>
+                </div>
+                
+                {/* Boutons Intel Arc + Diagnostic */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2 border-blue-500/50 hover:bg-blue-500/10"
+                    onClick={() => downloadScript('repair-intel-arc.ps1')}
+                  >
+                    <Cpu className="w-6 h-6 text-blue-500" />
+                    <span className="font-semibold">Réparation Intel Arc</span>
+                    <span className="text-xs opacity-80">repair-intel-arc.ps1</span>
+                    <Badge variant="secondary" className="text-[10px] mt-1">GPU Intel</Badge>
+                  </Button>
+
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-auto py-4 flex-col gap-2 border-green-500/50 hover:bg-green-500/10"
+                    onClick={() => downloadScript('diagnose-services.bat')}
+                  >
+                    <Stethoscope className="w-6 h-6 text-green-500" />
+                    <span className="font-semibold">Diagnostic rapide</span>
+                    <span className="text-xs opacity-80">diagnose-services.bat</span>
+                    <Badge variant="secondary" className="text-[10px] mt-1">Dossiers + Ports</Badge>
                   </Button>
                 </div>
               </div>
@@ -368,7 +508,7 @@ export function AIServiceManager() {
                   </Button>
 
                   <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('step-04-ollama.bat')}>
-                    
+                    <FileText className="w-6 h-6" />
                     <span className="font-semibold">Étape 04</span>
                     <span className="text-xs opacity-80">Ollama</span>
                   </Button>
@@ -391,50 +531,66 @@ export function AIServiceManager() {
 
               {/* Outils */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('stop-ai-services.bat')}>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2"
+                  onClick={() => downloadScript('stop-ai-services.bat')}
+                >
                   <Square className="w-6 h-6" />
                   <span className="font-semibold">Arrêter les services</span>
                   <span className="text-xs opacity-80">stop-ai-services.bat</span>
                 </Button>
 
-                <Button size="lg" variant="outline" className="h-auto py-4 flex-col gap-2 border-amber-500/50 hover:bg-amber-500/10" onClick={async () => {
-                try {
-                  const response = await fetch('http://localhost:3001/api/ai/install-logs');
-                  if (!response.ok) {
-                    const err = await response.json();
-                    toast.error(err.error || 'Impossible de récupérer les logs');
-                    return;
-                  }
-                  const data = await response.json();
-                  const blob = new Blob([data.content], {
-                    type: 'text/plain'
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = data.filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                  toast.success(`Log téléchargé: ${data.filename}`);
-                } catch (e) {
-                  toast.error('Serveur local non accessible. Lancez server.cjs d\'abord.');
-                }
-              }}>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  className="h-auto py-4 flex-col gap-2 border-amber-500/50 hover:bg-amber-500/10"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('http://localhost:3001/api/ai/install-logs');
+                      if (!response.ok) {
+                        const err = await response.json();
+                        toast.error(err.error || 'Impossible de récupérer les logs');
+                        return;
+                      }
+                      const data = await response.json();
+
+                      const blob = new Blob([data.content], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = data.filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+
+                      toast.success(`Log téléchargé: ${data.filename}`);
+                    } catch (e) {
+                      toast.error('Serveur local non accessible. Lancez server.cjs d\'abord.');
+                    }
+                  }}
+                >
                   <FileText className="w-6 h-6 text-amber-500" />
                   <span className="font-semibold">Dernier log d'installation</span>
                   <span className="text-xs opacity-80">Télécharger automatiquement</span>
                 </Button>
 
-                <Button size="lg" variant="destructive" className="h-auto py-4 flex-col gap-2" onClick={() => downloadScript('uninstall-ai-suite.bat')}>
+                <Button 
+                  size="lg" 
+                  variant="destructive"
+                  className="h-auto py-4 flex-col gap-2"
+                  onClick={() => downloadScript('uninstall-ai-suite.bat')}
+                >
                   <Trash2 className="w-6 h-6" />
                   <span className="font-semibold">Désinstallation</span>
                   <span className="text-xs opacity-80">uninstall-ai-suite.bat</span>
                 </Button>
               </div>
               
-              {systemInfo?.gpuType === 'intel-arc' && <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+              {systemInfo?.gpuType === 'intel-arc' && (
+                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
                   <h4 className="font-semibold text-blue-400 mb-2 flex items-center gap-2">
                     <Zap className="w-4 h-4" />
                     Intel Arc GPU Détecté
@@ -443,7 +599,8 @@ export function AIServiceManager() {
                     Votre système dispose d'un GPU Intel Arc. Le script d'installation configurera 
                     automatiquement PyTorch avec support Intel OneAPI pour de meilleures performances.
                   </p>
-                </div>}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -457,32 +614,55 @@ export function AIServiceManager() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Button variant={installMethod === 'windows' ? 'default' : 'outline'} size="sm" onClick={() => setInstallMethod('windows')}>
+                <Button 
+                  variant={installMethod === 'windows' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInstallMethod('windows')}
+                >
                   Windows
                 </Button>
-                <Button variant={installMethod === 'docker' ? 'default' : 'outline'} size="sm" onClick={() => setInstallMethod('docker')}>
+                <Button 
+                  variant={installMethod === 'docker' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInstallMethod('docker')}
+                >
                   Docker
                 </Button>
               </div>
               
               <div className="space-y-3">
-                {services.map(service => <div key={service.id} className="p-3 rounded-lg bg-muted/30 border">
+                {services.map(service => (
+                  <div key={service.id} className="p-3 rounded-lg bg-muted/30 border">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">{service.name}</span>
                       {getStatusBadge(service.status)}
                     </div>
-                    {SERVICE_INSTALL_COMMANDS[service.id] && <div className="flex gap-2">
+                    {SERVICE_INSTALL_COMMANDS[service.id] && (
+                      <div className="flex gap-2">
                         <code className="flex-1 text-xs bg-background p-2 rounded overflow-x-auto">
-                          {installMethod === 'windows' ? SERVICE_INSTALL_COMMANDS[service.id].windows : SERVICE_INSTALL_COMMANDS[service.id].docker}
+                          {installMethod === 'windows' 
+                            ? SERVICE_INSTALL_COMMANDS[service.id].windows
+                            : SERVICE_INSTALL_COMMANDS[service.id].docker
+                          }
                         </code>
-                        <Button size="sm" variant="ghost" onClick={() => {
-                    navigator.clipboard.writeText(installMethod === 'windows' ? SERVICE_INSTALL_COMMANDS[service.id].windows : SERVICE_INSTALL_COMMANDS[service.id].docker);
-                    toast.success('Commande copiée');
-                  }}>
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              installMethod === 'windows' 
+                                ? SERVICE_INSTALL_COMMANDS[service.id].windows
+                                : SERVICE_INSTALL_COMMANDS[service.id].docker
+                            );
+                            toast.success('Commande copiée');
+                          }}
+                        >
                           <Copy className="w-4 h-4" />
                         </Button>
-                      </div>}
-                  </div>)}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -506,15 +686,23 @@ export function AIServiceManager() {
           <Card>
             <ScrollArea className="h-[400px]">
               <div className="p-4 space-y-2 font-mono text-sm">
-                {logs.length === 0 ? <p className="text-muted-foreground text-center py-8">
+                {logs.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
                     Aucun log. Lancez un diagnostic pour commencer.
-                  </p> : logs.map(log => <motion.div key={log.id} initial={{
-                opacity: 0,
-                x: -10
-              }} animate={{
-                opacity: 1,
-                x: 0
-              }} className={cn("flex gap-2 p-2 rounded", log.level === 'error' && "bg-red-500/10", log.level === 'warning' && "bg-yellow-500/10", log.level === 'success' && "bg-green-500/10")}>
+                  </p>
+                ) : (
+                  logs.map(log => (
+                    <motion.div
+                      key={log.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={cn(
+                        "flex gap-2 p-2 rounded",
+                        log.level === 'error' && "bg-red-500/10",
+                        log.level === 'warning' && "bg-yellow-500/10",
+                        log.level === 'success' && "bg-green-500/10"
+                      )}
+                    >
                       {getLogIcon(log.level)}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -523,14 +711,22 @@ export function AIServiceManager() {
                             {log.service}
                           </Badge>
                         </div>
-                        <p className={cn(log.level === 'error' && "text-red-400", log.level === 'warning' && "text-yellow-400", log.level === 'success' && "text-green-400")}>
+                        <p className={cn(
+                          log.level === 'error' && "text-red-400",
+                          log.level === 'warning' && "text-yellow-400",
+                          log.level === 'success' && "text-green-400"
+                        )}>
                           {log.message}
                         </p>
-                        {log.details && <p className="text-xs text-muted-foreground mt-1">
+                        {log.details && (
+                          <p className="text-xs text-muted-foreground mt-1">
                             → {log.details}
-                          </p>}
+                          </p>
+                        )}
                       </div>
-                    </motion.div>)}
+                    </motion.div>
+                  ))
+                )}
               </div>
             </ScrollArea>
           </Card>
@@ -610,5 +806,6 @@ export function AIServiceManager() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>;
+    </div>
+  );
 }
