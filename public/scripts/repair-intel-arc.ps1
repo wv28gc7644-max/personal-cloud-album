@@ -66,6 +66,49 @@ if ($gpu) {
 }
 
 # ============================================================================
+# DÉTECTION PYTHON 3.11
+# ============================================================================
+Write-Step "Détection de Python 3.11"
+
+$Python311Path = $null
+$possiblePaths = @(
+    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+    "$env:ProgramFiles\Python311\python.exe",
+    "C:\Python311\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python311-64\python.exe"
+)
+
+foreach ($path in $possiblePaths) {
+    if (Test-Path $path) {
+        try {
+            $version = & $path --version 2>&1
+            if ($version -match "3\.11") {
+                $Python311Path = $path
+                Write-OK "Python 3.11 trouvé: $path"
+                break
+            }
+        } catch {}
+    }
+}
+
+if (-not $Python311Path) {
+    try {
+        $pyResult = & py -3.11 --version 2>&1
+        if ($LASTEXITCODE -eq 0 -and $pyResult -match "3\.11") {
+            $Python311Path = "py311"
+            Write-OK "Python 3.11 via py launcher"
+        }
+    } catch {}
+}
+
+if (-not $Python311Path) {
+    Write-Err "Python 3.11 non trouvé! IPEX nécessite Python 3.9-3.12"
+    Write-Info "Installez Python 3.11 depuis: https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
+    pause
+    exit 1
+}
+
+# ============================================================================
 # RÉPARATION COMFYUI
 # ============================================================================
 Write-Step "Réparation de ComfyUI pour Intel Arc"
@@ -78,6 +121,55 @@ if (Test-Path $ComfyDir) {
     $pythonExe = Join-Path $venvPath "Scripts\python.exe"
     $pipExe = Join-Path $venvPath "Scripts\pip.exe"
     
+    # CORRECTION: Recréer le venv s'il est manquant ou utilise la mauvaise version Python
+    $needRecreate = $false
+    
+    if (-not (Test-Path $pythonExe)) {
+        Write-Warn "venv ComfyUI manquant - recréation..."
+        $needRecreate = $true
+    } else {
+        # Vérifier la version Python du venv existant
+        $venvVersion = & $pythonExe --version 2>&1
+        Write-Info "Version Python du venv actuel: $venvVersion"
+        if ($venvVersion -notmatch "3\.11" -and $venvVersion -notmatch "3\.10" -and $venvVersion -notmatch "3\.9") {
+            Write-Warn "venv utilise $venvVersion (incompatible IPEX) - recréation avec Python 3.11..."
+            $needRecreate = $true
+        }
+    }
+    
+    if ($needRecreate) {
+        # Supprimer l'ancien venv
+        if (Test-Path $venvPath) {
+            Write-Info "Suppression de l'ancien venv..."
+            Remove-Item -Path $venvPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        
+        # Recréer avec Python 3.11
+        Write-Info "Création du venv avec Python 3.11..."
+        if ($Python311Path -eq "py311") {
+            & py -3.11 -m venv $venvPath
+        } else {
+            & $Python311Path -m venv $venvPath
+        }
+        
+        if (Test-Path $pythonExe) {
+            Write-OK "venv ComfyUI recréé avec Python 3.11"
+            
+            # Installer les dépendances de base
+            & $pythonExe -m pip install --upgrade pip
+            & $pipExe install torch torchvision torchaudio
+            
+            # Installer requirements.txt si présent
+            $reqFile = Join-Path $ComfyDir "requirements.txt"
+            if (Test-Path $reqFile) {
+                Write-Info "Installation requirements.txt..."
+                & $pipExe install -r $reqFile
+            }
+        } else {
+            Write-Err "Échec création venv ComfyUI"
+        }
+    }
+    
     if (Test-Path $pythonExe) {
         Write-Info "Désinstallation de PyTorch CUDA..."
         & $pipExe uninstall torch torchvision torchaudio -y 2>$null
@@ -86,13 +178,19 @@ if (Test-Path $ComfyDir) {
         # PyTorch CPU + Intel Extension for PyTorch (IPEX)
         & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         
-        # IMPORTANT: IPEX nécessite le repository Intel officiel
-        Write-Info "Installation Intel Extension for PyTorch (IPEX)..."
-        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+        # CORRECTION: Utiliser XPU au lieu de CPU pour Intel Arc GPU
+        Write-Info "Installation Intel Extension for PyTorch (IPEX XPU)..."
+        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Write-Warn "IPEX non installé - mode CPU standard utilisé"
+            Write-Warn "IPEX XPU échoué, essai canal CPU..."
+            $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "IPEX non installé - mode CPU standard utilisé"
+            } else {
+                Write-OK "IPEX (CPU) installé avec succès"
+            }
         } else {
-            Write-OK "IPEX installé avec succès"
+            Write-OK "IPEX (XPU) installé avec succès"
         }
         
         # Installer aussi OpenVINO pour certains modèles
@@ -144,6 +242,12 @@ if (Test-Path $XttsDir) {
     $pythonExe = Join-Path $venvPath "Scripts\python.exe"
     $pipExe = Join-Path $venvPath "Scripts\pip.exe"
     
+    # Vérifier si le venv existe et utilise la bonne version Python
+    if (Test-Path $pythonExe) {
+        $venvVersion = & $pythonExe --version 2>&1
+        Write-Info "Version Python du venv XTTS: $venvVersion"
+    }
+    
     if (Test-Path $pythonExe) {
         Write-Info "Désinstallation de PyTorch CUDA..."
         & $pipExe uninstall torch torchvision torchaudio -y 2>$null
@@ -151,13 +255,19 @@ if (Test-Path $XttsDir) {
         Write-Info "Installation de PyTorch CPU + Intel Extension..."
         & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         
-        # IMPORTANT: IPEX nécessite le repository Intel officiel
-        Write-Info "Installation Intel Extension for PyTorch (IPEX)..."
-        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+        # CORRECTION: Utiliser XPU au lieu de CPU pour Intel Arc GPU
+        Write-Info "Installation Intel Extension for PyTorch (IPEX XPU)..."
+        $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ 2>&1
         if ($LASTEXITCODE -ne 0) {
-            Write-Warn "IPEX non installé - mode CPU standard utilisé"
+            Write-Warn "IPEX XPU échoué, essai canal CPU..."
+            $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "IPEX non installé - mode CPU standard utilisé"
+            } else {
+                Write-OK "IPEX (CPU) installé avec succès"
+            }
         } else {
-            Write-OK "IPEX installé avec succès"
+            Write-OK "IPEX (XPU) installé avec succès"
         }
         
         Write-OK "XTTS réparé avec support Intel"

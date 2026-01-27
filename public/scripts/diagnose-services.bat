@@ -59,6 +59,19 @@ for %%S in (%SERVICES%) do (
         if exist "%AI_DIR%\%%S\venv\Scripts\python.exe" (
             echo   [OK] %%S - dossier + venv OK
             echo [OK] %%S - venv present >> "%LOG%"
+            
+            :: NOUVEAU: Afficher la version Python du venv
+            for /f "tokens=*" %%V in ('"%AI_DIR%\%%S\venv\Scripts\python.exe" --version 2^>^&1') do (
+                echo        Python: %%V
+                echo     Python version: %%V >> "%LOG%"
+                
+                :: Vérifier compatibilité IPEX (Python 3.9-3.12)
+                echo %%V | findstr /C:"3.14" /C:"3.13" >nul
+                if not errorlevel 1 (
+                    echo        [ATTENTION] Version Python incompatible avec IPEX!
+                    echo     [ATTENTION] %%V incompatible IPEX >> "%LOG%"
+                )
+            )
             set /a OK_COUNT+=1
         ) else (
             echo   [!] %%S - dossier OK, venv MANQUANT
@@ -227,10 +240,27 @@ echo [4/4] Informations systeme...
 echo.
 echo === SYSTEME === >> "%LOG%"
 
-:: Python
-echo   Python:
+:: Python - Afficher toutes les versions disponibles
+echo   Python dans PATH:
 python --version 2>nul || echo   [X] Python non trouve dans PATH
 python --version >> "%LOG%" 2>&1
+
+echo   Python 3.11 (requis pour IPEX):
+py -3.11 --version 2>nul || echo   [!] Python 3.11 non disponible via py launcher
+py -3.11 --version >> "%LOG%" 2>&1
+
+:: Vérifier les chemins Python explicites
+echo   Chemins Python detectes:
+if exist "%LOCALAPPDATA%\Programs\Python\Python311\python.exe" (
+    echo     [OK] Python311: %LOCALAPPDATA%\Programs\Python\Python311\python.exe
+    echo [OK] Python311 trouve >> "%LOG%"
+) else (
+    echo     [X] Python311 non trouve dans AppData
+    echo [MANQUANT] Python311 AppData >> "%LOG%"
+)
+if exist "C:\Python311\python.exe" (
+    echo     [OK] Python311: C:\Python311\python.exe
+)
 
 :: Ollama
 echo   Ollama:
