@@ -530,15 +530,27 @@ function New-PythonService {
         }
         Set-Location $ServiceDir
         
-        Write-Log "Creation venv pour $Name..." -Level "INFO"
+        # CORRECTION: Forcer Python 3.11 explicitement pour éviter Python 3.14
+        Write-Log "Creation venv pour $Name (Python 3.11 force)..." -Level "INFO"
         if ($Python311Path) {
+            Write-Log "  Utilisation de: $Python311Path" -Level "DEBUG"
             & $Python311Path -m venv venv 2>&1 | Tee-Object -FilePath $LogFile -Append
         } else {
+            Write-Log "  Utilisation de: py -3.11" -Level "DEBUG"
             & py -3.11 -m venv venv 2>&1 | Tee-Object -FilePath $LogFile -Append
         }
         
         if (!(Test-Path "$ServiceDir\venv\Scripts\python.exe")) {
             throw "Echec creation venv"
+        }
+        
+        # Vérifier la version Python du venv créé
+        $venvPython = "$ServiceDir\venv\Scripts\python.exe"
+        $venvVersion = & $venvPython --version 2>&1
+        Write-Log "  Version Python du venv: $venvVersion" -Level "DEBUG"
+        
+        if ($venvVersion -notmatch "3\.11") {
+            Write-Log "  [ATTENTION] venv ne utilise pas Python 3.11!" -Level "ATTENTION"
         }
         
         $pipExe = "$ServiceDir\venv\Scripts\pip.exe"
@@ -560,16 +572,26 @@ function New-PythonService {
             }
         }
         
+        # CORRECTION: Utiliser XPU au lieu de CPU pour Intel Arc GPU
         if ($GPUType -eq "intel-arc" -and $Packages -contains "torch") {
-            Write-Log "  Installation Intel Extension for PyTorch..." -Level "INFO"
-            # IMPORTANT: IPEX nécessite le repository Intel officiel
-            $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+            Write-Log "  Installation Intel Extension for PyTorch (XPU)..." -Level "INFO"
+            # IMPORTANT: Utiliser le canal XPU pour Intel Arc GPU, pas CPU
+            $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ 2>&1
             $ipexResult | Tee-Object -FilePath $LogFile -Append
             
             if ($LASTEXITCODE -ne 0) {
-                Write-Log "  [ATTENTION] IPEX non installé - mode CPU standard" -Level "ATTENTION"
+                Write-Log "  [ATTENTION] IPEX XPU echoue, essai canal CPU..." -Level "ATTENTION"
+                # Fallback vers CPU si XPU échoue
+                $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1
+                $ipexResult | Tee-Object -FilePath $LogFile -Append
+                
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Log "  [ATTENTION] IPEX non installe - mode CPU PyTorch standard" -Level "ATTENTION"
+                } else {
+                    Write-Log "  Intel Extension for PyTorch (CPU) installe" -Level "OK"
+                }
             } else {
-                Write-Log "  Intel Extension for PyTorch installé" -Level "OK"
+                Write-Log "  Intel Extension for PyTorch (XPU) installe" -Level "OK"
             }
         }
         
@@ -608,15 +630,24 @@ if (Test-Path "$ComfyUIPath\main.py") {
         if (Test-Path "$ComfyUIPath\main.py") {
             Set-Location $ComfyUIPath
             
-            Write-Log "Creation venv ComfyUI..." -Level "INFO"
+            # CORRECTION: Forcer Python 3.11 explicitement pour ComfyUI
+            Write-Log "Creation venv ComfyUI (Python 3.11 force)..." -Level "INFO"
             if ($Python311Path) {
+                Write-Log "  Utilisation de: $Python311Path" -Level "DEBUG"
                 & $Python311Path -m venv venv 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
             } else {
+                Write-Log "  Utilisation de: py -3.11" -Level "DEBUG"
                 & py -3.11 -m venv venv 2>&1 | Out-File "$LogDir\install-comfyui.log" -Append
             }
             
             $pipExe = "$ComfyUIPath\venv\Scripts\pip.exe"
             $pythonExe = "$ComfyUIPath\venv\Scripts\python.exe"
+            
+            # Vérifier la version Python du venv créé
+            if (Test-Path $pythonExe) {
+                $venvVersion = & $pythonExe --version 2>&1
+                Write-Log "  Version Python du venv ComfyUI: $venvVersion" -Level "DEBUG"
+            }
             
             & $pythonExe -m pip install --upgrade pip 2>&1 | Out-Null
             
@@ -625,9 +656,14 @@ if (Test-Path "$ComfyUIPath\main.py") {
                 & $pipExe install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } elseif ($GPUType -eq "intel-arc") {
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
-                # IMPORTANT: IPEX nécessite le repository Intel officiel
-                Write-Log "Installation Intel Extension for PyTorch (ComfyUI)..." -Level "INFO"
-                & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                # CORRECTION: Utiliser XPU au lieu de CPU pour Intel Arc GPU
+                Write-Log "Installation Intel Extension for PyTorch (ComfyUI - XPU)..." -Level "INFO"
+                $ipexResult = & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ 2>&1
+                $ipexResult | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Log "  XPU echoue, essai CPU fallback..." -Level "ATTENTION"
+                    & $pipExe install intel-extension-for-pytorch --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/cpu/us/ 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
+                }
                 & $pipExe install openvino openvino-dev 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
             } else {
                 & $pipExe install torch torchvision torchaudio 2>&1 | Tee-Object -FilePath "$LogDir\install-comfyui.log" -Append
