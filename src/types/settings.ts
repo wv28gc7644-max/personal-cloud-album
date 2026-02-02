@@ -46,15 +46,14 @@ export interface SettingsLayoutConfig {
   customGroups: SettingsCategory[]; // User-created groups
 }
 
-// Default modules definition
+// Default modules definition - AI modules removed
 export const DEFAULT_MODULES: SettingsModule[] = [
   // Système
   { id: 'notifications', name: 'Notifications', description: 'Sons et alertes système', icon: 'Bell', iconColor: 'hsl(38, 92%, 50%)', category: 'system', component: 'NotificationsSettings', order: 0, visible: true },
-  { id: 'aiNotifications', name: 'Notifications IA', description: 'Alertes temps réel IA', icon: 'BellRing', iconColor: 'hsl(271, 91%, 65%)', category: 'system', component: 'AINotificationsPanel', order: 1, visible: true },
-  { id: 'updates', name: 'Mises à jour', description: 'Vérification et historique', icon: 'Download', iconColor: 'hsl(142, 71%, 45%)', category: 'system', component: 'UpdatesSettings', order: 2, visible: true },
-  { id: 'security', name: 'Sécurité', description: 'Mots de passe et accès', icon: 'Shield', iconColor: 'hsl(0, 84%, 60%)', category: 'system', component: 'SecuritySettings', order: 3, visible: true },
-  { id: 'server', name: 'Serveur local', description: 'Connexion et synchronisation', icon: 'Server', iconColor: 'hsl(221, 83%, 53%)', category: 'system', component: 'ServerSettings', order: 4, visible: true },
-  { id: 'ffmpeg', name: 'FFmpeg', description: 'Traitement vidéo/audio', icon: 'Film', iconColor: 'hsl(280, 87%, 55%)', category: 'system', component: 'FFmpegManager', order: 5, visible: true },
+  { id: 'updates', name: 'Mises à jour', description: 'Vérification et historique', icon: 'Download', iconColor: 'hsl(142, 71%, 45%)', category: 'system', component: 'UpdatesSettings', order: 1, visible: true },
+  { id: 'security', name: 'Sécurité', description: 'Mots de passe et accès', icon: 'Shield', iconColor: 'hsl(0, 84%, 60%)', category: 'system', component: 'SecuritySettings', order: 2, visible: true },
+  { id: 'server', name: 'Serveur local', description: 'Connexion et synchronisation', icon: 'Server', iconColor: 'hsl(221, 83%, 53%)', category: 'system', component: 'ServerSettings', order: 3, visible: true },
+  { id: 'ffmpeg', name: 'FFmpeg', description: 'Traitement vidéo/audio', icon: 'Film', iconColor: 'hsl(280, 87%, 55%)', category: 'system', component: 'FFmpegManager', order: 4, visible: true },
   
   // Apparence
   { id: 'theme', name: 'Thèmes', description: 'Presets et couleurs personnalisées', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', category: 'appearance', component: 'ThemePresetsPanel', order: 0, visible: true, size: 'medium' },
@@ -62,11 +61,6 @@ export const DEFAULT_MODULES: SettingsModule[] = [
   { id: 'cards', name: 'Design des cartes', description: 'Apparence de la galerie', icon: 'LayoutGrid', iconColor: 'hsl(199, 89%, 48%)', category: 'appearance', component: 'CardDesignEditor', order: 2, visible: true },
   { id: 'grid', name: 'Grille', description: 'Colonnes et disposition', icon: 'Grid3X3', iconColor: 'hsl(262, 83%, 58%)', category: 'appearance', component: 'GridSettings', order: 3, visible: true },
   { id: 'cardDisplay', name: 'Affichage cartes', description: 'Métadonnées et boutons', icon: 'LayoutList', iconColor: 'hsl(174, 72%, 40%)', category: 'appearance', component: 'CardDisplaySettings', order: 4, visible: true },
-  
-  // IA & Modèles
-  { id: 'localAI', name: 'IA Locale', description: 'Ollama, ComfyUI, services', icon: 'Brain', iconColor: 'hsl(271, 91%, 65%)', category: 'ai', component: 'LocalAISettingsReorganized', order: 0, visible: true, size: 'large' },
-  { id: 'personalAI', name: 'Mon IA', description: 'Personnalité et prompts', icon: 'Sparkles', iconColor: 'hsl(47, 100%, 50%)', category: 'ai', component: 'PersonalAISettings', order: 1, visible: true },
-  { id: 'aiCharacters', name: 'Personnages IA', description: 'Avatars et voix', icon: 'Users', iconColor: 'hsl(340, 82%, 52%)', category: 'ai', component: 'AICharacters', order: 2, visible: true },
   
   // Médias
   { id: 'tags', name: 'Tags', description: 'Gestion des étiquettes', icon: 'Tags', iconColor: 'hsl(25, 95%, 53%)', category: 'media', component: 'TagsSettings', order: 0, visible: true },
@@ -81,11 +75,10 @@ export const DEFAULT_MODULES: SettingsModule[] = [
 ];
 
 export const DEFAULT_CATEGORIES: SettingsCategory[] = [
-  { id: 'system', name: 'Système', icon: 'Settings', iconColor: 'hsl(215, 20%, 65%)', order: 0, visible: true, modules: ['notifications', 'aiNotifications', 'updates', 'security', 'server', 'ffmpeg'] },
+  { id: 'system', name: 'Système', icon: 'Settings', iconColor: 'hsl(215, 20%, 65%)', order: 0, visible: true, modules: ['notifications', 'updates', 'security', 'server', 'ffmpeg'] },
   { id: 'appearance', name: 'Apparence', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', order: 1, visible: true, modules: ['theme', 'colorEditor', 'cards', 'grid', 'cardDisplay'] },
-  { id: 'ai', name: 'IA & Modèles', icon: 'Brain', iconColor: 'hsl(271, 91%, 65%)', order: 2, visible: true, modules: ['localAI', 'personalAI', 'aiCharacters'] },
-  { id: 'media', name: 'Médias', icon: 'Image', iconColor: 'hsl(199, 89%, 48%)', order: 3, visible: true, modules: ['tags', 'playlists', 'autoSync'] },
-  { id: 'integrations', name: 'Intégrations', icon: 'Plug', iconColor: 'hsl(142, 71%, 45%)', order: 4, visible: true, modules: ['homeHub', 'discord', 'telegram', 'webhooks'] },
+  { id: 'media', name: 'Médias', icon: 'Image', iconColor: 'hsl(199, 89%, 48%)', order: 2, visible: true, modules: ['tags', 'playlists', 'autoSync'] },
+  { id: 'integrations', name: 'Intégrations', icon: 'Plug', iconColor: 'hsl(142, 71%, 45%)', order: 3, visible: true, modules: ['homeHub', 'discord', 'telegram', 'webhooks'] },
 ];
 
 export const DEFAULT_LAYOUT_CONFIG: SettingsLayoutConfig = {
