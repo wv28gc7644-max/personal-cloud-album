@@ -5,12 +5,10 @@ import { SettingsModule } from '@/types/settings';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
-// Import existing settings components
-import { LocalAISettingsReorganized } from '@/components/LocalAISettingsReorganized';
+// Import existing settings components (AI components removed)
 import { CardDesignEditor } from '@/components/CardDesignEditor';
 import { FFmpegManager } from '@/components/FFmpegManager';
 import { SecuritySettings } from '@/components/SecuritySettings';
-import { AICharacters } from '@/components/AICharacters';
 import { DiscordIntegration } from '@/components/DiscordIntegration';
 import { TelegramIntegration } from '@/components/TelegramIntegration';
 import { HomeAssistantIntegration } from '@/components/HomeAssistantIntegration';
@@ -24,21 +22,17 @@ import { ThemeSettings } from './ThemeSettings';
 import { ThemePresetsPanel } from './ThemePresetsPanel';
 import { GridSettings } from './GridSettings';
 import { CardDisplaySettings } from './CardDisplaySettings';
-import { PersonalAISettings } from './PersonalAISettings';
 import { TagsSettings } from './TagsSettings';
 import { PlaylistsSettings } from './PlaylistsSettings';
 import { AutoSyncSettings } from './AutoSyncSettings';
-import { AINotificationsPanel } from './AINotificationsPanel';
 import { AdvancedColorEditor } from './AdvancedColorEditor';
 import { HomeAutomationHub } from './HomeAutomationHub';
 
-// Component map for rendering
+// Component map for rendering (AI components removed)
 const COMPONENT_MAP: Record<string, React.ComponentType> = {
-  LocalAISettingsReorganized,
   CardDesignEditor,
   FFmpegManager,
   SecuritySettings,
-  AICharacters,
   DiscordIntegration,
   TelegramIntegration,
   HomeAssistantIntegration,
@@ -50,11 +44,9 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   ThemePresetsPanel,
   GridSettings,
   CardDisplaySettings,
-  PersonalAISettings,
   TagsSettings,
   PlaylistsSettings,
   AutoSyncSettings,
-  AINotificationsPanel,
   AdvancedColorEditor,
   HomeAutomationHub,
 };

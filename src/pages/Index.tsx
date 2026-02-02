@@ -7,9 +7,6 @@ import { CreatePlaylistModal } from '@/components/CreatePlaylistModal';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { StatsPanel } from '@/components/StatsPanel';
 import { SlideshowModal } from '@/components/SlideshowModal';
-import AIStudioView from '@/components/AIStudioView';
-import AICreationsView from '@/components/AICreationsView';
-import LocalAgent from '@/components/LocalAgent';
 import { SmartHomeDashboard } from '@/components/home';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
@@ -139,12 +136,6 @@ const Index = () => {
           <SettingsView />
         ) : currentView === 'stats' ? (
           <StatsPanel />
-        ) : currentView === 'ai-studio' ? (
-          <AIStudioView />
-        ) : currentView === 'ai-creations' ? (
-          <AICreationsView />
-        ) : currentView === 'agent' ? (
-          <LocalAgent />
         ) : currentView === 'smart-home' ? (
           <div className="flex-1 overflow-y-auto p-6">
             <SmartHomeDashboard />

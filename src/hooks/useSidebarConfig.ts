@@ -63,6 +63,10 @@ export const AVAILABLE_ICONS = [
   'Trash', 'Plus', 'Minus', 'Check', 'X', 'Info', 'AlertCircle'
 ];
 
+// AI views removed - clean media-focused app
+const AI_VIEWS_TO_REMOVE = ['ai-studio', 'ai-creations', 'agent'];
+const AI_SECTION_ID = 'ai';
+
 const DEFAULT_CONFIG: SidebarConfig = {
   sections: [
     {
@@ -80,6 +84,7 @@ const DEFAULT_CONFIG: SidebarConfig = {
         { id: 'timeline', icon: 'Clock', label: 'Timeline', type: 'nav', view: 'timeline', isNew: true },
         { id: 'calendar', icon: 'Calendar', label: 'Calendrier', type: 'nav', view: 'calendar', isNew: true },
         { id: 'stats', icon: 'BarChart3', label: 'Statistiques', type: 'nav', view: 'stats' },
+        { id: 'smart-home', icon: 'Home', label: 'MediaVault Home', type: 'nav', view: 'smart-home' },
       ]
     },
     {
@@ -95,31 +100,58 @@ const DEFAULT_CONFIG: SidebarConfig = {
         { id: 'filters', icon: 'Filter', label: 'Filtres avancés', type: 'tool', action: 'filters', isNew: true },
         { id: 'update', icon: 'RefreshCw', label: 'Mise à jour', type: 'tool', action: 'update' },
       ]
-    },
-    {
-      id: 'ai',
-      label: 'Intelligence Artificielle',
-      icon: 'Sparkles',
-      isCollapsible: true,
-      isExpanded: true,
-      items: [
-        { id: 'ai-studio', icon: 'Sparkles', label: 'Studio IA', type: 'nav', view: 'ai-studio', badge: 'Beta' },
-        { id: 'ai-creations', icon: 'Palette', label: 'Créations IA', type: 'nav', view: 'ai-creations' },
-        { id: 'agent', icon: 'Terminal', label: 'Agent Local', type: 'nav', view: 'agent' },
-        { id: 'smart-home', icon: 'Home', label: 'MediaVault Home', type: 'nav', view: 'smart-home' },
-      ]
     }
   ]
 };
 
 const STORAGE_KEY = 'mediavault-sidebar-config';
 
+// Migration: remove AI section and AI items from saved config
+function migrateConfig(saved: SidebarConfig): SidebarConfig {
+  // Remove entire AI section
+  let sections = saved.sections.filter(s => s.id !== AI_SECTION_ID);
+  
+  // Remove any AI items from other sections (in case user moved them)
+  sections = sections.map(section => ({
+    ...section,
+    items: section.items.filter(item => !AI_VIEWS_TO_REMOVE.includes(item.view || ''))
+  }));
+  
+  return { ...saved, sections };
+}
+
+// Cleanup AI-related localStorage keys
+function cleanupAIStorage() {
+  const keysToRemove = [
+    'localai-config',
+    'mediavault-ai-creations',
+    'personal-ai-config',
+    'ai-memory',
+    'ai-characters'
+  ];
+  keysToRemove.forEach(key => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Silent fail
+    }
+  });
+}
+
 export function useSidebarConfig() {
   const [config, setConfig] = useState<SidebarConfig>(() => {
+    // Cleanup AI storage on first load
+    cleanupAIStorage();
+    
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Apply migration to remove AI entries
+        const migrated = migrateConfig(parsed);
+        // Save migrated config back
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+        return migrated;
       }
     } catch (e) {
       console.error('Error loading sidebar config:', e);
