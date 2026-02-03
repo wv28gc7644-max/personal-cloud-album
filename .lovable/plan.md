@@ -1,199 +1,208 @@
 
-Objectif (immédiat)
-- Retirer proprement toutes les fonctionnalités “IA” du site (UI + navigation + réglages) pour revenir à une app “MediaVault” stable centrée médias.
-- Te donner une procédure simple et fiable pour désinstaller toute la partie IA sur ton PC (dossiers + services + Ollama), sans bricolage.
-- Ensuite (optionnel), proposer une approche “fonctionnalité par fonctionnalité” plus simple et testable, sans essayer d’installer un “gros bloc” d’un coup.
+# Plan d'Amélioration MediaVault
 
-Important (sur ta demande “IA sans restrictions”)
-- Je ne peux pas t’aider à mettre en place une IA “sans restriction” visant à contourner des garde-fous, des lois, ou des politiques de sécurité.  
-- En revanche, je peux te proposer une approche plus simple et progressive: installer un seul outil qui marche (ex: chat local) puis ajouter une fonctionnalité à la fois (STT, TTS, image, etc.) avec tests à chaque étape.
+## Résumé des 3 demandes
 
---------------------------------------------------------------------------------
-A) Désinstallation complète IA sur ton PC (tout supprimer)
-Tu as choisi “Tout supprimer”. L’objectif est: arrêter les services, supprimer les dossiers IA, désinstaller Ollama et supprimer ses modèles.
+1. **Scroll des paramètres** - Le panneau de paramètres ne descend pas jusqu'en bas de l'écran
+2. **Mise à jour silencieuse** - Un nouveau mode de mise à jour qui fonctionne entièrement en arrière-plan sans fenêtres visibles
+3. **Lecteur vidéo personnalisé** - Un lecteur style YouTube avec heatmap d'audience intégrée
 
-1) Stopper tout ce qui tourne
-- Ferme l’application MediaVault (le navigateur peut rester ouvert).
-- Dans le Gestionnaire des tâches (Ctrl+Shift+Esc):
-  - Termine les processus “python.exe” liés aux serveurs IA si tu en vois.
-  - Termine “ollama.exe” si présent.
+---
 
-2) Lancer la désinstallation “one-click” (recommandé)
-- Utilise le script déjà fourni par le projet:
-  - public/scripts/uninstall-ai-suite.bat
-  - (il appelle uninstall-ai-suite.ps1 et demande les droits admin)
-- Choisis “N” quand il te demande “Conserver les modèles Ollama ?” (tu veux tout supprimer).
-- Le script:
-  - arrête les services,
-  - supprime les dossiers IA,
-  - désinstalle Ollama via winget si possible,
-  - supprime ~/.ollama si tu n’as pas gardé les modèles,
-  - supprime les raccourcis et fichiers de config.
+## 1. Correction du Scroll des Paramètres
 
-3) Vérifier que tout est réellement parti
-- Vérifie que le dossier %USERPROFILE%\MediaVault-AI n’existe plus (ou est vide).
-- Vérifie que %USERPROFILE%\.ollama n’existe plus (si tu as choisi de supprimer les modèles).
-- Vérifie qu’Ollama n’apparaît plus dans “Applications installées”.
+### Problème identifié
+Dans `SettingsGrid.tsx` (ligne 202), la `ScrollArea` utilise une hauteur fixe :
+```tsx
+<ScrollArea className="h-[calc(100vh-280px)]">
+```
 
-4) Si tu as testé Docker (si applicable)
-- Dans le dossier où est docker-compose.yml:
-  - docker-compose down -v
-- Puis supprime les volumes si besoin (selon ton usage).
-(Je le mets en “si applicable” car tu n’es pas obligé d’avoir Docker.)
+Cette valeur fixe de `280px` ne s'adapte pas correctement à toutes les configurations d'écran et de contenu.
 
-Résultat attendu
-- Plus aucun service IA (ComfyUI/Whisper/XTTS/MusicGen/Demucs/CLIP/ESRGAN) sur la machine.
-- Plus d’Ollama et plus de modèles.
+### Solution
+- Modifier le layout du `SettingsGrid` pour utiliser `flex-1` et `min-h-0` (pattern identifié dans la sidebar)
+- Adapter aussi `SettingsView.tsx` pour que le conteneur parent permette au scroll de fonctionner correctement
+- Utiliser `h-full` au lieu d'une hauteur calculée
 
---------------------------------------------------------------------------------
-B) Retirer toute la partie IA sur le site (UI + navigation + réglages)
-Tu as coché: Studio IA + Gestionnaire IA + Mon IA (chat).
-Donc on retire:
-- Navigation “Intelligence Artificielle” (Studio IA, Créations IA, Agent Local, etc.)
-- Réglages IA (IA Locale, Mon IA, Personnages IA)
-- Tout point d’entrée UI qui expose ces fonctions
+### Fichiers à modifier
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/settings/SettingsGrid.tsx` | Remplacer `h-[calc(100vh-280px)]` par `flex-1 min-h-0` + wrapper flex |
+| `src/components/settings/SettingsView.tsx` | S'assurer que le conteneur parent utilise `flex flex-col h-full` |
 
-B1) Retirer les entrées IA du menu latéral
-Constat code:
-- Le menu latéral est piloté par src/hooks/useSidebarConfig.ts (DEFAULT_CONFIG).
-- Problème à anticiper: l’utilisateur peut avoir un menu persistant en localStorage (clé mediavault-sidebar-config). Si on change juste le DEFAULT_CONFIG, l’ancien menu IA peut rester chez toi tant que le localStorage garde l’ancienne config.
+---
 
-Actions prévues:
-1) Modifier src/hooks/useSidebarConfig.ts
-   - Retirer complètement la section “ai” de DEFAULT_CONFIG (la section qui contient “Studio IA”, “Créations IA”, “Agent Local”, “MediaVault Home” si tu veux le garder ailleurs).
-   - Ajouter une migration simple lors du chargement du config depuis localStorage:
-     - Si une section id === 'ai' existe, la supprimer automatiquement.
-     - Si des items view === 'ai-studio'/'ai-creations'/'agent' existent dans d’autres sections (cas de personnalisation), les supprimer aussi.
-   - (Optionnel) déplacer “MediaVault Home” hors de la section IA (si tu souhaites garder la domotique).
+## 2. Mise à Jour Silencieuse (Background Update)
 
-B2) Enlever les vues IA dans la page principale
-Constat code:
-- src/pages/Index.tsx affiche différentes vues selon currentView:
-  - ai-studio => <AIStudioView />
-  - ai-creations => <AICreationsView />
-  - agent => <LocalAgent />
-- Même si on cache le menu, ces imports/branches restent et maintiennent du code IA “vivant”.
+### Fonctionnement actuel
+Le script `Mettre a jour MediaVault.bat` fonctionne mais :
+- Ouvre une fenêtre terminal visible
+- Affiche les logs en temps réel
+- Ouvre Notepad à la fin
 
-Actions prévues:
-2) Modifier src/pages/Index.tsx
-   - Supprimer les imports:
-     - AIStudioView
-     - AICreationsView
-     - LocalAgent
-   - Supprimer les branches ternaires associées à currentView === 'ai-studio' / 'ai-creations' / 'agent'
-   - S’assurer qu’un currentView “inconnu” retombe sur la vue médias standard (déjà le cas).
+### Solution proposée
+Créer un **nouveau script compagnon** `Mettre a jour MediaVault (silencieux).bat` qui :
+1. Exécute exactement les mêmes opérations que le script existant
+2. Redirige TOUT vers des fichiers logs (pas d'affichage terminal)
+3. Utilise `start /min` ou PowerShell en mode caché pour ne rien montrer
+4. Envoie une notification système Windows à la fin (succès ou échec)
 
-B3) Nettoyer les types de navigation
-Constat code:
-- src/types/views.ts inclut: 'ai-studio' | 'ai-creations' | 'agent'
+### Nouveau script : Comportement
+```text
+1. Démarre en mode totalement invisible (PowerShell -WindowStyle Hidden)
+2. Exécute les mêmes étapes :
+   - Sauvegarde media/ + data.json + AI/
+   - Git fetch/reset OU téléchargement ZIP
+   - npm install
+   - npm run build
+   - Restauration des données
+3. Écrit les logs dans logs/silent/
+4. À la fin : notification Windows via PowerShell (New-BurntToastNotification ou balloon tip)
+5. Si erreur : ouvre automatiquement le log d'erreur
+```
 
-Actions prévues:
-3) Modifier src/types/views.ts
-   - Retirer 'ai-studio', 'ai-creations', 'agent' de l’union ViewType, si on veut que ces vues n’existent plus du tout.
-   - Vérifier ensuite les erreurs TypeScript pour ajuster les appels à onViewChange / navigate events.
+### Intégration UI
+- Dans `UpdatesSettings.tsx`, ajouter un nouveau bouton "Télécharger Mise à jour silencieuse.bat"
+- Dans les paramètres de notifications, ajouter une option "Mode mise à jour silencieuse par défaut"
 
-Note:
-- Si certaines parties du code émettent encore des événements “mediavault-navigate” vers 'agent' etc., il faudra les neutraliser (recherche rapide, suppression ou fallback).
+### Fichiers à modifier/créer
+| Fichier | Action |
+|---------|--------|
+| `src/components/settings/UpdatesSettings.tsx` | Ajouter bouton de téléchargement du script silencieux |
+| `src/components/settings/NotificationsSettings.tsx` | Ajouter option "Mise à jour silencieuse" |
+| Script généré dynamiquement | Créer `Mettre a jour MediaVault (silencieux).bat` |
 
-B4) Retirer les modules IA des Paramètres
-Constat code:
-- src/types/settings.ts:
-  - DEFAULT_MODULES contient:
-    - localAI (IA Locale)
-    - personalAI (Mon IA)
-    - aiCharacters (Personnages IA)
-  - DEFAULT_CATEGORIES contient une catégorie 'ai' “IA & Modèles”
-- src/components/settings/SettingsView.tsx importe et mappe:
-  - LocalAISettingsReorganized
-  - PersonalAISettings
-  - AICharacters
+---
 
-Actions prévues:
-4) Modifier src/types/settings.ts
-   - Retirer les modules: localAI, personalAI, aiCharacters
-   - Retirer la catégorie 'ai' (IA & Modèles)
-   - Retirer aussi 'aiNotifications' si tu veux enlever les notifications IA (c’est une partie IA indirecte; à confirmer si on la garde dans “Système” ou si on la retire aussi).
-5) Modifier src/components/settings/SettingsView.tsx
-   - Retirer les imports IA:
-     - LocalAISettingsReorganized
-     - PersonalAISettings
-     - AICharacters
-   - Retirer ces entrées du COMPONENT_MAP
-   - Vérifier que SettingsGrid n’affiche plus les modules IA.
+## 3. Lecteur Vidéo Personnalisé Style YouTube
 
-B5) Retirer les pages/composants IA qui pointent vers le Studio
-Constat code:
-- src/components/AICreationsView.tsx contient un bouton “Ouvrir le Studio IA”.
-- D’autres composants IA existent (PersonalAIChat, etc.) mais si on enlève les points d’entrée, ils ne seront plus accessibles.
+### Analyse de l'existant
+- `MediaViewer.tsx` utilise actuellement `<video controls>` → lecteur natif du navigateur
+- `VideoHeatmapInteractive.tsx` affiche déjà un heatmap des segments les plus vus
+- `useMediaStats.ts` stocke les statistiques par segment (5 secondes)
+- `StatsPanel.tsx` affiche les statistiques globales
 
-Actions prévues:
-6) Rechercher et retirer les liens/boutons “Ouvrir le Studio IA”, “Mon IA”, “Agent Local”
-   - Soit en supprimant les composants IA du code (si on assume suppression totale),
-   - Soit en les laissant mais inaccessibles (minimal), selon ton souhait.
-Tu as demandé “enlève toute la partie IA sur le site”, donc on vise plutôt suppression des points d’entrée + nettoyage de références directes pour éviter confusion.
+### Fonctionnalités YouTube à reproduire
 
-B6) Nettoyer le localStorage côté site (important pour que l’IA disparaisse vraiment)
-Problèmes persistants:
-- mediavault-sidebar-config (menu)
-- localai-config (config IA locale)
-- ai-creations (créations IA)
-- autres clés possibles liées à l’IA
+#### 3.1 Interface du lecteur
+- Barre de contrôle personnalisée (pas les contrôles natifs)
+- Bouton play/pause centré + sur la barre
+- Timeline avec preview au survol
+- Volume avec slider
+- Paramètres (vitesse, qualité si applicable)
+- Mode plein écran
+- Bouton picture-in-picture
+- Affichage temps actuel / durée totale
 
-Actions prévues:
-7) Ajouter un “cleanup” au démarrage (option propre)
-   - Au lancement de l’app (ou à l’ouverture de Index), si on est en mode “IA retirée”, supprimer:
-     - mediavault-sidebar-config (ou migrer comme décrit)
-     - localai-config
-     - ai-creations
-   - Alternative plus conservatrice: migrer sans effacer (mais cacher).  
-Vu ta demande de retrait total, effacer ces clés évite que l’app continue de “se souvenir” de l’IA.
+#### 3.2 Heatmap d'audience (comme YouTube)
+- Superposé sur la barre de progression
+- Couleurs : bleu froid → rouge chaud selon le nombre de vues du segment
+- Cliquable pour naviguer
 
---------------------------------------------------------------------------------
-C) Après la suppression: “plus simple, par fonctionnalité”
-Une fois stabilisé, je te proposerai un mode “modules” où tu installes et valides un outil à la fois:
-- Étape 1: Chat local (seulement) -> test conversation OK
-- Étape 2: STT (Whisper) -> test transcription OK
-- Étape 3: TTS (XTTS) -> test voix OK
-- Étape 4: Image (ComfyUI) -> test génération OK
-Chaque étape:
-- un bouton d’installation dédié
-- un bouton “tester” dédié (une action simple, un résultat visible)
-- pas de “suite complète” tant que l’étape précédente n’est pas validée
+#### 3.3 Statistiques d'audience enrichies
+Le heatmap représente les "moments les plus regardés" basés sur :
+- Nombre de fois que ce segment a été visionné
+- Détection des replays (seek backwards)
+- Segments où les gens quittent souvent
 
-Mais comme tu veux d’abord tout enlever, on fait d’abord A + B.
+### Architecture proposée
 
---------------------------------------------------------------------------------
-D) Séquencement (ordre d’implémentation côté code)
-1) Menu: migration + suppression section IA (useSidebarConfig)
-2) Page Index: enlever imports/branches IA
-3) Types ViewType: retirer les vues IA
-4) Paramètres: retirer modules IA + imports dans SettingsView
-5) Recherche de liens résiduels (AICreationsView etc.)
-6) Cleanup localStorage (au minimum migration; idéalement purge des clés IA)
-7) Test complet de non-régression:
-   - Navigation (Accueil/Photos/Vidéos/Favoris/Albums/Timeline/Calendrier/Stats)
-   - Paramètres (Système/Apparence/Médias/Intégrations)
-   - Aucune entrée IA visible
-   - Aucune erreur console liée à imports IA manquants
+```text
+src/components/video-player/
+├── CustomVideoPlayer.tsx       # Composant principal
+├── VideoControls.tsx           # Barre de contrôle personnalisée
+├── VideoProgressBar.tsx        # Timeline avec heatmap intégré
+├── VolumeControl.tsx           # Contrôle du volume
+├── PlaybackSpeed.tsx           # Sélecteur de vitesse
+├── VideoSettings.tsx           # Menu paramètres (vitesse, PiP)
+└── VideoTimeDisplay.tsx        # Affichage temps
+```
 
---------------------------------------------------------------------------------
-E) Définition de “terminé” (acceptance criteria)
-- Sur le site:
-  - Plus aucune section “Intelligence Artificielle” dans la sidebar
-  - Plus aucun module IA dans les Paramètres
-  - Pas de vue IA accessible même via navigation interne
-  - Aucun composant IA importé par la page principale (build propre)
-- Sur ton PC:
-  - Script uninstall exécuté avec succès
-  - Dossier MediaVault-AI supprimé/vidé
-  - Ollama et modèles supprimés (si tu as répondu “tout supprimer”)
+### Données de statistiques
+Les statistiques existantes (`useMediaStats`) sont déjà suffisantes :
+- `segments: { start, end, views }[]` - exactement ce qu'il faut pour le heatmap
 
---------------------------------------------------------------------------------
-F) Risques / points d’attention
-- Si tu avais personnalisé le menu via “Personnaliser”, l’ancienne config du menu peut réinjecter les entrées IA: d’où la migration/suppression automatique au chargement.
-- Si des composants non-IA importent des hooks IA (useLocalAI/usePersonalAI) uniquement pour afficher un badge ou un statut, il faudra neutraliser ces dépendances.
-- Je ne touche pas à tes médias/galerie: seulement l’IA.
+### Intégration
+- Remplacer le `<video controls>` dans `MediaViewer.tsx` par `<CustomVideoPlayer>`
+- Conserver la compatibilité avec le heatmap existant
 
-Prochaine étape
-- Je passe en implémentation et je supprime l’IA du site selon B.
-- Pour le PC: tu peux déjà lancer la désinstallation (A) pendant que je prépare le nettoyage UI, ça ne dépend pas du site.
+### Fichiers à créer
+| Fichier | Description |
+|---------|-------------|
+| `src/components/video-player/CustomVideoPlayer.tsx` | Player principal |
+| `src/components/video-player/VideoControls.tsx` | Barre de contrôles |
+| `src/components/video-player/VideoProgressBar.tsx` | Progress bar + heatmap |
+| `src/components/video-player/VolumeControl.tsx` | Volume slider |
+| `src/components/video-player/PlaybackSpeed.tsx` | Vitesse x0.5 à x2 |
+| `src/components/video-player/VideoSettings.tsx` | Menu settings |
+
+### Fichiers à modifier
+| Fichier | Modification |
+|---------|--------------|
+| `src/components/MediaViewer.tsx` | Utiliser CustomVideoPlayer au lieu de `<video controls>` |
+
+---
+
+## Ordre d'implémentation
+
+1. **Scroll paramètres** (rapide, ~5 min)
+2. **Script mise à jour silencieuse** (~15 min)
+3. **Lecteur vidéo personnalisé** (~45 min)
+   - D'abord le player de base avec contrôles
+   - Puis le heatmap intégré
+   - Puis les fonctionnalités avancées (vitesse, PiP)
+
+---
+
+## Section Technique
+
+### 1. Scroll - Code cible
+
+**SettingsView.tsx**
+```tsx
+<div className="h-full flex flex-col">
+  {/* contenu */}
+</div>
+```
+
+**SettingsGrid.tsx**
+```tsx
+<div className="relative h-full flex flex-col min-h-0">
+  {/* header */}
+  <ScrollArea className="flex-1 min-h-0">
+    {/* catégories */}
+  </ScrollArea>
+</div>
+```
+
+### 2. Script silencieux - Points clés
+
+```batch
+@echo off
+:: Lancer en mode caché via PowerShell
+powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0silent-update.ps1"
+exit /b
+```
+
+Le script PowerShell fait le travail en arrière-plan et envoie une notification :
+```powershell
+# À la fin
+[Windows.UI.Notifications.ToastNotificationManager, ...]
+# Ou via balloon tip (plus simple)
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.BalloonTipTitle = "MediaVault"
+$notify.BalloonTipText = "Mise à jour terminée !"
+$notify.ShowBalloonTip(5000)
+```
+
+### 3. Lecteur vidéo - Structure HTML/CSS
+
+Le player sera un `<div>` contenant :
+- `<video>` sans attribut `controls`
+- Une `<div>` overlay pour les contrôles personnalisés
+- Le heatmap intégré dans la barre de progression
+
+Comportement :
+- Masquer les contrôles après 3s d'inactivité
+- Afficher au mouvement de souris
+- Raccourcis clavier (Espace, M, F, flèches)
