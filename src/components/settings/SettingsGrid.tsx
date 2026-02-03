@@ -148,7 +148,7 @@ export function SettingsGrid({ onModuleClick, activeModuleId }: SettingsGridProp
     : null;
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full flex flex-col min-h-0">
       {/* Header with edit button */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -199,7 +199,7 @@ export function SettingsGrid({ onModuleClick, activeModuleId }: SettingsGridProp
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <ScrollArea className="h-[calc(100vh-280px)]">
+        <ScrollArea className="flex-1 min-h-0">
           <SortableContext items={allCategoryIds} strategy={verticalListSortingStrategy}>
             <div className={cn(
               'space-y-6 pr-4',
