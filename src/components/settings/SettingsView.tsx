@@ -66,7 +66,7 @@ export function SettingsView() {
 
   return (
     <SettingsLayoutProvider>
-      <div className="h-full">
+      <div className="h-full flex flex-col min-h-0">
         {activeModule && ActiveComponent ? (
           <div className="space-y-4">
             <Button

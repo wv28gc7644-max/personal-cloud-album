@@ -3,7 +3,7 @@ import { X, ChevronLeft, ChevronRight, Download, Maximize, Minimize } from 'luci
 import { MediaItem } from '@/types/media';
 import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
-import { VideoHeatmapInteractive } from './VideoHeatmapInteractive';
+import { CustomVideoPlayer, CustomVideoPlayerRef } from './video-player';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { cn } from '@/lib/utils';
 
@@ -18,7 +18,7 @@ interface MediaViewerProps {
 export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: MediaViewerProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<CustomVideoPlayerRef>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mediaContainerRef = useRef<HTMLDivElement>(null);
   const lastSegmentTimeRef = useRef<number>(0);
@@ -39,10 +39,9 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
   }, [item]);
 
   // Track video segments
-  const handleTimeUpdate = useCallback(() => {
-    if (!videoRef.current || !item) return;
+  const handleTimeUpdate = useCallback((currentTime: number) => {
+    if (!item) return;
     
-    const currentTime = videoRef.current.currentTime;
     const segmentSize = 5; // 5 second segments
     
     // Record segment every 2 seconds of playback
@@ -58,7 +57,7 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
   // Handle seek (replay detection)
   const handleSeeked = useCallback(() => {
     if (videoRef.current) {
-      lastSegmentTimeRef.current = videoRef.current.currentTime;
+      lastSegmentTimeRef.current = videoRef.current.getCurrentTime();
     }
   }, []);
 
@@ -219,41 +218,20 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
               )}
             />
           ) : (
-            <div className="flex flex-col w-full max-w-5xl">
-              <div className="relative">
-                <video
-                  ref={videoRef}
-                  src={item.url}
-                  controls
-                  autoPlay
-                  onTimeUpdate={handleTimeUpdate}
-                  onSeeked={handleSeeked}
-                  className={cn(
-                    "w-full max-h-[calc(100vh-160px)] rounded-lg shadow-2xl transition-all duration-500",
-                    isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-                  )}
-                />
-              </div>
-              {/* Interactive Video Heatmap */}
-              {item.duration && (
-                <div className="mt-4 px-2 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Passages les plus regardés</span>
-                    <span>Cliquez pour naviguer</span>
-                  </div>
-                  <VideoHeatmapInteractive 
-                    stats={stats} 
-                    duration={item.duration} 
-                    height={12}
-                    className="rounded-lg"
-                    onSeek={(time) => {
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = time;
-                      }
-                    }}
-                  />
-                </div>
-              )}
+            <div className={cn(
+              "w-full max-w-5xl transition-all duration-500",
+              isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            )}>
+              <CustomVideoPlayer
+                ref={videoRef}
+                src={item.url}
+                duration={item.duration}
+                stats={stats}
+                autoPlay
+                onTimeUpdate={handleTimeUpdate}
+                onSeeked={handleSeeked}
+                className="max-h-[calc(100vh-160px)] rounded-lg shadow-2xl"
+              />
             </div>
           )}
         </div>

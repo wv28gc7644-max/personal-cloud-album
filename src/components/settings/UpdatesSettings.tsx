@@ -457,6 +457,153 @@ export function UpdatesSettings() {
     });
   }, [repoUrl, branch]);
 
+  const downloadSilentUpdateBat = useCallback(() => {
+    const safeRepoUrl = (repoUrl || '').replace(/"/g, '');
+    const safeBranch = (branch || 'main').replace(/"/g, '');
+
+    // Silent update: runs completely hidden, logs everything, shows Windows notification at end
+    const bat = [
+      '@echo off',
+      ':: MediaVault - Mise a jour SILENCIEUSE',
+      ':: Ce script s\'execute entierement en arriere-plan',
+      ':: Une notification Windows apparaitra a la fin',
+      '',
+      ':: Re-lancer en mode cache si pas deja fait',
+      'if "%~1"=="" (',
+      '  powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList \'/c \"\"%~f0\"\" silent\' -WindowStyle Hidden"',
+      '  exit /b 0',
+      ')',
+      '',
+      'setlocal enabledelayedexpansion',
+      '',
+      'set "MV_ROOT=%~dp0"',
+      'set "MV_LOGROOT=%MV_ROOT%logs\\silent"',
+      'for /f "delims=" %%i in (\'powershell -NoProfile -Command "Get-Date -Format yyyyMMdd-HHmmss"\') do set "MV_TS=%%i"',
+      'set "MV_LOGFILE=%MV_LOGROOT%\\update-%MV_TS%.log"',
+      'if not exist "%MV_LOGROOT%" mkdir "%MV_LOGROOT%" >nul 2>&1',
+      '',
+      `set "MV_REPO_URL=${safeRepoUrl}"`,
+      `set "MV_BRANCH_PREF=${safeBranch}"`,
+      '',
+      ':: Executer la mise a jour',
+      'call :MAIN > "%MV_LOGFILE%" 2>&1',
+      'set "MV_EXIT=%errorlevel%"',
+      '',
+      ':: Notification Windows',
+      'if %MV_EXIT% equ 0 (',
+      '  powershell -NoProfile -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; $xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); $text = $xml.GetElementsByTagName(\'text\'); $text.Item(0).AppendChild($xml.CreateTextNode(\'MediaVault\')) | Out-Null; $text.Item(1).AppendChild($xml.CreateTextNode(\'Mise a jour terminee avec succes!\')) | Out-Null; $toast = [Windows.UI.Notifications.ToastNotification]::new($xml); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(\'MediaVault\').Show($toast)"',
+      ') else (',
+      '  powershell -NoProfile -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; $xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); $text = $xml.GetElementsByTagName(\'text\'); $text.Item(0).AppendChild($xml.CreateTextNode(\'MediaVault - Erreur\')) | Out-Null; $text.Item(1).AppendChild($xml.CreateTextNode(\'Echec de la mise a jour. Voir les logs.\')) | Out-Null; $toast = [Windows.UI.Notifications.ToastNotification]::new($xml); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier(\'MediaVault\').Show($toast)"',
+      '  start "" notepad "%MV_LOGFILE%"',
+      ')',
+      'exit /b %MV_EXIT%',
+      '',
+      ':MAIN',
+      'echo ============================================',
+      'echo     MediaVault - Mise a jour SILENCIEUSE',
+      'echo ============================================',
+      'echo.',
+      'echo [META] Date: %date% %time%',
+      'echo [META] Dossier: %MV_ROOT%',
+      'echo [META] Repo: %MV_REPO_URL%',
+      'echo [META] Branche: %MV_BRANCH_PREF%',
+      'echo.',
+      '',
+      'cd /d "%MV_ROOT%"',
+      '',
+      'where git >nul 2>nul',
+      'if errorlevel 1 (',
+      '  echo [ERREUR] Git non installe',
+      '  exit /b 10',
+      ')',
+      '',
+      'where node >nul 2>nul',
+      'if errorlevel 1 (',
+      '  echo [ERREUR] Node.js non installe',
+      '  exit /b 11',
+      ')',
+      '',
+      ':: Sauvegarde',
+      'set "MV_TMP=%TEMP%\\mediavault_silent_%MV_TS%"',
+      'set "MV_KEEP=%MV_TMP%\\keep"',
+      'if not exist "%MV_KEEP%" mkdir "%MV_KEEP%" >nul 2>&1',
+      'echo [1/4] Sauvegarde des donnees...',
+      'if exist "%MV_ROOT%\\data.json" copy /y "%MV_ROOT%\\data.json" "%MV_KEEP%\\data.json" >nul 2>&1',
+      'if exist "%MV_ROOT%\\media" robocopy "%MV_ROOT%\\media" "%MV_KEEP%\\media" /E /NFL /NDL /NJH /NJS >nul',
+      'if exist "%MV_ROOT%\\AI" robocopy "%MV_ROOT%\\AI" "%MV_KEEP%\\AI" /E /NFL /NDL /NJH /NJS >nul',
+      '',
+      ':: Mise a jour Git ou ZIP',
+      'if exist "%MV_ROOT%\\.git\\HEAD" (',
+      '  echo [2/4] Mode Git: synchro forcee...',
+      '  for /f "delims=" %%b in (\'git rev-parse --abbrev-ref HEAD 2^>nul\') do set "BRANCH=%%b"',
+      '  if "!BRANCH!"=="" set "BRANCH=%MV_BRANCH_PREF%"',
+      '  git fetch --all --prune >nul 2>&1',
+      '  if errorlevel 1 (',
+      '    echo [ERREUR] git fetch echoue',
+      '    exit /b 14',
+      '  )',
+      '  git reset --hard "origin/!BRANCH!" >nul 2>&1',
+      '  if errorlevel 1 (',
+      '    echo [ERREUR] git reset echoue',
+      '    exit /b 16',
+      '  )',
+      ') else (',
+      '  echo [2/4] Mode ZIP: telechargement...',
+      '  if "%MV_REPO_URL%"=="" (',
+      '    echo [ERREUR] Repo non configure',
+      '    exit /b 12',
+      '  )',
+      '  for /f "tokens=4,5 delims=/" %%a in ("%MV_REPO_URL%") do (',
+      '    set "MV_OWNER=%%a"',
+      '    set "MV_REPO=%%b"',
+      '  )',
+      '  set "MV_REPO=!MV_REPO:.git=!"',
+      '  set "MV_DL=%MV_TMP%\\repo.zip"',
+      '  set "MV_EX=%MV_TMP%\\extract"',
+      '  if not exist "!MV_EX!" mkdir "!MV_EX!" >nul 2>&1',
+      '  powershell -NoProfile -Command "Invoke-WebRequest -UseBasicParsing -Uri \\"https://codeload.github.com/!MV_OWNER!/!MV_REPO!/zip/refs/heads/%MV_BRANCH_PREF%\\" -OutFile \\"!MV_DL!\\"" >nul 2>&1',
+      '  if errorlevel 1 (',
+      '    echo [ERREUR] Telechargement echoue',
+      '    exit /b 17',
+      '  )',
+      '  powershell -NoProfile -Command "Expand-Archive -Force \\"!MV_DL!\\" \\"!MV_EX!\\"" >nul 2>&1',
+      '  for /d %%D in ("!MV_EX!\\*") do set "MV_SRC=%%D"',
+      '  if exist "%MV_ROOT%\\node_modules" rmdir /s /q "%MV_ROOT%\\node_modules" >nul 2>&1',
+      '  robocopy "!MV_SRC!" "%MV_ROOT%" /E /XD .git media AI logs /XF data.json /NFL /NDL /NJH /NJS >nul',
+      ')',
+      '',
+      ':: Build',
+      'echo [3/4] Installation dependances...',
+      'call npm install >nul 2>&1',
+      'if errorlevel 1 (',
+      '  echo [ERREUR] npm install echoue',
+      '  exit /b 19',
+      ')',
+      '',
+      'echo [4/4] Build...',
+      'call npm run build >nul 2>&1',
+      'if errorlevel 1 (',
+      '  echo [ERREUR] npm run build echoue',
+      '  exit /b 20',
+      ')',
+      '',
+      ':: Restauration',
+      'echo [OK] Restauration des donnees...',
+      'if exist "%MV_KEEP%\\data.json" copy /y "%MV_KEEP%\\data.json" "%MV_ROOT%\\data.json" >nul 2>&1',
+      'if exist "%MV_KEEP%\\media" robocopy "%MV_KEEP%\\media" "%MV_ROOT%\\media" /E /NFL /NDL /NJH /NJS >nul',
+      'if exist "%MV_KEEP%\\AI" robocopy "%MV_KEEP%\\AI" "%MV_ROOT%\\AI" /E /NFL /NDL /NJH /NJS >nul',
+      '',
+      'echo [OK] Mise a jour silencieuse terminee!',
+      'exit /b 0',
+      '',
+    ].join('\r\n');
+
+    downloadTextFile('Mettre a jour MediaVault (silencieux).bat', bat, 'application/x-bat');
+    toast.success('Script silencieux téléchargé', {
+      description: 'Mise à jour en arrière-plan avec notification Windows à la fin.'
+    });
+  }, [repoUrl, branch]);
+
   const checkForUpdates = async () => {
     setUpdateCheckState('checking');
     setLatestCommitInfo(null);
@@ -651,7 +798,7 @@ export function UpdatesSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <Button type="button" variant="outline" className="gap-2" onClick={downloadServerCjs}>
               <Download className="w-4 h-4" />
               server.cjs
@@ -662,8 +809,20 @@ export function UpdatesSettings() {
             </Button>
             <Button type="button" variant="outline" className="gap-2" onClick={downloadUpdateBat}>
               <Download className="w-4 h-4" />
-              Mettre a jour MediaVault.bat
+              Mettre a jour.bat
             </Button>
+            <Button type="button" variant="secondary" className="gap-2" onClick={downloadSilentUpdateBat}>
+              <Download className="w-4 h-4" />
+              Mise à jour silencieuse
+            </Button>
+          </div>
+
+          <div className="p-3 bg-muted/50 rounded-lg border">
+            <p className="text-sm font-medium mb-1">💡 Mise à jour silencieuse</p>
+            <p className="text-xs text-muted-foreground">
+              S'exécute en arrière-plan sans fenêtre visible. Une notification Windows apparaît à la fin (succès ou échec). 
+              Les logs sont dans <code>logs/silent/</code>.
+            </p>
           </div>
 
           <div className="space-y-2 text-sm">
