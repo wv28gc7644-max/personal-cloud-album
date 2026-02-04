@@ -11,10 +11,21 @@ interface VideoProgressBarProps {
   className?: string;
 }
 
-const formatTime = (seconds: number): string => {
+// Format duration with hours:minutes:seconds (and days if needed)
+const formatDuration = (seconds: number): string => {
   if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  
+  if (days > 0) {
+    return `${days}j ${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
@@ -30,6 +41,7 @@ export function VideoProgressBar({
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
 
   // Calculate heatmap data
   const heatmapData = useMemo(() => {
@@ -54,21 +66,38 @@ export function VideoProgressBar({
     return buckets.map(v => v / max);
   }, [stats, duration]);
 
-  const getHeatmapColor = (value: number): string => {
-    // Blue (cold) -> Yellow -> Orange -> Red (hot)
-    if (value < 0.25) {
-      return `hsl(210, 70%, ${50 + value * 40}%)`;
-    } else if (value < 0.5) {
-      const t = (value - 0.25) / 0.25;
-      return `hsl(${210 - t * 170}, 80%, ${60 + t * 10}%)`;
-    } else if (value < 0.75) {
-      const t = (value - 0.5) / 0.25;
-      return `hsl(${40 - t * 20}, 85%, ${70 - t * 10}%)`;
-    } else {
-      const t = (value - 0.75) / 0.25;
-      return `hsl(${20 - t * 20}, 90%, ${60 - t * 15}%)`;
+  // Generate smooth SVG path for heatmap curve (YouTube style)
+  const generateHeatmapPath = useCallback((width: number, height: number): string => {
+    if (!heatmapData || heatmapData.length === 0) return '';
+    
+    const segmentWidth = width / heatmapData.length;
+    const points: { x: number; y: number }[] = [];
+    
+    heatmapData.forEach((value, i) => {
+      points.push({
+        x: i * segmentWidth + segmentWidth / 2,
+        y: height - (value * height * 0.9) - 2 // Leave some padding
+      });
+    });
+
+    if (points.length === 0) return '';
+
+    // Create smooth bezier curve
+    let path = `M 0 ${height} L ${points[0].x} ${points[0].y}`;
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const midX = (p0.x + p1.x) / 2;
+      
+      path += ` Q ${p0.x} ${p0.y}, ${midX} ${(p0.y + p1.y) / 2}`;
     }
-  };
+    
+    const lastPoint = points[points.length - 1];
+    path += ` L ${lastPoint.x} ${lastPoint.y} L ${width} ${height} Z`;
+    
+    return path;
+  }, [heatmapData]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!progressRef.current || duration === 0) return;
@@ -101,9 +130,14 @@ export function VideoProgressBar({
     setIsDragging(false);
   }, []);
 
+  const handleMouseEnter = useCallback(() => {
+    setIsHovering(true);
+  }, []);
+
   const handleMouseLeave = useCallback(() => {
     setHoveredTime(null);
     setIsDragging(false);
+    setIsHovering(false);
   }, []);
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -120,6 +154,8 @@ export function VideoProgressBar({
     return segment?.views || 0;
   }, [hoveredTime, stats]);
 
+  const containerWidth = progressRef.current?.clientWidth || 400;
+
   return (
     <div
       ref={progressRef}
@@ -130,18 +166,34 @@ export function VideoProgressBar({
       onMouseMove={handleMouseMove}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
+      onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Heatmap layer (background) */}
+      {/* YouTube-style heatmap curve ABOVE the progress bar */}
       {heatmapData && (
-        <div className="absolute inset-0 flex rounded-full overflow-hidden opacity-60">
-          {heatmapData.map((value, i) => (
-            <div
-              key={i}
-              className="flex-1"
-              style={{ backgroundColor: getHeatmapColor(value) }}
+        <div 
+          className={cn(
+            "absolute bottom-full left-0 right-0 h-8 mb-1 pointer-events-none transition-opacity duration-200",
+            isHovering ? "opacity-100" : "opacity-0"
+          )}
+        >
+          <svg 
+            className="w-full h-full" 
+            preserveAspectRatio="none"
+            viewBox={`0 0 ${containerWidth} 32`}
+          >
+            <defs>
+              <linearGradient id="heatGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+                <stop offset="0%" stopColor="hsl(var(--muted-foreground) / 0.2)" />
+                <stop offset="100%" stopColor="hsl(var(--primary) / 0.6)" />
+              </linearGradient>
+            </defs>
+            <path 
+              d={generateHeatmapPath(containerWidth, 32)} 
+              fill="url(#heatGradient)"
+              className="transition-all duration-300"
             />
-          ))}
+          </svg>
         </div>
       )}
 
@@ -177,14 +229,14 @@ export function VideoProgressBar({
       {/* Hover tooltip */}
       {hoveredTime !== null && (
         <div
-          className="absolute bottom-full mb-2 px-2 py-1 bg-black/90 text-white text-xs rounded pointer-events-none whitespace-nowrap z-10"
+          className="absolute bottom-full mb-10 px-2 py-1 bg-black/90 text-white text-xs rounded pointer-events-none whitespace-nowrap z-10"
           style={{
             left: Math.min(Math.max(hoverX, 30), progressRef.current?.clientWidth ? progressRef.current.clientWidth - 30 : 100),
             transform: 'translateX(-50%)',
           }}
         >
           <div className="flex flex-col items-center gap-0.5">
-            <span className="font-medium">{formatTime(hoveredTime)}</span>
+            <span className="font-medium">{formatDuration(hoveredTime)}</span>
             {hoveredViews > 0 && (
               <span className="text-white/70">
                 {hoveredViews} vue{hoveredViews > 1 ? 's' : ''}

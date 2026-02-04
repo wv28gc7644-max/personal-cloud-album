@@ -5,6 +5,7 @@ import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaCardMinimal } from './MediaCardMinimal';
+import { MediaCardAdaptive } from './MediaCardAdaptive';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,8 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
         return "flex flex-col gap-4";
       case 'grid-large':
         return "grid grid-cols-1 md:grid-cols-2 gap-6";
+      case 'adaptive':
+        return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-auto";
       case 'grid':
       default:
         return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4";
@@ -129,6 +132,14 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
                 <MediaCardMinimal
                   item={item}
                   onView={() => handleView(item)}
+                />
+              ) : viewMode === 'adaptive' ? (
+                <MediaCardAdaptive
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
                 />
               ) : (
                 <MediaCardTwitter

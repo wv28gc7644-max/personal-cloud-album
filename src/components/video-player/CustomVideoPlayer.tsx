@@ -21,6 +21,7 @@ interface CustomVideoPlayerProps {
   onTimeUpdate?: (currentTime: number) => void;
   onSeeked?: () => void;
   onEnded?: () => void;
+  onDownload?: () => void;
 }
 
 export const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPlayerProps>(({
@@ -33,6 +34,7 @@ export const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPla
   onTimeUpdate,
   onSeeked,
   onEnded,
+  onDownload,
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -326,6 +328,7 @@ export const CustomVideoPlayer = forwardRef<CustomVideoPlayerRef, CustomVideoPla
           onFullscreenToggle={toggleFullscreen}
           onPictureInPictureToggle={togglePictureInPicture}
           onSeek={handleSeek}
+          onDownload={onDownload}
         />
       </div>
     </div>

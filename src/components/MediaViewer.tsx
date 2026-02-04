@@ -198,14 +198,14 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         </Button>
       )}
 
-      {/* Media content - clickable backdrop */}
+      {/* Media content - clickable backdrop - FILL TO EDGE */}
       <div 
-        className="absolute inset-0 flex items-center justify-center p-4 sm:p-8 md:p-16 cursor-pointer"
+        className="absolute inset-0 flex items-center justify-center p-4 cursor-pointer"
         onClick={handleBackdropClick}
       >
         <div 
           ref={mediaContainerRef}
-          className="flex flex-col items-center max-w-full max-h-full cursor-default"
+          className="flex flex-col items-center w-full h-full max-w-[95vw] max-h-[calc(100vh-100px)] cursor-default"
           onClick={(e) => e.stopPropagation()}
         >
           {item.type === 'image' ? (
@@ -213,13 +213,13 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
               src={item.url}
               alt={item.name}
               className={cn(
-                "max-w-full max-h-[calc(100vh-120px)] object-contain rounded-lg shadow-2xl transition-all duration-500",
+                "w-full h-full object-contain rounded-lg shadow-2xl transition-all duration-500",
                 isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
               )}
             />
           ) : (
             <div className={cn(
-              "w-full max-w-5xl transition-all duration-500",
+              "w-full h-full flex items-center justify-center transition-all duration-500",
               isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
             )}>
               <CustomVideoPlayer
@@ -230,7 +230,8 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
                 autoPlay
                 onTimeUpdate={handleTimeUpdate}
                 onSeeked={handleSeeked}
-                className="max-h-[calc(100vh-160px)] rounded-lg shadow-2xl"
+                onDownload={() => onDownload(item)}
+                className="w-full max-h-full rounded-lg shadow-2xl"
               />
             </div>
           )}
