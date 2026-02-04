@@ -179,10 +179,11 @@ export const useRealtimeUpdateCheck = ({
       checkForUpdates(true);
     }, 5000);
 
-    // Set up interval
+    // Set up interval - default to 10 seconds for realtime updates
+    const checkInterval = Math.max(intervalSeconds, 10);
     intervalRef.current = setInterval(() => {
       checkForUpdates(true);
-    }, intervalSeconds * 1000);
+    }, checkInterval * 1000);
 
     return () => {
       clearTimeout(initialTimeout);

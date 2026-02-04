@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaVault - Mise à jour en cours</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      color: #e4e4e7;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      text-align: center;
+      max-width: 500px;
+    }
+    
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 20px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 2s infinite;
+    }
+    
+    .logo svg {
+      width: 40px;
+      height: 40px;
+      fill: white;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.9; }
+    }
+    
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      background: linear-gradient(to right, #e4e4e7, #a1a1aa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .subtitle {
+      color: #a1a1aa;
+      margin-bottom: 32px;
+      font-size: 16px;
+    }
+    
+    .progress-container {
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    
+    .progress-bar-bg {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      height: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
+      border-radius: 8px;
+      width: 0%;
+      transition: width 0.5s ease;
+      animation: shimmer 2s infinite;
+      background-size: 200% 100%;
+    }
+    
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+    }
+    
+    .status {
+      color: #a1a1aa;
+    }
+    
+    .percent {
+      font-weight: 600;
+      color: #8b5cf6;
+    }
+    
+    .steps {
+      text-align: left;
+      margin-top: 24px;
+    }
+    
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      color: #71717a;
+      font-size: 14px;
+    }
+    
+    .step.active {
+      color: #e4e4e7;
+    }
+    
+    .step.done {
+      color: #22c55e;
+    }
+    
+    .step-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid currentColor;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+    
+    .step.active .step-icon {
+      border-color: #8b5cf6;
+      animation: spin 1s linear infinite;
+    }
+    
+    .step.done .step-icon {
+      background: #22c55e;
+      border-color: #22c55e;
+    }
+    
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    
+    .eta {
+      margin-top: 24px;
+      padding: 12px;
+      background: rgba(139, 92, 246, 0.1);
+      border-radius: 8px;
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      font-size: 14px;
+    }
+    
+    .eta-label {
+      color: #a1a1aa;
+    }
+    
+    .eta-value {
+      color: #8b5cf6;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M19 3H5C3.89 3 3 3.89 3 5V19C3 20.1 3.89 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.89 20.1 3 19 3M19 19H5V5H19V19M13.96 12.29L11.21 15.83L9.25 13.47L6.5 17H17.5L13.96 12.29Z"/>
+      </svg>
+    </div>
+    
+    <h1>Mise à jour en cours</h1>
+    <p class="subtitle">MediaVault se met à jour vers une nouvelle version</p>
+    
+    <div class="progress-container">
+      <div class="progress-bar-bg">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="progress-text">
+        <span class="status" id="statusText">Initialisation...</span>
+        <span class="percent" id="percentText">0%</span>
+      </div>
+      
+      <div class="steps">
+        <div class="step" id="step1">
+          <span class="step-icon">1</span>
+          <span>Sauvegarde des données</span>
+        </div>
+        <div class="step" id="step2">
+          <span class="step-icon">2</span>
+          <span>Téléchargement de la mise à jour</span>
+        </div>
+        <div class="step" id="step3">
+          <span class="step-icon">3</span>
+          <span>Installation des dépendances</span>
+        </div>
+        <div class="step" id="step4">
+          <span class="step-icon">4</span>
+          <span>Reconstruction de l'application</span>
+        </div>
+        <div class="step" id="step5">
+          <span class="step-icon">5</span>
+          <span>Restauration et finalisation</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="eta">
+      <span class="eta-label">Temps estimé restant : </span>
+      <span class="eta-value" id="etaValue">~2 minutes</span>
+    </div>
+  </div>
+
+  <script>
+    // This script will be controlled by the update process
+    // For now, simulate progress
+    let progress = 0;
+    let currentStep = 0;
+    
+    const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
+    const stepPercents = [10, 30, 60, 90, 100];
+    const stepTexts = [
+      'Sauvegarde des données...',
+      'Téléchargement en cours...',
+      'Installation des dépendances...',
+      'Reconstruction de l\'application...',
+      'Finalisation...'
+    ];
+    const etaTimes = ['~2 minutes', '~1 min 30s', '~1 minute', '~30 secondes', 'Presque terminé...'];
+
+    function updateProgress() {
+      if (progress >= 100) return;
+      
+      progress += Math.random() * 3;
+      if (progress > 100) progress = 100;
+      
+      document.getElementById('progressBar').style.width = progress + '%';
+      document.getElementById('percentText').textContent = Math.round(progress) + '%';
+      
+      // Update steps
+      for (let i = 0; i < stepPercents.length; i++) {
+        const stepEl = document.getElementById(steps[i]);
+        if (progress >= stepPercents[i]) {
+          stepEl.className = 'step done';
+          stepEl.querySelector('.step-icon').textContent = '✓';
+        } else if (progress >= (i > 0 ? stepPercents[i-1] : 0)) {
+          stepEl.className = 'step active';
+          document.getElementById('statusText').textContent = stepTexts[i];
+          document.getElementById('etaValue').textContent = etaTimes[i];
+        }
+      }
+      
+      if (progress < 100) {
+        setTimeout(updateProgress, 500 + Math.random() * 1000);
+      } else {
+        document.getElementById('statusText').textContent = 'Mise à jour terminée !';
+        document.getElementById('etaValue').textContent = 'Redémarrage...';
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
+    }
+
+    // Check for update status via polling (if server provides endpoint)
+    // Otherwise, run simulation for demo
+    setTimeout(updateProgress, 1000);
+  </script>
+</body>
+</html>

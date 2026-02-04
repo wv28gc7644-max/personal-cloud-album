@@ -383,106 +383,110 @@ export const CardDesignEditor = () => {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Presets */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="w-5 h-5" />
-            Presets de design
-          </CardTitle>
-          <CardDescription>Choisissez un style prédéfini ou personnalisez</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            <Button 
-              variant={settings.preset === 'normal' ? 'default' : 'outline'}
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => applyPreset('normal')}
-            >
-              <LayoutGrid className="w-6 h-6" />
-              <span>Normal</span>
-              <span className="text-xs opacity-70">Tous les éléments</span>
-            </Button>
-            <Button 
-              variant={settings.preset === 'minimalist' ? 'default' : 'outline'}
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => applyPreset('minimalist')}
-            >
-              <Minimize2 className="w-6 h-6" />
-              <span>Minimaliste</span>
-              <span className="text-xs opacity-70">Épuré</span>
-            </Button>
-            <Button 
-              variant={settings.preset === 'compact' ? 'default' : 'outline'}
-              className="h-auto py-4 flex-col gap-2"
-              onClick={() => applyPreset('compact')}
-            >
-              <Square className="w-6 h-6" />
-              <span>Compact</span>
-              <span className="text-xs opacity-70">Plus de cartes</span>
-            </Button>
-          </div>
-          
-          {/* Export/Import buttons */}
-          <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
-            <Button variant="outline" size="sm" onClick={exportSettings} className="flex-1">
-              <FileDown className="w-4 h-4 mr-2" />
-              Exporter
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex-1">
-              <Upload className="w-4 h-4 mr-2" />
-              Importer
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              onChange={importSettings}
-              className="hidden"
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex gap-6 h-full min-h-[600px]">
+      {/* Left side - Fixed Preview */}
+      <div className="w-1/2 flex-shrink-0 sticky top-0 self-start">
+        <Card className="h-full">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Prévisualisation
+              </span>
+              <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as 'image' | 'video')}>
+                <TabsList className="h-8">
+                  <TabsTrigger value="image" className="text-xs px-3">Image</TabsTrigger>
+                  <TabsTrigger value="video" className="text-xs px-3">Vidéo</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center min-h-[400px]">
+            <div className="w-full max-w-sm">
+              <PreviewCard />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Live Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Eye className="w-5 h-5" />
-              Prévisualisation en direct
-            </span>
-            <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as 'image' | 'video')}>
-              <TabsList className="h-8">
-                <TabsTrigger value="image" className="text-xs px-3">Image</TabsTrigger>
-                <TabsTrigger value="video" className="text-xs px-3">Vidéo</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="max-w-sm mx-auto">
-            <PreviewCard />
-          </div>
-        </CardContent>
-      </Card>
+      {/* Right side - Scrollable Settings */}
+      <div className="w-1/2 overflow-y-auto space-y-6 pr-2">
+        {/* Presets */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              Presets de design
+            </CardTitle>
+            <CardDescription>Choisissez un style prédéfini ou personnalisez</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              <Button 
+                variant={settings.preset === 'normal' ? 'default' : 'outline'}
+                className="h-auto py-4 flex-col gap-2"
+                onClick={() => applyPreset('normal')}
+              >
+                <LayoutGrid className="w-6 h-6" />
+                <span>Normal</span>
+                <span className="text-xs opacity-70">Tous les éléments</span>
+              </Button>
+              <Button 
+                variant={settings.preset === 'minimalist' ? 'default' : 'outline'}
+                className="h-auto py-4 flex-col gap-2"
+                onClick={() => applyPreset('minimalist')}
+              >
+                <Minimize2 className="w-6 h-6" />
+                <span>Minimaliste</span>
+                <span className="text-xs opacity-70">Épuré</span>
+              </Button>
+              <Button 
+                variant={settings.preset === 'compact' ? 'default' : 'outline'}
+                className="h-auto py-4 flex-col gap-2"
+                onClick={() => applyPreset('compact')}
+              >
+                <Square className="w-6 h-6" />
+                <span>Compact</span>
+                <span className="text-xs opacity-70">Plus de cartes</span>
+              </Button>
+            </div>
+            
+            {/* Export/Import buttons */}
+            <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
+              <Button variant="outline" size="sm" onClick={exportSettings} className="flex-1">
+                <FileDown className="w-4 h-4 mr-2" />
+                Exporter
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="flex-1">
+                <Upload className="w-4 h-4 mr-2" />
+                Importer
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={importSettings}
+                className="hidden"
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Detailed Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Type className="w-5 h-5" />
-              Personnalisation avancée
-            </span>
-            <Button variant="ghost" size="sm" onClick={resetSettings}>
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Réinitialiser
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        {/* Detailed Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Type className="w-5 h-5" />
+                Personnalisation avancée
+              </span>
+              <Button variant="ghost" size="sm" onClick={resetSettings}>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Réinitialiser
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
           {/* Card Settings */}
           <div className="space-y-4">
             <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Carte</h4>
@@ -670,7 +674,8 @@ export const CardDesignEditor = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 };

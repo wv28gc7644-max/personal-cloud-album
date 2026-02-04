@@ -436,7 +436,7 @@ export function Sidebar({
         </div>
       </nav>
 
-      {/* Settings */}
+      {/* Settings + Version Footer */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
         {/* Sidebar Editor Button */}
         <button 
@@ -489,6 +489,37 @@ export function Sidebar({
             </Tooltip>
           )}
         </button>
+
+        {/* Version Footer */}
+        <div className="pt-2 mt-2 border-t border-sidebar-border/50">
+          <div className="px-4 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">v{(() => {
+                try {
+                  const { APP_VERSION } = require('@/config/versionFeatures');
+                  return APP_VERSION;
+                } catch { return '1.0.0'; }
+              })()}</span>
+              <span className="opacity-70">
+                {(() => {
+                  const lastUpdate = localStorage.getItem('mediavault-last-update-date');
+                  if (lastUpdate) {
+                    try {
+                      return new Date(lastUpdate).toLocaleDateString('fr-FR', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+                    } catch { return ''; }
+                  }
+                  return '';
+                })()}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Sidebar Editor Dialog */}

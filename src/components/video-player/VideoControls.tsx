@@ -1,4 +1,4 @@
-import { Play, Pause, Volume2, VolumeX, Volume1, Maximize, Minimize, PictureInPicture, Settings } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Volume1, Maximize, Minimize, PictureInPicture, Settings, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -19,16 +19,29 @@ interface VideoControlsProps {
   onFullscreenToggle: () => void;
   onPictureInPictureToggle: () => void;
   onSeek: (time: number) => void;
+  onDownload?: () => void;
 }
 
-const formatTime = (seconds: number): string => {
+// Format duration with hours:minutes:seconds (and days if needed)
+const formatDuration = (seconds: number): string => {
   if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  
+  if (days > 0) {
+    return `${days}j ${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+// Extended playback rates up to 4x
+const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
 
 export function VideoControls({
   isPlaying,
@@ -45,6 +58,7 @@ export function VideoControls({
   onFullscreenToggle,
   onPictureInPictureToggle,
   onSeek,
+  onDownload,
 }: VideoControlsProps) {
   const VolumeIcon = isMuted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
@@ -113,7 +127,7 @@ export function VideoControls({
 
         {/* Time */}
         <div className="text-white text-sm font-medium ml-2 tabular-nums">
-          {formatTime(currentTime)} / {formatTime(duration)}
+          {formatDuration(currentTime)} / {formatDuration(duration)}
         </div>
       </div>
 
@@ -165,6 +179,19 @@ export function VideoControls({
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* Download */}
+        {onDownload && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDownload}
+            className="h-8 w-8 text-white hover:bg-white/20"
+            title="Télécharger"
+          >
+            <Download className="h-5 w-5" />
+          </Button>
+        )}
 
         {/* Picture-in-Picture */}
         <Button
