@@ -573,6 +573,147 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // API: Scanner un dossier externe (lier sans copier)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/scan-folder' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const folderPath = body.path;
+      
+      if (!folderPath) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Chemin du dossier requis' }));
+      }
+
+      const normalizedPath = path.normalize(folderPath);
+      
+      if (!fs.existsSync(normalizedPath)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: `Dossier introuvable: ${normalizedPath}` }));
+      }
+
+      const stats = fs.statSync(normalizedPath);
+      if (!stats.isDirectory()) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Le chemin spécifié n\'est pas un dossier' }));
+      }
+
+      const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|bmp|tiff|mp4|webm|mov|avi|mkv|mp3|wav|flac|ogg)$/i.test(name);
+      
+      const scanFolder = (dir, baseDir, maxDepth = 10, currentDepth = 0) => {
+        if (currentDepth > maxDepth) return [];
+        const out = [];
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const abs = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+              out.push(...scanFolder(abs, baseDir, maxDepth, currentDepth + 1));
+            } else if (entry.isFile() && isSupported(entry.name)) {
+              const rel = path.relative(baseDir, abs);
+              const fileStats = fs.statSync(abs);
+              const ext = path.extname(entry.name).toLowerCase();
+              // Encode the absolute path for serving via /linked-media/
+              const encodedAbsPath = Buffer.from(abs).toString('base64url');
+              out.push({
+                name: entry.name,
+                relativePath: rel,
+                absolutePath: abs,
+                folder: path.relative(baseDir, dir) || '.',
+                url: `http://localhost:${PORT}/linked-media/${encodedAbsPath}`,
+                thumbnailUrl: `http://localhost:${PORT}/linked-media/${encodedAbsPath}`,
+                size: fileStats.size,
+                type: ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext) ? 'video' : 
+                      ['.mp3', '.wav', '.flac', '.ogg'].includes(ext) ? 'audio' : 'image',
+                createdAt: fileStats.birthtime.toISOString(),
+                modifiedAt: fileStats.mtime.toISOString()
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Erreur scan dossier:', e.message);
+        }
+        return out;
+      };
+
+      const files = scanFolder(normalizedPath, normalizedPath);
+      const folders = [...new Set(files.map(f => f.folder))].sort();
+      
+      addLog('info', 'server', `Scan dossier: ${normalizedPath} → ${files.length} fichiers trouvés`);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        path: normalizedPath,
+        totalFiles: files.length,
+        folders,
+        files,
+        stats: {
+          images: files.filter(f => f.type === 'image').length,
+          videos: files.filter(f => f.type === 'video').length,
+          audio: files.filter(f => f.type === 'audio').length,
+          totalSize: files.reduce((acc, f) => acc + f.size, 0)
+        }
+      }));
+    }
+
+    // API: Lister les dossiers liés sauvegardés
+    if (pathname === '/api/linked-folders' && req.method === 'GET') {
+      try {
+        const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(data.linkedFolders || []));
+      } catch (e) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify([]));
+      }
+    }
+
+    // API: Sauvegarder un dossier lié
+    if (pathname === '/api/linked-folders' && req.method === 'POST') {
+      const body = await parseBody(req);
+      try {
+        const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        if (!data.linkedFolders) data.linkedFolders = [];
+        
+        // Éviter les doublons
+        const exists = data.linkedFolders.find(f => f.path === body.path);
+        if (!exists) {
+          data.linkedFolders.push({
+            id: Date.now().toString(),
+            path: body.path,
+            name: body.name || path.basename(body.path),
+            addedAt: new Date().toISOString(),
+            fileCount: body.fileCount || 0
+          });
+          fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // API: Supprimer un dossier lié
+    if (pathname === '/api/linked-folders' && req.method === 'DELETE') {
+      const body = await parseBody(req);
+      try {
+        const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        if (data.linkedFolders) {
+          data.linkedFolders = data.linkedFolders.filter(f => f.id !== body.id);
+          fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // API: Mise à jour et Restauration
     // ═══════════════════════════════════════════════════════════════
 
@@ -2301,6 +2442,31 @@ const server = http.createServer(async (req, res) => {
           'Cache-Control': 'public, max-age=31536000'
         });
         return fs.createReadStream(filePath).pipe(res);
+      }
+    }
+
+    // Servir les fichiers liés (dossiers externes)
+    if (pathname.startsWith('/linked-media/')) {
+      try {
+        const encodedPath = pathname.slice(14);
+        const filePath = Buffer.from(encodedPath, 'base64url').toString('utf8');
+        const normalizedPath = path.normalize(filePath);
+        
+        if (fs.existsSync(normalizedPath) && fs.statSync(normalizedPath).isFile()) {
+          const stat = fs.statSync(normalizedPath);
+          res.writeHead(200, {
+            'Content-Type': getMimeType(path.extname(normalizedPath)),
+            'Content-Length': stat.size,
+            'Cache-Control': 'public, max-age=31536000'
+          });
+          return fs.createReadStream(normalizedPath).pipe(res);
+        }
+        
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Fichier lié introuvable' }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Chemin invalide' }));
       }
     }
 

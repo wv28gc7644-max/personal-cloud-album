@@ -1,4 +1,5 @@
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +11,7 @@ import { UserMenu } from './UserMenu';
 import { AIAssistant } from './AIAssistant';
 import { EditableElement } from './EditableElement';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
+import { FolderScanner } from './FolderScanner';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -20,6 +22,7 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
   const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
   const filteredCount = getFilteredMedia().length;
+  const [folderScannerOpen, setFolderScannerOpen] = useState(false);
 
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
@@ -127,6 +130,14 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
             <UserMenu />
           </EditableElement>
 
+          {/* Link folder button */}
+          <EditableElement id="header-link-folder" type="button" name="Lier un dossier">
+            <Button variant="outline" onClick={() => setFolderScannerOpen(true)} className="gap-2">
+              <FolderSearch className="w-4 h-4" />
+              Lier un dossier
+            </Button>
+          </EditableElement>
+
           {/* Upload button */}
           <EditableElement id="header-upload" type="button" name="Bouton Ajouter">
             <Button onClick={onUploadClick} className="gap-2">
@@ -136,6 +147,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
           </EditableElement>
         </div>
       </EditableElement>
+
+      {/* Folder Scanner Dialog */}
+      <FolderScanner open={folderScannerOpen} onClose={() => setFolderScannerOpen(false)} />
     </header>
   );
 }

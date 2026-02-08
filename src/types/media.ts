@@ -18,6 +18,9 @@ export interface MediaItem {
   createdAt: Date;
   size: number;
   duration?: number; // For videos, in seconds
+  isLinked?: boolean; // True if file is referenced from external folder (not copied)
+  sourcePath?: string; // Absolute path on disk for linked files
+  sourceFolder?: string; // Name of the linked folder group
 }
 
 export interface Playlist {
