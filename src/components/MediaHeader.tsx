@@ -12,6 +12,7 @@ import { AIAssistant } from './AIAssistant';
 import { EditableElement } from './EditableElement';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { FolderScanner } from './FolderScanner';
+import { ThemeToggle } from './ThemeToggle';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -115,6 +116,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
               </Button>
             </EditableElement>
           )}
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Notification Center */}
           <EditableElement id="header-notifications" type="icon" name="Notifications">
