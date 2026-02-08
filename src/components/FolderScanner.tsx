@@ -13,7 +13,9 @@ import {
   X,
   Import,
   FolderTree,
-  FolderOpen
+  FolderOpen,
+  History,
+  Trash2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -24,7 +26,37 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { MediaItem } from '@/types/media';
 import { getLocalServerUrl } from '@/utils/localServerUrl';
+import { safeGetLocalStorage, safeSetLocalStorage } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
+
+interface FolderHistoryEntry {
+  path: string;
+  name: string;
+  fileCount: number;
+  lastUsed: string;
+}
+
+const HISTORY_KEY = 'mediavault-folder-history';
+const MAX_HISTORY = 10;
+
+const getFolderHistory = (): FolderHistoryEntry[] => 
+  safeGetLocalStorage<FolderHistoryEntry[]>(HISTORY_KEY, []);
+
+const saveFolderToHistory = (pathStr: string, fileCount: number) => {
+  const history = getFolderHistory();
+  const name = pathStr.split(/[/\\]/).pop() || pathStr;
+  const existing = history.findIndex(h => h.path === pathStr);
+  if (existing !== -1) history.splice(existing, 1);
+  history.unshift({ path: pathStr, name, fileCount, lastUsed: new Date().toISOString() });
+  if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+  safeSetLocalStorage(HISTORY_KEY, history);
+};
+
+const removeFromHistory = (pathStr: string) => {
+  const history = getFolderHistory().filter(h => h.path !== pathStr);
+  safeSetLocalStorage(HISTORY_KEY, history);
+  return history;
+};
 
 interface ScannedFile {
   name: string;
@@ -73,6 +105,7 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
   const [importTypeFilter, setImportTypeFilter] = useState<Set<string>>(new Set(['image', 'video']));
   const [isBrowsing, setIsBrowsing] = useState(false);
+  const [folderHistory, setFolderHistory] = useState<FolderHistoryEntry[]>(getFolderHistory);
 
   const { addMedia, media } = useMediaStore();
 
@@ -125,6 +158,9 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
       const result: ScanResult = await response.json();
       setScanResult(result);
       setSelectedFolders(new Set(result.folders));
+      // Save to history
+      saveFolderToHistory(folderPath.trim(), result.totalFiles);
+      setFolderHistory(getFolderHistory());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de connexion au serveur');
     } finally {
@@ -274,14 +310,58 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
             </Button>
           </div>
 
-          {/* Hint */}
+          {/* Hint + History */}
           {!scanResult && !error && !isScanning && (
-            <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-start gap-2">
-              <HardDrive className="w-4 h-4 mt-0.5 shrink-0" />
-              <p>
-                Entrez un chemin manuellement ou cliquez sur <strong>Parcourir</strong> pour ouvrir le sélecteur natif. 
-                Les fichiers seront <strong>liés</strong> (pas copiés) — aucun espace supplémentaire ne sera utilisé.
-              </p>
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-start gap-2">
+                <HardDrive className="w-4 h-4 mt-0.5 shrink-0" />
+                <p>
+                  Entrez un chemin manuellement ou cliquez sur <strong>Parcourir</strong> pour ouvrir le sélecteur natif. 
+                  Les fichiers seront <strong>liés</strong> (pas copiés) — aucun espace supplémentaire ne sera utilisé.
+                </p>
+              </div>
+
+              {/* Folder history */}
+              {folderHistory.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    <History className="w-3.5 h-3.5" />
+                    Dossiers récents
+                  </div>
+                  <div className="space-y-1">
+                    {folderHistory.map((entry) => (
+                      <div
+                        key={entry.path}
+                        className="group flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setFolderPath(entry.path);
+                        }}
+                      >
+                        <FolderTree className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm truncate">{entry.path}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {entry.fileCount} fichier(s) · {new Date(entry.lastUsed).toLocaleDateString('fr-FR')}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const updated = removeFromHistory(entry.path);
+                            setFolderHistory(updated);
+                          }}
+                          title="Supprimer de l'historique"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
