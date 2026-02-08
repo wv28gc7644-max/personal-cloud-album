@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,13 +20,14 @@ interface MediaHeaderProps {
 }
 
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
-  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, getFilteredMedia } = useMediaStore();
+  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
   const filteredMedia = getFilteredMedia();
   const filteredCount = filteredMedia.length;
   const localCount = filteredMedia.filter(m => !m.isLinked).length;
   const linkedCount = filteredMedia.filter(m => m.isLinked).length;
   const [folderScannerOpen, setFolderScannerOpen] = useState(false);
+  const sourceFolders = getSourceFolders();
 
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
@@ -133,6 +134,41 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
               </SelectContent>
             </Select>
           </EditableElement>
+
+          {/* Source folder filter */}
+          {sourceFolders.length > 0 && (
+            <EditableElement id="header-folder-filter" type="container" name="Filtre dossier">
+              <div className="flex items-center gap-1">
+                <Select 
+                  value={sourceFolderFilter || '__all__'} 
+                  onValueChange={(v) => setSourceFolderFilter(v === '__all__' ? null : v)}
+                >
+                  <SelectTrigger className="w-44">
+                    <FolderTree className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Tous les dossiers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Tous les dossiers</SelectItem>
+                    {sourceFolders.map((folder) => (
+                      <SelectItem key={folder} value={folder}>
+                        {folder}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {sourceFolderFilter && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSourceFolderFilter(null)}
+                    title="Effacer le filtre dossier"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            </EditableElement>
+          )}
 
           {/* View mode toggles */}
           <EditableElement id="header-view-modes" type="container" name="Modes de vue">
