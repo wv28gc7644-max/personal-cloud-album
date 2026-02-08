@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { MediaItem, Tag, Playlist, ViewMode, SortOption } from '@/types/media';
+import { MediaItem, Tag, Playlist, ViewMode, SortOption, SourceFilter } from '@/types/media';
 
 interface MediaStore {
   media: MediaItem[];
@@ -10,6 +10,7 @@ interface MediaStore {
   viewMode: ViewMode;
   sortBy: SortOption;
   searchQuery: string;
+  sourceFilter: SourceFilter;
   
   // Media actions
   addMedia: (item: MediaItem) => void;
@@ -32,6 +33,7 @@ interface MediaStore {
   setViewMode: (mode: ViewMode) => void;
   setSortBy: (sort: SortOption) => void;
   setSearchQuery: (query: string) => void;
+  setSourceFilter: (filter: SourceFilter) => void;
   
   // Getters
   getFilteredMedia: () => MediaItem[];
@@ -150,6 +152,7 @@ export const useMediaStore = create<MediaStore>()(
       viewMode: 'grid',
       sortBy: 'date-desc',
       searchQuery: '',
+      sourceFilter: 'all' as SourceFilter,
 
       addMedia: (item) => set((state) => ({ media: [item, ...state.media] })),
       
@@ -207,9 +210,10 @@ export const useMediaStore = create<MediaStore>()(
       setViewMode: (mode) => set({ viewMode: mode }),
       setSortBy: (sort) => set({ sortBy: sort }),
       setSearchQuery: (query) => set({ searchQuery: query }),
+      setSourceFilter: (filter) => set({ sourceFilter: filter }),
 
       getFilteredMedia: () => {
-        const { media, selectedTags, searchQuery, sortBy } = get();
+        const { media, selectedTags, searchQuery, sortBy, sourceFilter } = get();
         
         const filtered = media.filter((item) => {
           const matchesTags = selectedTags.length === 0 || 
@@ -220,8 +224,12 @@ export const useMediaStore = create<MediaStore>()(
             item.tags.some((tag) => 
               tag.name.toLowerCase().includes(searchQuery.toLowerCase())
             );
+
+          const matchesSource = sourceFilter === 'all' ||
+            (sourceFilter === 'linked' && item.isLinked) ||
+            (sourceFilter === 'local' && !item.isLinked);
           
-          return matchesTags && matchesSearch;
+          return matchesTags && matchesSearch && matchesSource;
         });
 
         return sortMedia(filtered, sortBy);

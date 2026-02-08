@@ -45,6 +45,8 @@ export type SortOption =
   | 'type-video'
   | 'duration-desc';
 
+export type SourceFilter = 'all' | 'local' | 'linked';
+
 export interface MediaStats {
   mediaId: string;
   viewCount: number;

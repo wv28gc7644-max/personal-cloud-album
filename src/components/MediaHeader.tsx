@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ViewMode, SortOption } from '@/types/media';
+import { ViewMode, SortOption, SourceFilter } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
 import { NotificationCenter } from './NotificationCenter';
@@ -20,7 +20,7 @@ interface MediaHeaderProps {
 }
 
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
-  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, getFilteredMedia } = useMediaStore();
+  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
   const filteredCount = getFilteredMedia().length;
   const [folderScannerOpen, setFolderScannerOpen] = useState(false);
@@ -82,6 +82,21 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                     {option.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </EditableElement>
+
+          {/* Source filter */}
+          <EditableElement id="header-source-filter" type="container" name="Filtre source">
+            <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+              <SelectTrigger className="w-36">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="local">Locaux</SelectItem>
+                <SelectItem value="linked">Liés</SelectItem>
               </SelectContent>
             </Select>
           </EditableElement>
