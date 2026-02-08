@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
-import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive } from 'lucide-react';
+import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -285,6 +285,14 @@ export const MediaCardTwitter = ({
         <div className="absolute top-3 right-3 px-2 py-0.5 rounded bg-black/70 backdrop-blur-sm text-xs text-white font-medium flex items-center gap-1">
           <Eye className="w-3 h-3" />
           {viewCount}
+        </div>
+      )}
+
+      {/* Linked file indicator */}
+      {item.isLinked && (
+        <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs text-primary-foreground font-medium flex items-center gap-1" title={item.sourcePath || 'Fichier lié'}>
+          <Link className="w-3 h-3" />
+          Lié
         </div>
       )}
     </div>

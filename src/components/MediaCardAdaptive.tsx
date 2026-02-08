@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Heart, Download, Share, Eye, MoreHorizontal } from 'lucide-react';
+import { Play, Heart, Download, Share, Eye, MoreHorizontal, Link } from 'lucide-react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
@@ -140,6 +140,14 @@ export function MediaCardAdaptive({
             </div>
           </div>
         </div>
+
+        {/* Linked file indicator */}
+        {item.isLinked && (
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs text-primary-foreground font-medium flex items-center gap-1" title={item.sourcePath || 'Fichier lié'}>
+            <Link className="w-3 h-3" />
+            Lié
+          </div>
+        )}
       </div>
 
       {/* Compact info bar */}
