@@ -573,6 +573,45 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // API: Ouvrir un sélecteur de dossier natif
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/browse-folder' && req.method === 'POST') {
+      const platform = process.platform;
+      let cmd;
+
+      if (platform === 'win32') {
+        // PowerShell: ouvre un dialog de sélection de dossier natif Windows
+        cmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Sélectionnez un dossier média'; $f.ShowNewFolderButton = $false; if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath } else { '' }"`;
+      } else if (platform === 'darwin') {
+        // macOS: utilise osascript
+        cmd = `osascript -e 'POSIX path of (choose folder with prompt "Sélectionnez un dossier média")'`;
+      } else {
+        // Linux: zenity ou kdialog
+        cmd = `zenity --file-selection --directory --title="Sélectionnez un dossier média" 2>/dev/null || kdialog --getexistingdirectory ~ 2>/dev/null`;
+      }
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          exec(cmd, { timeout: 120000 }, (error, stdout) => {
+            if (error) {
+              // L'utilisateur a annulé ou erreur
+              resolve('');
+            } else {
+              resolve(stdout.trim());
+            }
+          });
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ path: result || '' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // API: Scanner un dossier externe (lier sans copier)
     // ═══════════════════════════════════════════════════════════════
 

@@ -12,7 +12,8 @@ import {
   FolderPlus,
   X,
   Import,
-  FolderTree
+  FolderTree,
+  FolderOpen
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -71,8 +72,31 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
   const [importTypeFilter, setImportTypeFilter] = useState<Set<string>>(new Set(['image', 'video']));
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   const { addMedia, media } = useMediaStore();
+
+  const handleBrowse = useCallback(async () => {
+    setIsBrowsing(true);
+    setError(null);
+    try {
+      const serverUrl = getLocalServerUrl();
+      const response = await fetch(`${serverUrl}/api/browse-folder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(120000)
+      });
+      if (!response.ok) throw new Error('Erreur serveur');
+      const data = await response.json();
+      if (data.path) {
+        setFolderPath(data.path);
+      }
+    } catch (err) {
+      setError('Impossible d\'ouvrir le sélecteur de dossier. Vérifiez que le serveur local est lancé.');
+    } finally {
+      setIsBrowsing(false);
+    }
+  }, []);
 
   const handleScan = useCallback(async () => {
     if (!folderPath.trim()) {
@@ -219,13 +243,27 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
               value={folderPath}
               onChange={(e) => setFolderPath(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-              disabled={isScanning}
+              disabled={isScanning || isBrowsing}
               className="flex-1"
             />
+            <Button
+              variant="outline"
+              onClick={handleBrowse}
+              disabled={isScanning || isBrowsing}
+              className="gap-2 shrink-0"
+              title="Parcourir les dossiers"
+            >
+              {isBrowsing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FolderOpen className="w-4 h-4" />
+              )}
+              Parcourir
+            </Button>
             <Button 
               onClick={handleScan} 
               disabled={isScanning || !folderPath.trim()}
-              className="gap-2"
+              className="gap-2 shrink-0"
             >
               {isScanning ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -241,8 +279,8 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
             <div className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 flex items-start gap-2">
               <HardDrive className="w-4 h-4 mt-0.5 shrink-0" />
               <p>
-                Entrez le chemin d'un dossier sur votre disque dur. Les fichiers seront <strong>liés</strong> (pas copiés) — 
-                aucun espace de stockage supplémentaire ne sera utilisé.
+                Entrez un chemin manuellement ou cliquez sur <strong>Parcourir</strong> pour ouvrir le sélecteur natif. 
+                Les fichiers seront <strong>liés</strong> (pas copiés) — aucun espace supplémentaire ne sera utilisé.
               </p>
             </div>
           )}
