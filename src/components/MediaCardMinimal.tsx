@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { MediaItem } from '@/types/media';
-import { Play, Eye } from 'lucide-react';
+import { Play, Eye, Link } from 'lucide-react';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { cn } from '@/lib/utils';
@@ -118,6 +118,13 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
         <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm text-xs text-white font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Eye className="w-3 h-3" />
           {viewCount}
+        </div>
+      )}
+
+      {/* Linked file indicator */}
+      {item.isLinked && (
+        <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs text-primary-foreground font-medium flex items-center gap-1" title={item.sourcePath || 'Fichier lié'}>
+          <Link className="w-3 h-3" />
         </div>
       )}
 
