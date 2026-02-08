@@ -80,9 +80,9 @@ const DEFAULT_CONFIG: SidebarConfig = {
         { id: 'photos', icon: 'Images', label: 'Photos', type: 'nav', view: 'photos' },
         { id: 'videos', icon: 'Video', label: 'Vidéos', type: 'nav', view: 'videos' },
         { id: 'favorites', icon: 'Heart', label: 'Favoris', type: 'nav', view: 'favorites' },
-        { id: 'albums', icon: 'FolderTree', label: 'Albums', type: 'nav', view: 'albums', isNew: true },
-        { id: 'timeline', icon: 'Clock', label: 'Timeline', type: 'nav', view: 'timeline', isNew: true },
-        { id: 'calendar', icon: 'Calendar', label: 'Calendrier', type: 'nav', view: 'calendar', isNew: true },
+        { id: 'albums', icon: 'FolderTree', label: 'Albums', type: 'nav', view: 'albums' },
+        { id: 'timeline', icon: 'Clock', label: 'Timeline', type: 'nav', view: 'timeline' },
+        { id: 'calendar', icon: 'Calendar', label: 'Calendrier', type: 'nav', view: 'calendar' },
         { id: 'stats', icon: 'BarChart3', label: 'Statistiques', type: 'nav', view: 'stats' },
         { id: 'smart-home', icon: 'Home', label: 'MediaVault Home', type: 'nav', view: 'smart-home' },
       ]
@@ -94,10 +94,10 @@ const DEFAULT_CONFIG: SidebarConfig = {
       isCollapsible: true,
       isExpanded: false,
       items: [
-        { id: 'kiosk', icon: 'Tv', label: 'Mode Kiosque', type: 'tool', action: 'kiosk', isNew: true },
-        { id: 'qrcode', icon: 'QrCode', label: 'QR Code Mobile', type: 'tool', action: 'qrcode', isNew: true },
-        { id: 'compare', icon: 'Columns', label: 'Comparer', type: 'tool', action: 'compare', isNew: true },
-        { id: 'filters', icon: 'Filter', label: 'Filtres avancés', type: 'tool', action: 'filters', isNew: true },
+        { id: 'kiosk', icon: 'Tv', label: 'Mode Kiosque', type: 'tool', action: 'kiosk' },
+        { id: 'qrcode', icon: 'QrCode', label: 'QR Code Mobile', type: 'tool', action: 'qrcode' },
+        { id: 'compare', icon: 'Columns', label: 'Comparer', type: 'tool', action: 'compare' },
+        { id: 'filters', icon: 'Filter', label: 'Filtres avancés', type: 'tool', action: 'filters' },
         { id: 'update', icon: 'RefreshCw', label: 'Mise à jour', type: 'tool', action: 'update' },
       ]
     }

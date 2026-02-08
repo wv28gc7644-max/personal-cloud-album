@@ -18,6 +18,7 @@ import { useUpdateStatus } from '@/hooks/useUpdateStatus';
 import { useLocalServer } from '@/hooks/useLocalServer';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { useSidebarConfig } from '@/hooks/useSidebarConfig';
+import { useNewFeatures } from '@/hooks/useNewFeatures';
 import { EditableElement } from './EditableElement';
 import { TagBadge } from './TagBadge';
 import { SidebarEditor } from './sidebar/SidebarEditor';
@@ -66,7 +67,7 @@ export function Sidebar({
   const { isConnected, testConnection } = useLocalServer();
   const { isEditMode, toggleEditMode } = useGlobalEditorContext();
   const { config, toggleSectionExpanded } = useSidebarConfig();
-  
+  const { isNewFeature, markNavAsSeen, unseenCount } = useNewFeatures();
   const [tagsExpanded, setTagsExpanded] = useState(true);
   const [playlistsExpanded, setPlaylistsExpanded] = useState(true);
   const [sidebarEditorOpen, setSidebarEditorOpen] = useState(false);
@@ -112,18 +113,10 @@ export function Sidebar({
     const isActive = item.view && currentView === item.view;
     const badge = getBadge(item.id);
     const showUpdate = hasUpdateIndicator(item.id);
+    const showNewBadge = isNewFeature(item.id);
 
     // Special styling for specific views
     const getSpecialStyles = () => {
-      if (item.view === 'ai-studio' && isActive) {
-        return "bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/30";
-      }
-      if (item.view === 'ai-creations' && isActive) {
-        return "bg-gradient-to-r from-pink-500/20 to-orange-500/20 text-pink-400 border border-pink-500/30";
-      }
-      if (item.view === 'agent' && isActive) {
-        return "bg-gradient-to-r from-green-500/20 to-emerald-500/20 text-green-400 border border-green-500/30";
-      }
       if (item.view === 'smart-home' && isActive) {
         return "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/30";
       }
@@ -133,6 +126,9 @@ export function Sidebar({
     };
 
     const handleClick = () => {
+      // Mark feature as seen when clicked
+      markNavAsSeen(item.id);
+      
       if (item.type === 'nav' && item.view) {
         onViewChange(item.view as ViewType);
       } else if (item.type === 'tool' && item.action) {
@@ -157,13 +153,12 @@ export function Sidebar({
       >
         <ItemIcon className={cn(
           "w-5 h-5",
-          item.id === 'favorites' && isActive && "fill-current text-yellow-500",
-          item.view === 'ai-studio' && isActive && "animate-pulse"
+          item.id === 'favorites' && isActive && "fill-current text-yellow-500"
         )} />
         <span className="font-medium text-sm">{item.label}</span>
         
-        {/* New badge */}
-        {item.isNew && (
+        {/* Dynamic New badge from version features */}
+        {showNewBadge && (
           <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs px-1.5">
             New
           </Badge>
@@ -237,7 +232,7 @@ export function Sidebar({
       </div>
 
       {/* What's New Button */}
-      {onOpenWhatsNew && (
+      {onOpenWhatsNew && unseenCount > 0 && (
         <div className="px-3 mb-2">
           <Button 
             variant="outline" 
@@ -247,7 +242,7 @@ export function Sidebar({
           >
             <Gift className="w-4 h-4 text-primary" />
             <span>Nouveautés</span>
-            <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs">9</Badge>
+            <Badge className="ml-auto bg-green-500/20 text-green-500 text-xs">{unseenCount}</Badge>
           </Button>
         </div>
       )}
