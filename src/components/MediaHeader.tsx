@@ -22,7 +22,10 @@ interface MediaHeaderProps {
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
   const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
-  const filteredCount = getFilteredMedia().length;
+  const filteredMedia = getFilteredMedia();
+  const filteredCount = filteredMedia.length;
+  const localCount = filteredMedia.filter(m => !m.isLinked).length;
+  const linkedCount = filteredMedia.filter(m => m.isLinked).length;
   const [folderScannerOpen, setFolderScannerOpen] = useState(false);
 
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
@@ -64,8 +67,18 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
 
           {/* Stats */}
           <EditableElement id="header-stats" type="text" name="Compteur médias">
-            <div className="text-sm text-muted-foreground">
-              {filteredCount} médias
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{filteredCount} médias</span>
+              <span className="text-border">·</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                {localCount} locaux
+              </span>
+              <span className="text-border">·</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                {linkedCount} liés
+              </span>
             </div>
           </EditableElement>
 
