@@ -67,18 +67,38 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
 
           {/* Stats */}
           <EditableElement id="header-stats" type="text" name="Compteur médias">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{filteredCount} médias</span>
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <button
+                onClick={() => setSourceFilter('all')}
+                className={cn(
+                  "px-2 py-0.5 rounded-md transition-colors hover:text-foreground",
+                  sourceFilter === 'all' && "bg-muted text-foreground font-medium"
+                )}
+              >
+                {filteredCount} médias
+              </button>
               <span className="text-border">·</span>
-              <span className="flex items-center gap-1">
+              <button
+                onClick={() => setSourceFilter(sourceFilter === 'local' ? 'all' : 'local')}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors hover:text-foreground",
+                  sourceFilter === 'local' && "bg-primary/15 text-primary font-medium"
+                )}
+              >
                 <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                 {localCount} locaux
-              </span>
+              </button>
               <span className="text-border">·</span>
-              <span className="flex items-center gap-1">
+              <button
+                onClick={() => setSourceFilter(sourceFilter === 'linked' ? 'all' : 'linked')}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors hover:text-foreground",
+                  sourceFilter === 'linked' && "bg-accent/15 text-accent font-medium"
+                )}
+              >
                 <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                 {linkedCount} liés
-              </span>
+              </button>
             </div>
           </EditableElement>
 
