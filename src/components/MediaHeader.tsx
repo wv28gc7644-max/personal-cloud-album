@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,6 +30,7 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
     { mode: 'list', icon: List, label: 'Liste' },
     { mode: 'masonry', icon: LayoutPanelTop, label: 'Mosaïque' },
     { mode: 'media-only', icon: Image, label: 'Média seul' },
+    { mode: 'adaptive', icon: LayoutDashboard, label: 'Adaptatif' },
   ];
 
   const sortOptions: { value: SortOption; label: string }[] = [
