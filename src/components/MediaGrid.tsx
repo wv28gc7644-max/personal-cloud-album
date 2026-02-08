@@ -109,51 +109,60 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
 
   return (
     <>
-      <div className={cn("p-6", getGridClasses())}>
-        <AnimatePresence mode="popLayout">
-          {displayMedia.map((item, index) => (
-            <motion.div
-              key={item.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -20 }}
-              transition={{ 
-                duration: 0.3, 
-                delay: Math.min(index * 0.03, 0.3),
-                layout: { duration: 0.3 }
-              }}
-              className={cn(
-                (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
-                viewMode === 'list' && "max-w-3xl mx-auto w-full"
-              )}
-            >
-              {viewMode === 'media-only' ? (
-                <MediaCardMinimal
-                  item={item}
-                  onView={() => handleView(item)}
-                />
-              ) : viewMode === 'adaptive' ? (
-                <MediaCardAdaptive
-                  item={item}
-                  onView={() => handleView(item)}
-                  onDelete={() => handleDelete(item)}
-                  onDownload={() => handleDownload(item)}
-                  onToggleFavorite={() => handleToggleFavorite(item)}
-                />
-              ) : (
-                <MediaCardTwitter
-                  item={item}
-                  onView={() => handleView(item)}
-                  onDelete={() => handleDelete(item)}
-                  onDownload={() => handleDownload(item)}
-                  onToggleFavorite={() => handleToggleFavorite(item)}
-                />
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={viewMode}
+          initial={{ opacity: 0, scale: 0.97, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.97, y: -12 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          className={cn("p-6", getGridClasses())}
+        >
+          <AnimatePresence mode="popLayout">
+            {displayMedia.map((item, index) => (
+              <motion.div
+                key={item.id}
+                layout
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                transition={{ 
+                  duration: 0.25, 
+                  delay: Math.min(index * 0.03, 0.3),
+                  layout: { type: 'spring', stiffness: 300, damping: 30 }
+                }}
+                className={cn(
+                  (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
+                  viewMode === 'list' && "max-w-3xl mx-auto w-full"
+                )}
+              >
+                {viewMode === 'media-only' ? (
+                  <MediaCardMinimal
+                    item={item}
+                    onView={() => handleView(item)}
+                  />
+                ) : viewMode === 'adaptive' ? (
+                  <MediaCardAdaptive
+                    item={item}
+                    onView={() => handleView(item)}
+                    onDelete={() => handleDelete(item)}
+                    onDownload={() => handleDownload(item)}
+                    onToggleFavorite={() => handleToggleFavorite(item)}
+                  />
+                ) : (
+                  <MediaCardTwitter
+                    item={item}
+                    onView={() => handleView(item)}
+                    onDelete={() => handleDelete(item)}
+                    onDownload={() => handleDownload(item)}
+                    onToggleFavorite={() => handleToggleFavorite(item)}
+                  />
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      </AnimatePresence>
 
       <MediaViewer
         item={viewerItem}
