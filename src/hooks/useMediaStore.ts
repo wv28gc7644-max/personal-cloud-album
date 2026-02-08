@@ -11,6 +11,7 @@ interface MediaStore {
   sortBy: SortOption;
   searchQuery: string;
   sourceFilter: SourceFilter;
+  sourceFolderFilter: string | null;
   
   // Media actions
   addMedia: (item: MediaItem) => void;
@@ -34,6 +35,8 @@ interface MediaStore {
   setSortBy: (sort: SortOption) => void;
   setSearchQuery: (query: string) => void;
   setSourceFilter: (filter: SourceFilter) => void;
+  setSourceFolderFilter: (folder: string | null) => void;
+  getSourceFolders: () => string[];
   
   // Getters
   getFilteredMedia: () => MediaItem[];
@@ -153,6 +156,7 @@ export const useMediaStore = create<MediaStore>()(
       sortBy: 'date-desc',
       searchQuery: '',
       sourceFilter: 'all' as SourceFilter,
+      sourceFolderFilter: null as string | null,
 
       addMedia: (item) => set((state) => ({ media: [item, ...state.media] })),
       
@@ -211,9 +215,19 @@ export const useMediaStore = create<MediaStore>()(
       setSortBy: (sort) => set({ sortBy: sort }),
       setSearchQuery: (query) => set({ searchQuery: query }),
       setSourceFilter: (filter) => set({ sourceFilter: filter }),
+      setSourceFolderFilter: (folder) => set({ sourceFolderFilter: folder }),
+
+      getSourceFolders: () => {
+        const { media } = get();
+        const folders = new Set<string>();
+        media.forEach(m => {
+          if (m.sourceFolder) folders.add(m.sourceFolder);
+        });
+        return Array.from(folders).sort();
+      },
 
       getFilteredMedia: () => {
-        const { media, selectedTags, searchQuery, sortBy, sourceFilter } = get();
+        const { media, selectedTags, searchQuery, sortBy, sourceFilter, sourceFolderFilter } = get();
         
         const filtered = media.filter((item) => {
           const matchesTags = selectedTags.length === 0 || 
@@ -228,8 +242,10 @@ export const useMediaStore = create<MediaStore>()(
           const matchesSource = sourceFilter === 'all' ||
             (sourceFilter === 'linked' && item.isLinked) ||
             (sourceFilter === 'local' && !item.isLinked);
+
+          const matchesFolder = !sourceFolderFilter || item.sourceFolder === sourceFolderFilter;
           
-          return matchesTags && matchesSearch && matchesSource;
+          return matchesTags && matchesSearch && matchesSource && matchesFolder;
         });
 
         return sortMedia(filtered, sortBy);
