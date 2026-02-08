@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { APP_VERSION, getCurrentVersionFeatures, hasNewFeature } from '@/config/versionFeatures';
+import { APP_VERSION, getCurrentVersionFeatures, hasNewFeature, FEATURE_NAV_MAPPING } from '@/config/versionFeatures';
 
 const STORAGE_KEY = 'mediavault-seen-features';
 const VERSION_KEY = 'mediavault-features-version';
@@ -57,7 +57,6 @@ export const useNewFeatures = (): UseNewFeaturesReturn => {
   // Mark all features related to a nav item as seen
   const markNavAsSeen = useCallback((navId: string) => {
     const currentFeatures = getCurrentVersionFeatures();
-    const { FEATURE_NAV_MAPPING } = require('@/config/versionFeatures');
     
     const relatedFeatures = currentFeatures.filter(feature => {
       const mappedNavs = FEATURE_NAV_MAPPING[feature] || [];
