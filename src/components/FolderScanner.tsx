@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useMediaStore } from '@/hooks/useMediaStore';
+import { useAlbums } from '@/hooks/useAlbums';
 import { MediaItem } from '@/types/media';
 import { getLocalServerUrl } from '@/utils/localServerUrl';
 import { safeGetLocalStorage, safeSetLocalStorage } from '@/utils/safeLocalStorage';
@@ -106,8 +107,10 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
   const [importTypeFilter, setImportTypeFilter] = useState<Set<string>>(new Set(['image', 'video']));
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [folderHistory, setFolderHistory] = useState<FolderHistoryEntry[]>(getFolderHistory);
+  const [createAlbums, setCreateAlbums] = useState(true);
 
   const { addMedia, media } = useMediaStore();
+  const { addAlbum, addMediaToAlbum } = useAlbums();
 
   const handleBrowse = useCallback(async () => {
     setIsBrowsing(true);
@@ -191,12 +194,15 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
 
       const folderName = scanResult.path.split(/[/\\]/).pop() || 'Dossier lié';
 
-      // Add media items
+      // Add media items and track IDs per folder
+      const mediaIdsByFolder = new Map<string, string[]>();
+
       for (const file of newFiles) {
+        const mediaId = `linked-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const mediaItem: MediaItem = {
-          id: `linked-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: mediaId,
           name: file.name.replace(/\.[^/.]+$/, ''),
-          type: file.type === 'audio' ? 'image' : file.type, // audio not supported as type, fallback
+          type: file.type === 'audio' ? 'image' : file.type,
           url: file.url,
           thumbnailUrl: file.thumbnailUrl,
           tags: [],
@@ -207,6 +213,39 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
           sourceFolder: folderName
         };
         addMedia(mediaItem);
+
+        if (createAlbums) {
+          const folderKey = file.folder;
+          if (!mediaIdsByFolder.has(folderKey)) {
+            mediaIdsByFolder.set(folderKey, []);
+          }
+          mediaIdsByFolder.get(folderKey)!.push(mediaId);
+        }
+      }
+
+      // Create albums hierarchy if enabled
+      if (createAlbums && mediaIdsByFolder.size > 0) {
+        const parentAlbum = addAlbum({
+          name: folderName,
+          mediaIds: [],
+          coverUrl: newFiles.find(f => f.type === 'image')?.thumbnailUrl,
+        });
+
+        for (const [folder, ids] of mediaIdsByFolder) {
+          if (mediaIdsByFolder.size === 1 && folder === '.') {
+            // Single root folder: add directly to parent album
+            addMediaToAlbum(parentAlbum.id, ids);
+          } else {
+            const subName = folder === '.' ? folderName : folder.split(/[/\\]/).pop() || folder;
+            const subAlbum = addAlbum({
+              name: subName,
+              parentId: parentAlbum.id,
+              mediaIds: [],
+              coverUrl: newFiles.find(f => f.folder === folder && f.type === 'image')?.thumbnailUrl,
+            });
+            addMediaToAlbum(subAlbum.id, ids);
+          }
+        }
       }
 
       // Save linked folder to server
@@ -230,7 +269,7 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
     } finally {
       setIsImporting(false);
     }
-  }, [scanResult, selectedFolders, importTypeFilter, media, addMedia, onClose]);
+  }, [scanResult, selectedFolders, importTypeFilter, media, addMedia, onClose, createAlbums, addAlbum, addMediaToAlbum]);
 
   const toggleFolder = (folder: string) => {
     setSelectedFolders(prev => {
@@ -412,6 +451,16 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
                   {formatSize(scanResult.stats.totalSize)}
                 </Badge>
               </div>
+
+              {/* Album creation toggle */}
+              <label className="flex items-center gap-2 text-sm cursor-pointer px-1">
+                <Checkbox
+                  checked={createAlbums}
+                  onCheckedChange={(checked) => setCreateAlbums(checked === true)}
+                />
+                <FolderPlus className="w-4 h-4 text-primary" />
+                <span>Créer un album par sous-dossier</span>
+              </label>
 
               {/* Type filters */}
               <div className="flex items-center gap-4">
