@@ -27,6 +27,7 @@ import { PlaylistsSettings } from './PlaylistsSettings';
 import { AutoSyncSettings } from './AutoSyncSettings';
 import { AdvancedColorEditor } from './AdvancedColorEditor';
 import { HomeAutomationHub } from './HomeAutomationHub';
+import { ContextMenuSettings } from './ContextMenuSettings';
 
 // Component map for rendering (AI components removed)
 const COMPONENT_MAP: Record<string, React.ComponentType> = {
