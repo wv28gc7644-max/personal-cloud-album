@@ -1,48 +1,98 @@
 
 
-# Simplifier et fiabiliser la gestion des dossiers lies
+# Responsive + Menu contextuel (clic droit) + Informations media
 
-## Constat
+## Partie 1 : Responsive Design (mobile, tablette, desktop)
 
-Actuellement, le bouton poubelle pour supprimer un dossier lie est cache dans deux endroits peu visibles :
-- Derriere un menu deroulant (il faut d'abord selectionner un dossier)
-- Derriere une icone engrenage minuscule
+### Header (`MediaHeader.tsx`)
+- Sur mobile : masquer les filtres source, tri, modes de vue et les remplacer par un bouton "Filtres" qui ouvre un drawer/sheet en bas
+- Barre de recherche en pleine largeur sur mobile
+- Boutons "Lier un dossier" et "Ajouter" en icones seules (sans texte) sur mobile
+- Compteurs medias empiles verticalement sur tablette
 
-En plus, quand on clique sur la poubelle, la suppression ne fonctionne pas (le bug principal).
+### Sidebar (`Sidebar.tsx`)
+- Sur mobile : transformer en drawer glissant depuis la gauche (ou overlay), cache par defaut
+- Ajouter un bouton hamburger dans le header pour ouvrir/fermer la sidebar
+- Sur tablette : sidebar en mode mini (icones seulement, sans texte)
 
-## Ce qui va changer
+### Grille medias (`MediaGrid.tsx`)
+- Mobile : 2 colonnes au lieu de 1 pour la grille standard
+- Les paddings passent de `p-6` a `p-3` sur mobile
+- Les cartes s'adaptent correctement aux petits ecrans
 
-### 1. Rendre le bouton de suppression visible et accessible
+### MediaViewer (`MediaViewer.tsx`)
+- Boutons de navigation (precedent/suivant) plus grands et tactiles sur mobile
+- Barre d'outils en bas de l'ecran sur mobile au lieu du haut
 
-Remplacer le systeme actuel (engrenage + popover) par un panneau de gestion des dossiers integre directement dans la boite de dialogue "Lier un dossier" (FolderScanner). Quand on ouvre le FolderScanner, on verra :
-- En haut : la liste des dossiers deja lies, chacun avec un gros bouton poubelle rouge bien visible
-- En dessous : le formulaire pour scanner un nouveau dossier
+### Modales et dialogs
+- Toutes les modales passent en plein ecran sur mobile (via la classe `max-w-full` et `h-full` sous `sm:`)
 
-Cela signifie qu'un seul endroit gere tout : le bouton "Lier un dossier" dans le header.
+---
 
-### 2. Ajouter un guide etape par etape
+## Partie 2 : Menu contextuel (clic droit)
 
-Dans cette meme boite de dialogue, un accordeon "Guide d'utilisation" expliquera les 5 etapes :
-1. Scanner -- Entrer un chemin ou parcourir, puis cliquer Scanner
-2. Selectionner -- Choisir les fichiers a importer
-3. Importer -- Cliquer sur Importer la selection
-4. Voir -- Les medias apparaissent dans la galerie avec un indicateur de lien
-5. Supprimer -- Cliquer sur la poubelle rouge a cote du dossier dans cette meme fenetre
+Ajouter un menu contextuel natif (clic droit ou appui long sur mobile) sur chaque carte media avec ces options :
 
-### 3. Fiabiliser la suppression avec diagnostic
+| Option | Icone | Action |
+|--------|-------|--------|
+| Voir | Eye | Ouvre le viewer |
+| Informations | Info | Affiche un dialog avec toutes les metadonnees |
+| Telecharger | Download | Telecharge le fichier |
+| Enregistrer sous... | Save | Ouvre le telechargement avec choix du nom |
+| Ajouter aux favoris | Heart | Toggle favori |
+| Ajouter a une playlist | ListPlus | Sous-menu avec les playlists |
+| Copier le chemin | Copy | Copie `sourcePath` dans le presse-papier (si fichier lie) |
+| Supprimer | Trash2 | Supprime le media |
 
-Garder les logs de diagnostic dans la console (F12) pour pouvoir comprendre pourquoi la suppression echoue, avec les fallbacks par `sourcePath` et `url`.
+Implementation : utiliser le composant `ContextMenu` de Radix UI (deja installe dans `src/components/ui/context-menu.tsx`) pour envelopper chaque carte media.
 
-## Modifications par fichier
+Un nouveau composant `MediaContextMenu.tsx` sera cree pour encapsuler la logique, reutilisable par toutes les variantes de cartes (Twitter, Adaptive, Minimal).
 
-| Fichier | Ce qui change |
-|---------|--------------|
-| `src/components/FolderScanner.tsx` | Ajouter en haut du dialog : (1) la liste des dossiers lies avec bouton poubelle, (2) le guide en accordeon |
-| `src/components/MediaHeader.tsx` | Simplifier la zone des dossiers : retirer le popover engrenage (devenu inutile car tout est dans FolderScanner), garder le filtre dropdown et le bouton aide |
+---
 
-## Resultat attendu
+## Partie 3 : Dialog "Informations" du media
 
-- Un seul endroit pour tout gerer : le bouton "Lier un dossier" ouvre une fenetre avec la liste des dossiers (et leur poubelle) + le scanner + le guide
-- Le bouton poubelle est gros et visible, pas cache derriere un engrenage
-- Les logs console permettent de diagnostiquer le bug de suppression
+Un nouveau composant `MediaInfoDialog.tsx` qui affiche :
+
+- **Nom du fichier** (avec possibilite de renommer)
+- **Type** : Photo ou Video
+- **Taille** : en KB/MB
+- **Date de creation**
+- **Resolution** (si disponible, lu dynamiquement)
+- **Duree** (pour les videos)
+- **Tags** associes
+- **Chemin d'acces** : `sourcePath` complet si fichier lie
+- **Dossier source** : `sourceFolder`
+- **Nombre de vues** (depuis les stats)
+- **URL** du fichier
+
+Ce dialog sera accessible via :
+1. Le menu contextuel (clic droit > Informations)
+2. Les metadonnees de la carte (clic sur la date/taille)
+
+---
+
+## Details techniques
+
+### Fichiers a creer
+| Fichier | Description |
+|---------|-------------|
+| `src/components/MediaContextMenu.tsx` | Composant wrapper clic droit avec toutes les options |
+| `src/components/MediaInfoDialog.tsx` | Dialog affichant les informations detaillees d'un media |
+
+### Fichiers a modifier
+| Fichier | Modification |
+|---------|-------------|
+| `src/components/MediaGrid.tsx` | Envelopper chaque carte avec `MediaContextMenu`, ajuster grille responsive |
+| `src/components/MediaHeader.tsx` | Layout responsive : drawer mobile pour filtres, hamburger menu |
+| `src/components/MediaCardTwitter.tsx` | Ajuster paddings/tailles pour mobile |
+| `src/components/MediaCardAdaptive.tsx` | Ajuster pour mobile |
+| `src/pages/Index.tsx` | Ajouter state pour sidebar mobile + bouton hamburger |
+| `src/components/Sidebar.tsx` | Mode drawer sur mobile avec overlay |
+| `src/components/MediaViewer.tsx` | Controles tactiles sur mobile |
+
+### Approche responsive
+- Utilisation des breakpoints Tailwind existants : `sm:` (640px), `md:` (768px), `lg:` (1024px), `xl:` (1280px)
+- Le hook `useIsMobile()` existant est utilise pour les logiques conditionnelles JavaScript
+- Priorite au "mobile-first" pour les nouvelles classes
 
