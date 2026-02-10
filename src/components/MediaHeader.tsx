@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2, Settings2, HelpCircle } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,8 +13,6 @@ import { EditableElement } from './EditableElement';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { FolderScanner } from './FolderScanner';
 import { ThemeToggle } from './ThemeToggle';
-import { getLocalServerUrl } from '@/utils/localServerUrl';
-import { safeGetLocalStorage, safeSetLocalStorage } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
 
 interface MediaHeaderProps {
@@ -25,7 +21,7 @@ interface MediaHeaderProps {
 }
 
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
-  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia, removeMediaByFolder } = useMediaStore();
+  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
   const filteredMedia = getFilteredMedia();
   const filteredCount = filteredMedia.length;
@@ -39,47 +35,6 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
     setSourceFolderFilter(null);
   }
 
-  const HISTORY_KEY = 'mediavault-folder-history';
-
-  const handleUnlinkFolder = async (folder: string) => {
-    const storeState = useMediaStore.getState();
-    const mediaBefore = storeState.media.length;
-    
-    console.log('[UNLINK] folder value:', JSON.stringify(folder));
-    console.log('[UNLINK] media count before:', mediaBefore);
-    console.log('[UNLINK] all linked media:', storeState.media.filter(m => m.isLinked).map(m => ({
-      id: m.id, name: m.name, sourceFolder: m.sourceFolder, sourcePath: m.sourcePath, isLinked: m.isLinked, url: m.url?.substring(0, 80)
-    })));
-    
-    // Remove media from store (multi-criteria matching)
-    removeMediaByFolder(folder);
-    
-    const mediaAfter = useMediaStore.getState().media.length;
-    const removedCount = mediaBefore - mediaAfter;
-    console.log('[UNLINK] media count after:', mediaAfter, 'removed:', removedCount);
-
-    // Remove from localStorage history
-    const history = safeGetLocalStorage<any[]>(HISTORY_KEY, []).filter((h: any) => h.path !== folder);
-    safeSetLocalStorage(HISTORY_KEY, history);
-    // Remove from server
-    try {
-      const serverUrl = getLocalServerUrl();
-      await fetch(`${serverUrl}/api/linked-folders`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: folder, id: folder }),
-      });
-    } catch (e) {
-      // Server may not be running
-    }
-    
-    const folderName = folder.split(/[/\\]/).pop() || folder;
-    if (removedCount > 0) {
-      toast.success(`${removedCount} média(s) supprimé(s) du dossier "${folderName}"`);
-    } else {
-      toast.warning(`Dossier "${folderName}" délié mais aucun média trouvé à supprimer`);
-    }
-  };
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
     { mode: 'grid-large', icon: LayoutGrid, label: 'Grande grille' },
@@ -208,73 +163,15 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                   </SelectContent>
                 </Select>
                 {sourceFolderFilter && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setSourceFolderFilter(null)}
-                      title="Effacer le filtre dossier"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => handleUnlinkFolder(sourceFolderFilter)}
-                      title="Délier ce dossier et supprimer ses médias"
-                      className="text-destructive hover:text-destructive/80"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSourceFolderFilter(null)}
+                    title="Effacer le filtre dossier"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
                 )}
-                {/* Bouton aide */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon-sm">
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs text-xs">
-                      <p className="font-medium mb-1">Comment gérer les dossiers liés ?</p>
-                      <p>Cliquez ⚙️ pour voir tous les dossiers liés, puis 🗑️ pour retirer un dossier et ses médias de la galerie.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {/* Popover de gestion des dossiers liés */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" title="Gérer les dossiers liés">
-                      <Settings2 className="w-4 h-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80" align="end">
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Dossiers liés</h4>
-                      {sourceFolders.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Aucun dossier lié</p>
-                      )}
-                      {sourceFolders.map((folder) => (
-                        <div key={folder} className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/50">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{folder.split(/[/\\]/).pop() || folder}</p>
-                            <p className="text-xs text-muted-foreground truncate">{folder}</p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleUnlinkFolder(folder)}
-                            className="text-destructive hover:text-destructive/80 shrink-0"
-                            title="Délier ce dossier"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
               </div>
             </EditableElement>
           )}

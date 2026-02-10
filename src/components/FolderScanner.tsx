@@ -116,8 +116,45 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
   const [folderHistory, setFolderHistory] = useState<FolderHistoryEntry[]>(getFolderHistory);
   const [createAlbums, setCreateAlbums] = useState(true);
 
-  const { addMedia, media } = useMediaStore();
+  const { addMedia, media, getSourceFolders, removeMediaByFolder } = useMediaStore();
   const { addAlbum, addMediaToAlbum } = useAlbums();
+
+  const sourceFolders = getSourceFolders();
+
+  const handleUnlinkFolder = async (folder: string) => {
+    const storeState = useMediaStore.getState();
+    const mediaBefore = storeState.media.length;
+    
+    console.log('[UNLINK] folder value:', JSON.stringify(folder));
+    console.log('[UNLINK] media count before:', mediaBefore);
+    
+    removeMediaByFolder(folder);
+    
+    const mediaAfter = useMediaStore.getState().media.length;
+    const removedCount = mediaBefore - mediaAfter;
+    console.log('[UNLINK] removed:', removedCount);
+
+    // Remove from localStorage history
+    removeFromHistory(folder);
+    setFolderHistory(getFolderHistory());
+
+    // Remove from server
+    try {
+      const serverUrl = getLocalServerUrl();
+      await fetch(`${serverUrl}/api/linked-folders`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: folder, id: folder }),
+      });
+    } catch (e) {}
+    
+    const folderName = folder.split(/[/\\]/).pop() || folder;
+    if (removedCount > 0) {
+      toast.success(`${removedCount} média(s) supprimé(s) du dossier "${folderName}"`);
+    } else {
+      toast.warning(`Dossier "${folderName}" délié mais aucun média trouvé à supprimer`);
+    }
+  };
 
   const handleBrowse = useCallback(async () => {
     setIsBrowsing(true);
@@ -318,6 +355,40 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
         </DialogHeader>
 
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+          {/* Dossiers déjà liés */}
+          {sourceFolders.length > 0 && (
+            <div className="space-y-2 border rounded-lg p-3 bg-muted/20">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <FolderTree className="w-4 h-4 text-primary" />
+                Dossiers liés ({sourceFolders.length})
+              </h4>
+              <div className="space-y-1.5">
+                {sourceFolders.map((folder) => {
+                  const folderName = folder.split(/[/\\]/).pop() || folder;
+                  const count = media.filter(m => m.sourceFolder === folder).length;
+                  return (
+                    <div key={folder} className="flex items-center gap-2 p-2 rounded-md bg-background/60">
+                      <FolderOpen className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{folderName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{folder} · {count} média(s)</p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleUnlinkFolder(folder)}
+                        className="gap-1.5 shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Supprimer
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Guide d'utilisation */}
           <Accordion type="single" collapsible>
             <AccordionItem value="guide" className="border rounded-lg px-3">
@@ -334,7 +405,7 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
                     { icon: MousePointerClick, title: '2. Sélectionner', desc: 'Choisissez les sous-dossiers et types de fichiers à importer' },
                     { icon: Download, title: '3. Importer', desc: 'Cliquez sur "Lier les fichiers" pour les ajouter à la galerie' },
                     { icon: Eye, title: '4. Voir', desc: 'Les médias apparaissent dans la galerie avec un indicateur de lien' },
-                    { icon: Trash, title: '5. Supprimer', desc: 'Dans le header, cliquez ⚙️ puis 🗑️ à côté du dossier pour retirer les médias' },
+                    { icon: Trash, title: '5. Supprimer', desc: 'Rouvrez cette fenêtre et cliquez le bouton rouge "Supprimer" à côté du dossier' },
                   ].map(({ icon: Icon, title, desc }) => (
                     <div key={title} className="flex items-start gap-3 p-2 rounded-md bg-muted/40">
                       <Icon className="w-4 h-4 mt-0.5 text-primary shrink-0" />
