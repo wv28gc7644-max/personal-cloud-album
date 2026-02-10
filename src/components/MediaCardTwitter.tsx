@@ -35,6 +35,7 @@ export const MediaCardTwitter = ({
   const [isLiked, setIsLiked] = useState(item.tags.some(t => t.name === 'Favoris'));
   const [isHovered, setIsHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { settings: basicSettings } = useCardSettings();
   const advancedSettings = useAdvancedCardSettings();
