@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { MediaItem } from '@/types/media';
-import { Play, Eye, Link } from 'lucide-react';
+import { Play, Eye, Link, Info } from 'lucide-react';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
+import { MediaInfoDialog } from './MediaInfoDialog';
 import { cn } from '@/lib/utils';
 
 interface MediaCardMinimalProps {
