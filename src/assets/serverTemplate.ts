@@ -38,6 +38,33 @@ const PORT = 3001;
 const DIST_FOLDER = path.join(__dirname, 'dist');
 const DATA_FILE = path.join(__dirname, 'data.json');
 const LOG_FILE = path.join(__dirname, 'ai-logs.json');
+const UPDATE_PROGRESS_FILE = path.join(__dirname, 'update-progress.json');
+
+// Maintenance mode state
+let isUpdating = false;
+let updateStartedAt = null;
+const UPDATE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes safety timeout
+
+// Cleanup update-progress.json at startup
+try {
+  if (fs.existsSync(UPDATE_PROGRESS_FILE)) {
+    const progressData = JSON.parse(fs.readFileSync(UPDATE_PROGRESS_FILE, 'utf8'));
+    if (progressData.complete === true) {
+      // Update finished successfully, clean up
+      fs.unlinkSync(UPDATE_PROGRESS_FILE);
+      console.log('[UPDATE] Mise a jour precedente terminee avec succes, nettoyage effectue.');
+    } else {
+      // Update was in progress when server restarted - mark as complete
+      fs.writeFileSync(UPDATE_PROGRESS_FILE, JSON.stringify({ step: 5, percent: 100, status: 'Termine', complete: true }));
+      console.log('[UPDATE] Mise a jour precedente incomplete, marquee comme terminee.');
+    }
+    isUpdating = false;
+  }
+} catch (e) {
+  console.warn('[UPDATE] Erreur lecture update-progress.json:', e.message);
+  try { fs.unlinkSync(UPDATE_PROGRESS_FILE); } catch {}
+  isUpdating = false;
+}
 
 // Buffer circulaire pour les logs (max 1000 entrées)
 let logsBuffer = [];
@@ -184,6 +211,38 @@ const server = http.createServer(async (req, res) => {
   const pathname = url.pathname;
 
   try {
+    // Safety timeout: auto-exit maintenance mode after 10 minutes
+    if (isUpdating && updateStartedAt && (Date.now() - updateStartedAt > UPDATE_TIMEOUT_MS)) {
+      console.warn('[UPDATE] Timeout de securite atteint (10min), sortie du mode maintenance.');
+      isUpdating = false;
+      updateStartedAt = null;
+      try { fs.unlinkSync(UPDATE_PROGRESS_FILE); } catch {}
+    }
+
+    // Serve maintenance page if updating (except for API endpoints)
+    if (isUpdating && !pathname.startsWith('/api/')) {
+      const maintenancePath = path.join(DIST_FOLDER, 'maintenance.html');
+      if (fs.existsSync(maintenancePath)) {
+        res.writeHead(503, { 'Content-Type': 'text/html', 'Retry-After': '30' });
+        return fs.createReadStream(maintenancePath).pipe(res);
+      }
+    }
+
+    // ===================================================================
+    // API: Update status (for maintenance page polling)
+    // ===================================================================
+
+    if (pathname === '/api/update/status' && req.method === 'GET') {
+      let progress = { step: 0, percent: 0, status: 'En attente...', complete: false };
+      try {
+        if (fs.existsSync(UPDATE_PROGRESS_FILE)) {
+          progress = JSON.parse(fs.readFileSync(UPDATE_PROGRESS_FILE, 'utf8'));
+        }
+      } catch {}
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ isUpdating, ...progress }));
+    }
+
     // ===================================================================
     // API: Sante et Status
     // ===================================================================
@@ -419,6 +478,9 @@ const server = http.createServer(async (req, res) => {
     // ===================================================================
 
     if (pathname === '/api/update' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const showMaintenance = body.showMaintenance !== false; // default true
+      
       const updateScript = path.join(__dirname, 'Mettre a jour MediaVault.bat');
       // Security: validate the script path is within project directory
       const normalizedScript = path.normalize(updateScript);
@@ -427,6 +489,16 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: 'Script de mise a jour introuvable' }));
       }
+      
+      // Initialize update progress file
+      fs.writeFileSync(UPDATE_PROGRESS_FILE, JSON.stringify({ step: 0, percent: 0, status: 'Demarrage...', complete: false }));
+      
+      // Enable maintenance mode only if requested
+      if (showMaintenance) {
+        isUpdating = true;
+        updateStartedAt = Date.now();
+      }
+      
       // Use spawn with shell:false for security
       const child = spawn('cmd', ['/c', 'start', 'cmd', '/c', normalizedScript], {
         shell: false,
@@ -434,12 +506,15 @@ const server = http.createServer(async (req, res) => {
         windowsHide: false
       });
       child.on('error', (err) => {
+        isUpdating = false;
+        updateStartedAt = null;
+        try { fs.unlinkSync(UPDATE_PROGRESS_FILE); } catch {}
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
       });
       child.on('spawn', () => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, message: 'Mise a jour lancee' }));
+        res.end(JSON.stringify({ success: true, message: 'Mise a jour lancee', maintenance: showMaintenance }));
       });
       return;
     }
