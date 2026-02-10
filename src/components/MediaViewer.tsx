@@ -152,26 +152,32 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         isVisible ? "opacity-100" : "opacity-0"
       )}
     >
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-background/80 to-transparent">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-medium">{item.name}</h2>
-          <div className="flex gap-1">
+      {/* Header - top on desktop, hidden on mobile (controls at bottom) */}
+      <div className={cn(
+        "absolute left-0 right-0 p-3 sm:p-4 flex items-center justify-between z-20 bg-gradient-to-b from-background/80 to-transparent",
+        isMobile ? "bottom-0 bg-gradient-to-t" : "top-0"
+      )}>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <h2 className="text-sm sm:text-lg font-medium truncate">{item.name}</h2>
+          <div className="hidden sm:flex gap-1">
             {item.tags.map((tag) => (
               <TagBadge key={tag.id} tag={tag} size="sm" />
             ))}
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button variant="glass" size="sm" onClick={() => onDownload(item)}>
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <Button variant="glass" size="sm" onClick={() => onDownload(item)} className="hidden sm:flex">
             <Download className="w-4 h-4 mr-2" />
             Télécharger
           </Button>
-          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Plein écran (F)">
+          <Button variant="ghost" size="icon" onClick={() => onDownload(item)} className="sm:hidden h-9 w-9">
+            <Download className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Plein écran (F)" className="h-9 w-9">
             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleClose}>
+          <Button variant="ghost" size="icon" onClick={handleClose} className="h-9 w-9">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -182,7 +188,10 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         <Button
           variant="glass"
           size="icon"
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12"
+          className={cn(
+            "absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20",
+            isMobile ? "w-10 h-10" : "w-12 h-12"
+          )}
           onClick={navigatePrev}
         >
           <ChevronLeft className="w-6 h-6" />
@@ -193,7 +202,10 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         <Button
           variant="glass"
           size="icon"
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12"
+          className={cn(
+            "absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20",
+            isMobile ? "w-10 h-10" : "w-12 h-12"
+          )}
           onClick={navigateNext}
         >
           <ChevronRight className="w-6 h-6" />
