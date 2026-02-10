@@ -1,52 +1,48 @@
 
 
-## Probleme identifie
+# Simplifier et fiabiliser la gestion des dossiers lies
 
-Le code de suppression (`removeMediaByFolder`) est correct en theorie, mais il y a un probleme probable : **la persistence Zustand serialise `sourceFolder` tel quel**, or quand on compare le `folder` venant du bouton poubelle avec le `sourceFolder` stocke dans le media, il peut y avoir un decalage (par exemple espaces en fin de chaine, ou le `sourceFolder` n'a jamais ete ecrit correctement a l'import).
+## Constat
 
-Le vrai souci est que `getSourceFolders()` lit les `sourceFolder` des medias en memoire, et le bouton poubelle passe cette meme valeur a `removeMediaByFolder`. Donc normalement ca devrait matcher. **Sauf si** le `sourceFolder` n'est pas du tout present sur les medias apres rechargement de la page (perdu a la deserialisation).
+Actuellement, le bouton poubelle pour supprimer un dossier lie est cache dans deux endroits peu visibles :
+- Derriere un menu deroulant (il faut d'abord selectionner un dossier)
+- Derriere une icone engrenage minuscule
 
-## Plan en 2 parties
+En plus, quand on clique sur la poubelle, la suppression ne fonctionne pas (le bug principal).
 
-### Partie 1 : Fiabiliser la suppression avec logs de diagnostic
+## Ce qui va changer
 
-Ajouter des `console.log` temporaires dans `removeMediaByFolder` pour voir exactement ce qui se passe quand on clique sur la poubelle :
-- Le `folder` recu en parametre
-- Le nombre de medias avec un `sourceFolder`
-- Les valeurs de `sourceFolder` de chaque media
-- Le nombre de medias supprimes vs gardes
+### 1. Rendre le bouton de suppression visible et accessible
 
-Cela permettra de voir en console pourquoi rien n'est supprime.
+Remplacer le systeme actuel (engrenage + popover) par un panneau de gestion des dossiers integre directement dans la boite de dialogue "Lier un dossier" (FolderScanner). Quand on ouvre le FolderScanner, on verra :
+- En haut : la liste des dossiers deja lies, chacun avec un gros bouton poubelle rouge bien visible
+- En dessous : le formulaire pour scanner un nouveau dossier
 
-En plus, ajouter un fallback : si aucun media n'est supprime par `sourceFolder`, tenter la suppression par `sourcePath` (si le chemin du media commence par le dossier).
+Cela signifie qu'un seul endroit gere tout : le bouton "Lier un dossier" dans le header.
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/hooks/useMediaStore.ts` | Ajouter logs de diagnostic + fallback par `sourcePath` dans `removeMediaByFolder` |
+### 2. Ajouter un guide etape par etape
 
-### Partie 2 : Guide interactif dans le FolderScanner
+Dans cette meme boite de dialogue, un accordeon "Guide d'utilisation" expliquera les 5 etapes :
+1. Scanner -- Entrer un chemin ou parcourir, puis cliquer Scanner
+2. Selectionner -- Choisir les fichiers a importer
+3. Importer -- Cliquer sur Importer la selection
+4. Voir -- Les medias apparaissent dans la galerie avec un indicateur de lien
+5. Supprimer -- Cliquer sur la poubelle rouge a cote du dossier dans cette meme fenetre
 
-Ajouter un panneau d'aide (accordeon ou onglet "Guide") dans la boite de dialogue `FolderScanner` qui explique visuellement chaque etape :
+### 3. Fiabiliser la suppression avec diagnostic
 
-**Etapes du guide :**
-1. **Scanner** -- Cliquer sur "Parcourir" ou entrer un chemin, puis "Scanner"
-2. **Selectionner** -- Choisir les sous-dossiers et types de fichiers a importer
-3. **Importer** -- Cliquer sur "Importer la selection" pour lier les fichiers
-4. **Voir** -- Les medias apparaissent dans la galerie avec un indicateur "lie"
-5. **Supprimer** -- Cliquer sur l'icone engrenage (parametres) dans le header, puis sur la poubelle a cote du dossier pour retirer les medias
+Garder les logs de diagnostic dans la console (F12) pour pouvoir comprendre pourquoi la suppression echoue, avec les fallbacks par `sourcePath` et `url`.
 
-Chaque etape aura une icone, un titre court et une description d'une ligne.
+## Modifications par fichier
 
-On ajoutera aussi un petit bandeau d'aide contextuel dans le header (a cote du popover de gestion des dossiers) avec un tooltip "Comment ca marche ?"
-
-| Fichier | Modification |
-|---------|-------------|
-| `src/components/FolderScanner.tsx` | Ajouter un accordeon "Guide d'utilisation" en haut du dialog avec les 5 etapes illustrees |
-| `src/components/MediaHeader.tsx` | Ajouter un bouton info/aide a cote du popover des dossiers lies, avec un tooltip expliquant le processus |
+| Fichier | Ce qui change |
+|---------|--------------|
+| `src/components/FolderScanner.tsx` | Ajouter en haut du dialog : (1) la liste des dossiers lies avec bouton poubelle, (2) le guide en accordeon |
+| `src/components/MediaHeader.tsx` | Simplifier la zone des dossiers : retirer le popover engrenage (devenu inutile car tout est dans FolderScanner), garder le filtre dropdown et le bouton aide |
 
 ## Resultat attendu
 
-- En ouvrant la console du navigateur et en cliquant sur la poubelle, on verra exactement pourquoi les medias ne sont pas supprimes
-- Le fallback par `sourcePath` couvre le cas ou `sourceFolder` serait corrompu
-- L'utilisateur a un guide clair et visuel pour scanner, importer et supprimer des dossiers
+- Un seul endroit pour tout gerer : le bouton "Lier un dossier" ouvre une fenetre avec la liste des dossiers (et leur poubelle) + le scanner + le guide
+- Le bouton poubelle est gros et visible, pas cache derriere un engrenage
+- Les logs console permettent de diagnostiquer le bug de suppression
 
