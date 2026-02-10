@@ -23,6 +23,7 @@ import { MediaViewer } from '@/components/MediaViewer';
 import { ViewType } from '@/types/views';
 import { MediaItem } from '@/types/media';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
