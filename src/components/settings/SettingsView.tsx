@@ -68,17 +68,17 @@ export function SettingsView() {
     <SettingsLayoutProvider>
       <div className="h-full flex flex-col min-h-0">
         {activeModule && ActiveComponent ? (
-          <div className="space-y-4">
+          <div className="flex flex-col flex-1 min-h-0 p-4">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleBack}
-              className="gap-2"
+              className="gap-2 shrink-0 self-start mb-4"
             >
               <ArrowLeft className="h-4 w-4" />
               Retour aux paramètres
             </Button>
-            <div className="border rounded-xl p-6 bg-card">
+            <div className="border rounded-xl p-6 bg-card flex-1 min-h-0 overflow-y-auto">
               <h2 className="text-xl font-semibold mb-4">{activeModule.name}</h2>
               <ActiveComponent />
             </div>
