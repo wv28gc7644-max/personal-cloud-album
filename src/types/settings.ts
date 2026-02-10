@@ -61,6 +61,7 @@ export const DEFAULT_MODULES: SettingsModule[] = [
   { id: 'cards', name: 'Design des cartes', description: 'Apparence de la galerie', icon: 'LayoutGrid', iconColor: 'hsl(199, 89%, 48%)', category: 'appearance', component: 'CardDesignEditor', order: 2, visible: true },
   { id: 'grid', name: 'Grille', description: 'Colonnes et disposition', icon: 'Grid3X3', iconColor: 'hsl(262, 83%, 58%)', category: 'appearance', component: 'GridSettings', order: 3, visible: true },
   { id: 'cardDisplay', name: 'Affichage cartes', description: 'Métadonnées et boutons', icon: 'LayoutList', iconColor: 'hsl(174, 72%, 40%)', category: 'appearance', component: 'CardDisplaySettings', order: 4, visible: true },
+  { id: 'contextMenu', name: 'Menu contextuel', description: 'Personnaliser le clic droit', icon: 'MousePointerClick', iconColor: 'hsl(45, 93%, 47%)', category: 'appearance', component: 'ContextMenuSettings', order: 5, visible: true },
   
   // Médias
   { id: 'tags', name: 'Tags', description: 'Gestion des étiquettes', icon: 'Tags', iconColor: 'hsl(25, 95%, 53%)', category: 'media', component: 'TagsSettings', order: 0, visible: true },
