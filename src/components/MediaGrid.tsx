@@ -137,28 +137,36 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
                   viewMode === 'list' && "max-w-3xl mx-auto w-full"
                 )}
               >
-                {viewMode === 'media-only' ? (
-                  <MediaCardMinimal
-                    item={item}
-                    onView={() => handleView(item)}
-                  />
-                ) : viewMode === 'adaptive' ? (
-                  <MediaCardAdaptive
-                    item={item}
-                    onView={() => handleView(item)}
-                    onDelete={() => handleDelete(item)}
-                    onDownload={() => handleDownload(item)}
-                    onToggleFavorite={() => handleToggleFavorite(item)}
-                  />
-                ) : (
-                  <MediaCardTwitter
-                    item={item}
-                    onView={() => handleView(item)}
-                    onDelete={() => handleDelete(item)}
-                    onDownload={() => handleDownload(item)}
-                    onToggleFavorite={() => handleToggleFavorite(item)}
-                  />
-                )}
+                <MediaContextMenu
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                >
+                  {viewMode === 'media-only' ? (
+                    <MediaCardMinimal
+                      item={item}
+                      onView={() => handleView(item)}
+                    />
+                  ) : viewMode === 'adaptive' ? (
+                    <MediaCardAdaptive
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  ) : (
+                    <MediaCardTwitter
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  )}
+                </MediaContextMenu>
               </motion.div>
             ))}
           </AnimatePresence>
