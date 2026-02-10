@@ -290,6 +290,19 @@ export const MediaCardTwitter = ({
         </div>
       )}
 
+      {/* Info button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }}
+        className={cn(
+          "absolute top-3 right-3 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white transition-opacity duration-300",
+          viewCount > 0 && showViewCount ? "top-10" : "top-3",
+          isHovered ? "opacity-100" : "opacity-0"
+        )}
+        title="Informations"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+
       {/* Linked file indicator */}
       {item.isLinked && (
         <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs text-primary-foreground font-medium flex items-center gap-1" title={item.sourcePath || 'Fichier lié'}>
