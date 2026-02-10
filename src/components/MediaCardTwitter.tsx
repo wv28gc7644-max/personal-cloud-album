@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
-import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link } from 'lucide-react';
+import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
