@@ -210,7 +210,7 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
           size: file.size,
           isLinked: true,
           sourcePath: file.absolutePath,
-          sourceFolder: folderName
+          sourceFolder: scanResult.path
         };
         addMedia(mediaItem);
 

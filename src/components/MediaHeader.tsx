@@ -51,7 +51,7 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
       await fetch(`${serverUrl}/api/linked-folders`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: folder }),
+        body: JSON.stringify({ path: folder, id: folder }),
       });
     } catch (e) {
       // Server may not be running
@@ -181,7 +181,7 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                     {sourceFolders.map((folder) => (
                       <div key={folder} className="flex items-center justify-between group">
                         <SelectItem value={folder} className="flex-1">
-                          {folder}
+                          {folder.split(/[/\\]/).pop() || folder}
                         </SelectItem>
                         <button
                           className="p-1 mr-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"

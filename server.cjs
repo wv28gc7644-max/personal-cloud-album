@@ -776,7 +776,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
         if (data.linkedFolders) {
-          data.linkedFolders = data.linkedFolders.filter(f => f.id !== body.id);
+          data.linkedFolders = data.linkedFolders.filter(f => f.id !== body.id && f.path !== body.path);
           fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
