@@ -678,6 +678,7 @@ export const CardDesignEditor = () => {
           </div>
         </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
