@@ -24,6 +24,7 @@ export function MediaCardAdaptive({
 }: MediaCardAdaptiveProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
   const mediaRef = useRef<HTMLImageElement | HTMLVideoElement>(null);
 
   const isFavorite = item.tags.some(t => t.name === 'Favoris');
