@@ -6,6 +6,7 @@ import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaCardMinimal } from './MediaCardMinimal';
 import { MediaCardAdaptive } from './MediaCardAdaptive';
+import { MediaContextMenu } from './MediaContextMenu';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
@@ -94,16 +95,16 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
     switch (viewMode) {
       case 'masonry':
       case 'media-only':
-        return "columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4 space-y-4";
+        return "columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 sm:gap-4 space-y-3 sm:space-y-4";
       case 'list':
-        return "flex flex-col gap-4";
+        return "flex flex-col gap-3 sm:gap-4";
       case 'grid-large':
-        return "grid grid-cols-1 md:grid-cols-2 gap-6";
+        return "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6";
       case 'adaptive':
-        return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-auto";
+        return "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 auto-rows-auto";
       case 'grid':
       default:
-        return "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4";
+        return "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
     }
   };
 
@@ -116,7 +117,7 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: -12 }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-          className={cn("p-6", getGridClasses())}
+          className={cn("p-3 sm:p-6", getGridClasses())}
         >
           <AnimatePresence mode="popLayout">
             {displayMedia.map((item, index) => (
@@ -136,28 +137,36 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
                   viewMode === 'list' && "max-w-3xl mx-auto w-full"
                 )}
               >
-                {viewMode === 'media-only' ? (
-                  <MediaCardMinimal
-                    item={item}
-                    onView={() => handleView(item)}
-                  />
-                ) : viewMode === 'adaptive' ? (
-                  <MediaCardAdaptive
-                    item={item}
-                    onView={() => handleView(item)}
-                    onDelete={() => handleDelete(item)}
-                    onDownload={() => handleDownload(item)}
-                    onToggleFavorite={() => handleToggleFavorite(item)}
-                  />
-                ) : (
-                  <MediaCardTwitter
-                    item={item}
-                    onView={() => handleView(item)}
-                    onDelete={() => handleDelete(item)}
-                    onDownload={() => handleDownload(item)}
-                    onToggleFavorite={() => handleToggleFavorite(item)}
-                  />
-                )}
+                <MediaContextMenu
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                >
+                  {viewMode === 'media-only' ? (
+                    <MediaCardMinimal
+                      item={item}
+                      onView={() => handleView(item)}
+                    />
+                  ) : viewMode === 'adaptive' ? (
+                    <MediaCardAdaptive
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  ) : (
+                    <MediaCardTwitter
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  )}
+                </MediaContextMenu>
               </motion.div>
             ))}
           </AnimatePresence>

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
 import { CustomVideoPlayer, CustomVideoPlayerRef } from './video-player';
 import { useMediaStats } from '@/hooks/useMediaStats';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 interface MediaViewerProps {
@@ -23,6 +24,7 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
   const mediaContainerRef = useRef<HTMLDivElement>(null);
   const lastSegmentTimeRef = useRef<number>(0);
   const { recordVideoSegment, getStats } = useMediaStats();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (item) {
@@ -150,26 +152,32 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         isVisible ? "opacity-100" : "opacity-0"
       )}
     >
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-20 bg-gradient-to-b from-background/80 to-transparent">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-medium">{item.name}</h2>
-          <div className="flex gap-1">
+      {/* Header - top on desktop, hidden on mobile (controls at bottom) */}
+      <div className={cn(
+        "absolute left-0 right-0 p-3 sm:p-4 flex items-center justify-between z-20 bg-gradient-to-b from-background/80 to-transparent",
+        isMobile ? "bottom-0 bg-gradient-to-t" : "top-0"
+      )}>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <h2 className="text-sm sm:text-lg font-medium truncate">{item.name}</h2>
+          <div className="hidden sm:flex gap-1">
             {item.tags.map((tag) => (
               <TagBadge key={tag.id} tag={tag} size="sm" />
             ))}
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button variant="glass" size="sm" onClick={() => onDownload(item)}>
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <Button variant="glass" size="sm" onClick={() => onDownload(item)} className="hidden sm:flex">
             <Download className="w-4 h-4 mr-2" />
             Télécharger
           </Button>
-          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Plein écran (F)">
+          <Button variant="ghost" size="icon" onClick={() => onDownload(item)} className="sm:hidden h-9 w-9">
+            <Download className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={toggleFullscreen} title="Plein écran (F)" className="h-9 w-9">
             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
           </Button>
-          <Button variant="ghost" size="icon" onClick={handleClose}>
+          <Button variant="ghost" size="icon" onClick={handleClose} className="h-9 w-9">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -180,7 +188,10 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         <Button
           variant="glass"
           size="icon"
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12"
+          className={cn(
+            "absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20",
+            isMobile ? "w-10 h-10" : "w-12 h-12"
+          )}
           onClick={navigatePrev}
         >
           <ChevronLeft className="w-6 h-6" />
@@ -191,7 +202,10 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         <Button
           variant="glass"
           size="icon"
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-12 h-12"
+          className={cn(
+            "absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20",
+            isMobile ? "w-10 h-10" : "w-12 h-12"
+          )}
           onClick={navigateNext}
         >
           <ChevronRight className="w-6 h-6" />
@@ -205,7 +219,7 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
       >
         <div 
           ref={mediaContainerRef}
-          className="flex flex-col items-center w-full h-full max-w-[95vw] max-h-[calc(100vh-100px)] cursor-default"
+          className="flex flex-col items-center w-full h-full max-w-[98vw] sm:max-w-[95vw] max-h-[calc(100vh-60px)] sm:max-h-[calc(100vh-100px)] cursor-default"
           onClick={(e) => e.stopPropagation()}
         >
           {item.type === 'image' ? (
@@ -239,12 +253,15 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
       </div>
 
       {/* Counter */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-muted-foreground bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm">
+      <div className={cn(
+        "absolute left-1/2 -translate-x-1/2 text-sm text-muted-foreground bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm",
+        isMobile ? "top-4" : "bottom-4"
+      )}>
         {currentIndex + 1} / {items.length}
       </div>
 
-      {/* Click hint */}
-      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50">
+      {/* Click hint - desktop only */}
+      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50 hidden sm:block">
         Cliquez en dehors pour fermer · F pour plein écran
       </div>
     </div>

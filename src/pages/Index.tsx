@@ -22,6 +22,8 @@ import { WhatsNew } from '@/components/WhatsNew';
 import { MediaViewer } from '@/components/MediaViewer';
 import { ViewType } from '@/types/views';
 import { MediaItem } from '@/types/media';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -33,9 +35,11 @@ const Index = () => {
   const [compareOpen, setCompareOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   const { getFilteredMedia, getFavorites, media, removeMedia, updateMedia } = useMediaStore();
+  const isMobile = useIsMobile();
 
   // Listen for navigation events
   useEffect(() => {
@@ -118,18 +122,29 @@ const Index = () => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar 
-        onCreatePlaylist={() => setPlaylistOpen(true)} 
-        currentView={currentView}
-        onViewChange={handleViewChange}
-        onStartSlideshow={() => setSlideshowOpen(true)}
-        onOpenKiosk={() => setKioskOpen(true)}
-        onOpenQRCode={() => setQrCodeOpen(true)}
-        onOpenUpdate={() => setUpdateOpen(true)}
-        onOpenCompare={() => setCompareOpen(true)}
-        onOpenFilters={() => setFiltersOpen(true)}
-        onOpenWhatsNew={() => setWhatsNewOpen(true)}
-      />
+      {/* Mobile sidebar overlay */}
+      {isMobile && sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarOpen(false)} />
+      )}
+      
+      <div className={cn(
+        isMobile
+          ? "fixed inset-y-0 left-0 z-50 transition-transform duration-300 " + (sidebarOpen ? "translate-x-0" : "-translate-x-full")
+          : ""
+      )}>
+        <Sidebar 
+          onCreatePlaylist={() => setPlaylistOpen(true)} 
+          currentView={currentView}
+          onViewChange={(view) => { handleViewChange(view); if (isMobile) setSidebarOpen(false); }}
+          onStartSlideshow={() => setSlideshowOpen(true)}
+          onOpenKiosk={() => setKioskOpen(true)}
+          onOpenQRCode={() => setQrCodeOpen(true)}
+          onOpenUpdate={() => setUpdateOpen(true)}
+          onOpenCompare={() => setCompareOpen(true)}
+          onOpenFilters={() => setFiltersOpen(true)}
+          onOpenWhatsNew={() => setWhatsNewOpen(true)}
+        />
+      </div>
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentView === 'admin' ? (
@@ -145,6 +160,7 @@ const Index = () => {
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
             <TimelineView
               media={getDisplayMedia()}
@@ -160,6 +176,7 @@ const Index = () => {
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
             <CalendarView
               media={getDisplayMedia()}
@@ -181,6 +198,7 @@ const Index = () => {
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
             <div className="flex-1 overflow-y-auto">
               <MediaGrid 
