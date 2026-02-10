@@ -41,14 +41,21 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
   const HISTORY_KEY = 'mediavault-folder-history';
 
   const handleUnlinkFolder = async (folder: string) => {
-    const mediaBeforeCount = getFilteredMedia().length + useMediaStore.getState().media.filter(m => m.isLinked).length;
-    const mediaBefore = useMediaStore.getState().media.length;
+    const storeState = useMediaStore.getState();
+    const mediaBefore = storeState.media.length;
+    
+    console.log('[UNLINK] folder value:', JSON.stringify(folder));
+    console.log('[UNLINK] media count before:', mediaBefore);
+    console.log('[UNLINK] all linked media:', storeState.media.filter(m => m.isLinked).map(m => ({
+      id: m.id, name: m.name, sourceFolder: m.sourceFolder, sourcePath: m.sourcePath, isLinked: m.isLinked, url: m.url?.substring(0, 80)
+    })));
     
     // Remove media from store (multi-criteria matching)
     removeMediaByFolder(folder);
     
     const mediaAfter = useMediaStore.getState().media.length;
     const removedCount = mediaBefore - mediaAfter;
+    console.log('[UNLINK] media count after:', mediaAfter, 'removed:', removedCount);
 
     // Remove from localStorage history
     const history = safeGetLocalStorage<any[]>(HISTORY_KEY, []).filter((h: any) => h.path !== folder);

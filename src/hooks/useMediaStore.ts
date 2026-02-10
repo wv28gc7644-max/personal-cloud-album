@@ -221,20 +221,52 @@ export const useMediaStore = create<MediaStore>()(
       removeMediaByFolder: (folder) => set((state) => {
         const folderName = folder.split(/[/\\]/).pop()?.toLowerCase() || '';
         const folderNormalized = folder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+        const folderEncoded = encodeURIComponent(folder.replace(/\\/g, '/')).toLowerCase();
+
+        console.log('[REMOVE_BY_FOLDER] folder:', JSON.stringify(folder));
+        console.log('[REMOVE_BY_FOLDER] folderName:', folderName);
+        console.log('[REMOVE_BY_FOLDER] folderNormalized:', folderNormalized);
+        console.log('[REMOVE_BY_FOLDER] total media:', state.media.length);
 
         const remaining = state.media.filter((m) => {
+          // Keep non-linked media always
           if (!m.isLinked) return true;
 
-          if (m.sourceFolder === folder) return false;
+          // Critere 1: exact match
+          if (m.sourceFolder === folder) {
+            console.log('[REMOVE_BY_FOLDER] MATCH exact:', m.id, m.name);
+            return false;
+          }
 
-          if (m.sourceFolder && m.sourceFolder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase() === folderNormalized) return false;
+          // Critere 2: normalized path match
+          if (m.sourceFolder && m.sourceFolder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase() === folderNormalized) {
+            console.log('[REMOVE_BY_FOLDER] MATCH normalized:', m.id, m.name);
+            return false;
+          }
 
-          if (m.sourceFolder && m.sourceFolder.toLowerCase() === folderName && folderName.length > 0) return false;
+          // Critere 3: short folder name match
+          if (m.sourceFolder && m.sourceFolder.toLowerCase() === folderName && folderName.length > 0) {
+            console.log('[REMOVE_BY_FOLDER] MATCH shortName:', m.id, m.name);
+            return false;
+          }
 
-          if (m.sourcePath && m.sourcePath.replace(/\\/g, '/').toLowerCase().startsWith(folderNormalized + '/')) return false;
+          // Critere 4: sourcePath prefix
+          if (m.sourcePath && m.sourcePath.replace(/\\/g, '/').toLowerCase().startsWith(folderNormalized + '/')) {
+            console.log('[REMOVE_BY_FOLDER] MATCH sourcePath:', m.id, m.name);
+            return false;
+          }
 
+          // Critere 5: URL contains folder path
+          if (m.url && (m.url.toLowerCase().includes(folderNormalized) || m.url.toLowerCase().includes(folderEncoded))) {
+            console.log('[REMOVE_BY_FOLDER] MATCH url:', m.id, m.name, m.url?.substring(0, 80));
+            return false;
+          }
+
+          console.log('[REMOVE_BY_FOLDER] KEPT (no match):', m.id, m.sourceFolder, m.isLinked);
           return true;
         });
+
+        console.log('[REMOVE_BY_FOLDER] remaining:', remaining.length, 'removed:', state.media.length - remaining.length);
 
         return {
           media: remaining,
