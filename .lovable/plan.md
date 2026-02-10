@@ -1,57 +1,35 @@
 
 
-# Auto-creation d'albums a partir des dossiers scannes
+## Problemes identifies
 
-## Probleme actuel
+### 1. Le bouton supprimer (X) ne delinkle pas le dossier
+Le bouton X a cote du filtre dossier source dans le header (`MediaHeader.tsx` ligne 160-167) ne fait que **remettre le filtre a null** (`setSourceFolderFilter(null)`). Il ne supprime PAS les medias lies ni le dossier de la liste. C'est un bouton "effacer le filtre", pas un bouton "supprimer le dossier lie". Il manque une vraie fonction pour delinkler un dossier entier.
 
-Quand tu scannes un dossier avec des sous-dossiers, tous les fichiers sont importes dans une seule liste plate. Le champ `sourceFolder` existe sur chaque media mais n'est utilise nulle part pour les regrouper. Le systeme d'albums existe deja mais il n'est pas connecte au scanner de dossiers.
+### 2. Le filtre dossier apparait/disparait de facon aleatoire
+Le dropdown "dossier source" ne s'affiche que si `sourceFolders.length > 0` (ligne 139). Or `getSourceFolders()` se base sur le champ `sourceFolder` des medias. Si les medias n'ont pas de `sourceFolder` (par exemple apres un rechargement de page avec des donnees corrompues ou si le champ n'a pas ete renseigne correctement), le dropdown disparait.
 
-## Solution proposee
+## Solution
 
-Lors de l'import depuis le scanner de dossiers, **creer automatiquement un album par sous-dossier** scanne. Les fichiers seront ainsi organises par dossier d'origine, comme des albums photo naturels.
+### Ajouter une action "Supprimer le dossier lie" dans le dropdown
 
-### Comportement attendu
+Dans le dropdown de filtre par dossier, ajouter un bouton de suppression a cote de chaque dossier qui :
+- Supprime tous les medias lies provenant de ce dossier (`media.filter(m => m.sourceFolder === folder)`)
+- Supprime l'entree de l'historique (`removeFromHistory`)
+- Supprime le dossier lie cote serveur (appel DELETE `/api/linked-folders`)
+- Remet le filtre a null si le dossier actif est supprime
 
-```text
-Dossier scanne : D:\Photos\Vacances
-  ├── Plage/        (12 fichiers)
-  ├── Montagne/     (8 fichiers)
-  └── Ville/        (5 fichiers)
+### Ajouter un bouton "Delinkler" visible quand un dossier est filtre
 
-Resultat apres import :
-  Album "Vacances"
-    ├── Sous-album "Plage"     (12 medias)
-    ├── Sous-album "Montagne"  (8 medias)
-    └── Sous-album "Ville"     (5 medias)
-```
+A cote du bouton X (effacer filtre), ajouter un bouton poubelle (Trash2) qui supprime **tous les medias** du dossier actuellement filtre. Cela rend l'action de suppression claire et distincte du simple "effacer le filtre".
 
-### Option utilisateur dans le scanner
+### Renforcer la robustesse du filtre
 
-Un toggle/checkbox sera ajoute dans l'interface du scanner pour laisser le choix :
-- **Creer des albums par dossier** (active par defaut) -- chaque sous-dossier devient un album
-- Desactive -- comportement actuel, tout est a plat
+- Verifier que `sourceFolderFilter` pointe vers un dossier qui existe encore dans les medias ; sinon le remettre a null automatiquement.
 
 ## Modifications techniques
 
-### 1. FolderScanner.tsx -- Ajout de l'option + logique de creation d'albums
-
-- Ajouter un state `createAlbums` (boolean, true par defaut)
-- Ajouter un checkbox "Creer un album par sous-dossier" dans la section des resultats
-- Dans `handleImport`, si l'option est activee :
-  - Creer un album parent avec le nom du dossier racine scanne via `useAlbums.addAlbum()`
-  - Pour chaque sous-dossier contenant des fichiers, creer un sous-album (avec `parentId` vers l'album racine)
-  - Associer les `mediaIds` des fichiers importes a leur album respectif via `addMediaToAlbum()`
-
-### 2. Integration du hook useAlbums dans FolderScanner
-
-- Importer `useAlbums` dans le composant
-- Utiliser `addAlbum()` et `addMediaToAlbum()` pour creer la hierarchie
-
-### 3. Fichiers a modifier
-
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/FolderScanner.tsx` | Ajout du toggle, logique de creation d'albums lors de l'import |
-
-Aucun autre fichier ne necessite de modification -- le systeme d'albums (`useAlbums.ts`) et l'affichage des albums (`AlbumManager.tsx`) supportent deja les sous-albums et les `mediaIds`.
+| `src/hooks/useMediaStore.ts` | Ajouter `removeMediaByFolder(folder: string)` qui supprime tous les medias dont `sourceFolder === folder`, et remet `sourceFolderFilter` a null si c'etait le dossier actif |
+| `src/components/MediaHeader.tsx` | Ajouter un bouton Trash2 a cote du X quand un dossier est filtre, qui appelle `removeMediaByFolder` + supprime de l'historique + appel serveur DELETE. Ajouter aussi une icone de suppression dans chaque item du SelectContent |
 
