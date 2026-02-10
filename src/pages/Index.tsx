@@ -160,6 +160,7 @@ const Index = () => {
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
             <TimelineView
               media={getDisplayMedia()}
