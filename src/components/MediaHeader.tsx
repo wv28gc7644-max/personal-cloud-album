@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2, Settings2 } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2, Settings2, HelpCircle } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -227,6 +228,20 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                     </Button>
                   </>
                 )}
+                {/* Bouton aide */}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon-sm">
+                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs text-xs">
+                      <p className="font-medium mb-1">Comment gérer les dossiers liés ?</p>
+                      <p>Cliquez ⚙️ pour voir tous les dossiers liés, puis 🗑️ pour retirer un dossier et ses médias de la galerie.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {/* Popover de gestion des dossiers liés */}
                 <Popover>
                   <PopoverTrigger asChild>

@@ -221,13 +221,51 @@ export const useMediaStore = create<MediaStore>()(
       removeMediaByFolder: (folder) => set((state) => {
         const folderNormalized = folder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
 
-        // Simple inverse of import: remove any media whose sourceFolder matches
-        const remaining = state.media.filter((m) => {
-          if (!m.sourceFolder) return true; // no sourceFolder = not from a scan, keep it
+        console.log('[removeMediaByFolder] folder param:', JSON.stringify(folder));
+        console.log('[removeMediaByFolder] folderNormalized:', folderNormalized);
+        console.log('[removeMediaByFolder] total media:', state.media.length);
 
-          const mFolderNormalized = m.sourceFolder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
-          return mFolderNormalized !== folderNormalized;
+        const mediasWithSource = state.media.filter(m => m.sourceFolder || m.sourcePath);
+        console.log('[removeMediaByFolder] media with sourceFolder/sourcePath:', mediasWithSource.length);
+        mediasWithSource.forEach(m => {
+          console.log('  ->', JSON.stringify({ id: m.id, name: m.name, sourceFolder: m.sourceFolder, sourcePath: m.sourcePath?.substring(0, 80) }));
         });
+
+        // Primary: match by sourceFolder
+        let remaining = state.media.filter((m) => {
+          if (!m.sourceFolder) return true;
+          const mNorm = m.sourceFolder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+          return mNorm !== folderNormalized;
+        });
+
+        const removedByFolder = state.media.length - remaining.length;
+        console.log('[removeMediaByFolder] removed by sourceFolder match:', removedByFolder);
+
+        // Fallback: if nothing removed by sourceFolder, try by sourcePath prefix
+        if (removedByFolder === 0) {
+          console.log('[removeMediaByFolder] fallback: trying sourcePath prefix match');
+          remaining = state.media.filter((m) => {
+            if (!m.sourcePath) return true;
+            const pathNorm = m.sourcePath.replace(/\\/g, '/').toLowerCase();
+            return !pathNorm.startsWith(folderNormalized + '/') && pathNorm !== folderNormalized;
+          });
+          const removedByPath = state.media.length - remaining.length;
+          console.log('[removeMediaByFolder] removed by sourcePath fallback:', removedByPath);
+        }
+
+        // Fallback 2: if still nothing, try URL containing the folder path
+        if (remaining.length === state.media.length) {
+          console.log('[removeMediaByFolder] fallback 2: trying URL match');
+          const folderEncoded = encodeURIComponent(folder);
+          remaining = state.media.filter((m) => {
+            if (!m.isLinked) return true;
+            const url = m.url || '';
+            return !url.includes(folder) && !url.includes(folderEncoded) && !url.includes(folderNormalized);
+          });
+          console.log('[removeMediaByFolder] removed by URL fallback:', state.media.length - remaining.length);
+        }
+
+        console.log('[removeMediaByFolder] final remaining:', remaining.length, 'removed total:', state.media.length - remaining.length);
 
         return {
           media: remaining,
