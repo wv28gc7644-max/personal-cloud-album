@@ -15,7 +15,13 @@ import {
   FolderTree,
   FolderOpen,
   History,
-  Trash2
+  Trash2,
+  Search,
+  MousePointerClick,
+  Download,
+  Eye,
+  Trash,
+  HelpCircle
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useAlbums } from '@/hooks/useAlbums';
 import { MediaItem } from '@/types/media';
@@ -311,6 +318,37 @@ export function FolderScanner({ open, onClose }: FolderScannerProps) {
         </DialogHeader>
 
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
+          {/* Guide d'utilisation */}
+          <Accordion type="single" collapsible>
+            <AccordionItem value="guide" className="border rounded-lg px-3">
+              <AccordionTrigger className="py-2 text-sm hover:no-underline">
+                <span className="flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-primary" />
+                  Guide d'utilisation
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-2 pb-1">
+                  {[
+                    { icon: Search, title: '1. Scanner', desc: 'Cliquez sur "Parcourir" ou entrez un chemin, puis "Scanner"' },
+                    { icon: MousePointerClick, title: '2. Sélectionner', desc: 'Choisissez les sous-dossiers et types de fichiers à importer' },
+                    { icon: Download, title: '3. Importer', desc: 'Cliquez sur "Lier les fichiers" pour les ajouter à la galerie' },
+                    { icon: Eye, title: '4. Voir', desc: 'Les médias apparaissent dans la galerie avec un indicateur de lien' },
+                    { icon: Trash, title: '5. Supprimer', desc: 'Dans le header, cliquez ⚙️ puis 🗑️ à côté du dossier pour retirer les médias' },
+                  ].map(({ icon: Icon, title, desc }) => (
+                    <div key={title} className="flex items-start gap-3 p-2 rounded-md bg-muted/40">
+                      <Icon className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium">{title}</p>
+                        <p className="text-xs text-muted-foreground">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
           {/* Folder path input */}
           <div className="flex gap-2">
             <Input
