@@ -36,6 +36,7 @@ interface MediaStore {
   setSearchQuery: (query: string) => void;
   setSourceFilter: (filter: SourceFilter) => void;
   setSourceFolderFilter: (folder: string | null) => void;
+  removeMediaByFolder: (folder: string) => void;
   getSourceFolders: () => string[];
   
   // Getters
@@ -216,6 +217,11 @@ export const useMediaStore = create<MediaStore>()(
       setSearchQuery: (query) => set({ searchQuery: query }),
       setSourceFilter: (filter) => set({ sourceFilter: filter }),
       setSourceFolderFilter: (folder) => set({ sourceFolderFilter: folder }),
+
+      removeMediaByFolder: (folder) => set((state) => ({
+        media: state.media.filter((m) => m.sourceFolder !== folder),
+        sourceFolderFilter: state.sourceFolderFilter === folder ? null : state.sourceFolderFilter,
+      })),
 
       getSourceFolders: () => {
         const { media } = get();
