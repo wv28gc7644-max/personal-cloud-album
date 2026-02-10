@@ -114,7 +114,8 @@ export function InAppUpdate({ trigger }: InAppUpdateProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           repoUrl: localStorage.getItem('mediavault_github_repo'),
-          branch: localStorage.getItem('mediavault_github_branch') || 'main'
+          branch: localStorage.getItem('mediavault_github_branch') || 'main',
+          silent: true
         })
       });
 
