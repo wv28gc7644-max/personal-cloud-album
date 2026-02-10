@@ -219,7 +219,7 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
       >
         <div 
           ref={mediaContainerRef}
-          className="flex flex-col items-center w-full h-full max-w-[95vw] max-h-[calc(100vh-100px)] cursor-default"
+          className="flex flex-col items-center w-full h-full max-w-[98vw] sm:max-w-[95vw] max-h-[calc(100vh-60px)] sm:max-h-[calc(100vh-100px)] cursor-default"
           onClick={(e) => e.stopPropagation()}
         >
           {item.type === 'image' ? (
