@@ -409,9 +409,10 @@ export const CardDesignEditor = () => {
         </Card>
       </div>
 
-      {/* Right side - Scrollable Settings */}
-      <div className="w-1/2 overflow-y-auto space-y-6 pr-2">
-        {/* Presets */}
+      {/* Right side - Settings */}
+      <div className="w-1/2 flex flex-col min-h-0 pr-2">
+        {/* Presets - Fixed */}
+        <div className="shrink-0">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -471,8 +472,10 @@ export const CardDesignEditor = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Detailed Settings */}
+        {/* Detailed Settings - Scrollable */}
+        <div className="flex-1 overflow-y-auto space-y-6 mt-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -675,6 +678,7 @@ export const CardDesignEditor = () => {
           </div>
         </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

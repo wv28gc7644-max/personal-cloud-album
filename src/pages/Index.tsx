@@ -148,7 +148,9 @@ const Index = () => {
       
       <main className="flex-1 flex flex-col overflow-hidden">
         {currentView === 'admin' ? (
-          <SettingsView />
+          <div className="flex-1 overflow-y-auto">
+            <SettingsView />
+          </div>
         ) : currentView === 'stats' ? (
           <StatsPanel />
         ) : currentView === 'smart-home' ? (
