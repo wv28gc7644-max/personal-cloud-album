@@ -304,6 +304,8 @@ export const AdminPanel = () => {
     try {
       const response = await fetch(`${getServerUrl()}/api/update`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ silent: true }),
       });
       return response.ok;
     } catch (err) {

@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MediaVault - Mise à jour en cours</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -22,28 +18,17 @@
       padding: 20px;
     }
     
-    .container {
-      text-align: center;
-      max-width: 500px;
-    }
+    .container { text-align: center; max-width: 500px; width: 100%; }
     
     .logo {
-      width: 80px;
-      height: 80px;
+      width: 80px; height: 80px;
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       border-radius: 20px;
       margin: 0 auto 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       animation: pulse 2s infinite;
     }
-    
-    .logo svg {
-      width: 40px;
-      height: 40px;
-      fill: white;
-    }
+    .logo svg { width: 40px; height: 40px; fill: white; }
     
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
@@ -51,106 +36,63 @@
     }
     
     h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 12px;
+      font-size: 28px; font-weight: 700; margin-bottom: 12px;
       background: linear-gradient(to right, #e4e4e7, #a1a1aa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }
     
-    .subtitle {
-      color: #a1a1aa;
-      margin-bottom: 32px;
-      font-size: 16px;
-    }
+    .subtitle { color: #a1a1aa; margin-bottom: 32px; font-size: 16px; }
     
     .progress-container {
-      background: rgba(255,255,255,0.1);
-      border-radius: 12px;
-      padding: 24px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 16px; padding: 28px;
       margin-bottom: 24px;
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px);
     }
     
     .progress-bar-bg {
-      background: rgba(255,255,255,0.1);
-      border-radius: 8px;
-      height: 12px;
-      overflow: hidden;
-      margin-bottom: 16px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px; height: 12px;
+      overflow: hidden; margin-bottom: 16px;
     }
     
     .progress-bar {
       height: 100%;
       background: linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7);
-      border-radius: 8px;
-      width: 0%;
-      transition: width 0.5s ease;
-      animation: shimmer 2s infinite;
-      background-size: 200% 100%;
+      border-radius: 8px; width: 0%;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
+    .progress-text { display: flex; justify-content: space-between; font-size: 14px; }
+    .status { color: #a1a1aa; }
+    .percent { font-weight: 600; color: #8b5cf6; }
     
-    .progress-text {
-      display: flex;
-      justify-content: space-between;
-      font-size: 14px;
-    }
-    
-    .status {
-      color: #a1a1aa;
-    }
-    
-    .percent {
-      font-weight: 600;
-      color: #8b5cf6;
-    }
-    
-    .steps {
-      text-align: left;
-      margin-top: 24px;
-    }
+    .steps { text-align: left; margin-top: 24px; }
     
     .step {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 0;
-      color: #71717a;
-      font-size: 14px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 0; color: #52525b; font-size: 14px;
+      transition: color 0.3s;
     }
-    
-    .step.active {
-      color: #e4e4e7;
-    }
-    
-    .step.done {
-      color: #22c55e;
-    }
+    .step.active { color: #e4e4e7; }
+    .step.done { color: #22c55e; }
     
     .step-icon {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
+      width: 24px; height: 24px; border-radius: 50%;
       border: 2px solid currentColor;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600;
+      transition: all 0.3s;
+      flex-shrink: 0;
     }
-    
     .step.active .step-icon {
-      border-color: #8b5cf6;
-      animation: spin 1s linear infinite;
+      border-color: #8b5cf6; color: #8b5cf6;
+      box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+      animation: spin 1.5s linear infinite;
     }
-    
     .step.done .step-icon {
-      background: #22c55e;
-      border-color: #22c55e;
+      background: #22c55e; border-color: #22c55e; color: white;
     }
     
     @keyframes spin {
@@ -159,21 +101,29 @@
     }
     
     .eta {
-      margin-top: 24px;
-      padding: 12px;
-      background: rgba(139, 92, 246, 0.1);
-      border-radius: 8px;
-      border: 1px solid rgba(139, 92, 246, 0.2);
+      margin-top: 24px; padding: 14px;
+      background: rgba(139, 92, 246, 0.08);
+      border-radius: 12px;
+      border: 1px solid rgba(139, 92, 246, 0.15);
       font-size: 14px;
     }
+    .eta-label { color: #a1a1aa; }
+    .eta-value { color: #8b5cf6; font-weight: 600; }
     
-    .eta-label {
-      color: #a1a1aa;
+    .error-banner {
+      margin-top: 16px; padding: 12px;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 10px; font-size: 13px;
+      color: #fca5a5; display: none;
     }
-    
-    .eta-value {
-      color: #8b5cf6;
-      font-weight: 600;
+
+    .complete-banner {
+      margin-top: 16px; padding: 16px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      border-radius: 10px; font-size: 15px;
+      color: #86efac; font-weight: 600; display: none;
     }
   </style>
 </head>
@@ -186,100 +136,132 @@
     </div>
     
     <h1>Mise à jour en cours</h1>
-    <p class="subtitle">MediaVault se met à jour vers une nouvelle version</p>
+    <p class="subtitle">MediaVault se met à jour. Merci de patienter.</p>
     
     <div class="progress-container">
       <div class="progress-bar-bg">
         <div class="progress-bar" id="progressBar"></div>
       </div>
       <div class="progress-text">
-        <span class="status" id="statusText">Initialisation...</span>
+        <span class="status" id="statusText">Connexion au serveur...</span>
         <span class="percent" id="percentText">0%</span>
       </div>
       
       <div class="steps">
-        <div class="step" id="step1">
+        <div class="step" id="step0">
           <span class="step-icon">1</span>
           <span>Sauvegarde des données</span>
         </div>
-        <div class="step" id="step2">
+        <div class="step" id="step1">
           <span class="step-icon">2</span>
           <span>Téléchargement de la mise à jour</span>
         </div>
-        <div class="step" id="step3">
+        <div class="step" id="step2">
           <span class="step-icon">3</span>
           <span>Installation des dépendances</span>
         </div>
-        <div class="step" id="step4">
+        <div class="step" id="step3">
           <span class="step-icon">4</span>
           <span>Reconstruction de l'application</span>
         </div>
-        <div class="step" id="step5">
+        <div class="step" id="step4">
           <span class="step-icon">5</span>
           <span>Restauration et finalisation</span>
         </div>
       </div>
     </div>
-    
+
     <div class="eta">
       <span class="eta-label">Temps estimé restant : </span>
-      <span class="eta-value" id="etaValue">~2 minutes</span>
+      <span class="eta-value" id="etaValue">Calcul en cours...</span>
+    </div>
+
+    <div class="complete-banner" id="completeBanner">
+      ✅ Mise à jour terminée ! Rechargement dans quelques secondes...
+    </div>
+
+    <div class="error-banner" id="errorBanner">
+      ⚠️ Le serveur ne répond plus. Tentative de reconnexion...
     </div>
   </div>
 
   <script>
-    // This script will be controlled by the update process
-    // For now, simulate progress
-    let progress = 0;
-    let currentStep = 0;
-    
-    const steps = ['step1', 'step2', 'step3', 'step4', 'step5'];
-    const stepPercents = [10, 30, 60, 90, 100];
-    const stepTexts = [
-      'Sauvegarde des données...',
-      'Téléchargement en cours...',
-      'Installation des dépendances...',
-      'Reconstruction de l\'application...',
-      'Finalisation...'
-    ];
+    const STEPS_COUNT = 5;
     const etaTimes = ['~2 minutes', '~1 min 30s', '~1 minute', '~30 secondes', 'Presque terminé...'];
+    let failCount = 0;
+    let isComplete = false;
 
-    function updateProgress() {
-      if (progress >= 100) return;
-      
-      progress += Math.random() * 3;
-      if (progress > 100) progress = 100;
-      
-      document.getElementById('progressBar').style.width = progress + '%';
-      document.getElementById('percentText').textContent = Math.round(progress) + '%';
-      
+    function updateUI(data) {
+      const percent = Math.min(data.percent || 0, 100);
+      document.getElementById('progressBar').style.width = percent + '%';
+      document.getElementById('percentText').textContent = Math.round(percent) + '%';
+      document.getElementById('statusText').textContent = data.status || 'En cours...';
+
       // Update steps
-      for (let i = 0; i < stepPercents.length; i++) {
-        const stepEl = document.getElementById(steps[i]);
-        if (progress >= stepPercents[i]) {
-          stepEl.className = 'step done';
-          stepEl.querySelector('.step-icon').textContent = '✓';
-        } else if (progress >= (i > 0 ? stepPercents[i-1] : 0)) {
-          stepEl.className = 'step active';
-          document.getElementById('statusText').textContent = stepTexts[i];
-          document.getElementById('etaValue').textContent = etaTimes[i];
+      for (let i = 0; i < STEPS_COUNT; i++) {
+        const el = document.getElementById('step' + i);
+        if (!el) continue;
+        if (data.step > i) {
+          el.className = 'step done';
+          el.querySelector('.step-icon').textContent = '✓';
+        } else if (data.step === i) {
+          el.className = 'step active';
+          document.getElementById('etaValue').textContent = etaTimes[i] || 'Bientôt...';
+        } else {
+          el.className = 'step';
         }
       }
-      
-      if (progress < 100) {
-        setTimeout(updateProgress, 500 + Math.random() * 1000);
-      } else {
+
+      if (data.complete) {
+        isComplete = true;
+        document.getElementById('completeBanner').style.display = 'block';
+        document.getElementById('etaValue').textContent = 'Terminé !';
         document.getElementById('statusText').textContent = 'Mise à jour terminée !';
-        document.getElementById('etaValue').textContent = 'Redémarrage...';
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+        document.getElementById('progressBar').style.width = '100%';
+        document.getElementById('percentText').textContent = '100%';
+        // Mark all steps done
+        for (let i = 0; i < STEPS_COUNT; i++) {
+          const el = document.getElementById('step' + i);
+          if (el) {
+            el.className = 'step done';
+            el.querySelector('.step-icon').textContent = '✓';
+          }
+        }
+        setTimeout(() => window.location.reload(), 3000);
       }
     }
 
-    // Check for update status via polling (if server provides endpoint)
-    // Otherwise, run simulation for demo
-    setTimeout(updateProgress, 1000);
+    async function pollStatus() {
+      if (isComplete) return;
+
+      try {
+        const res = await fetch('/api/update/status', { cache: 'no-store' });
+        if (res.ok) {
+          failCount = 0;
+          document.getElementById('errorBanner').style.display = 'none';
+          const data = await res.json();
+          updateUI(data);
+        } else {
+          throw new Error('Status ' + res.status);
+        }
+      } catch (err) {
+        failCount++;
+        // Le serveur redémarre probablement
+        if (failCount > 3) {
+          document.getElementById('errorBanner').style.display = 'block';
+        }
+        // Après 10 échecs, tenter un reload (le serveur a peut-être redémarré)
+        if (failCount > 10) {
+          window.location.reload();
+          return;
+        }
+      }
+
+      setTimeout(pollStatus, 2000);
+    }
+
+    // Démarrer le polling
+    setTimeout(pollStatus, 1000);
   </script>
 </body>
 </html>

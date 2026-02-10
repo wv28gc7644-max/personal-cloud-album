@@ -206,6 +206,21 @@ const proxyRequest = async (targetUrl, method, body, headers = {}) => {
 // SERVEUR HTTP
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════
+// ÉTAT DE MISE À JOUR (mode maintenance)
+// ═══════════════════════════════════════════════════════════════════
+let isUpdating = false;
+const UPDATE_PROGRESS_FILE = path.join(__dirname, 'update-progress.json');
+
+const getUpdateProgress = () => {
+  try {
+    if (fs.existsSync(UPDATE_PROGRESS_FILE)) {
+      return JSON.parse(fs.readFileSync(UPDATE_PROGRESS_FILE, 'utf8'));
+    }
+  } catch {}
+  return { step: 0, percent: 0, status: 'En attente...', complete: false };
+};
+
 const server = http.createServer(async (req, res) => {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -219,6 +234,26 @@ const server = http.createServer(async (req, res) => {
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const pathname = url.pathname;
+
+  // ── Middleware maintenance : bloquer tout sauf /api/update/status ──
+  if (isUpdating && pathname !== '/api/update/status' && pathname !== '/api/health') {
+    const progress = getUpdateProgress();
+    if (progress.complete) {
+      isUpdating = false;
+    } else {
+      const maintenancePath = path.join(__dirname, 'dist', 'maintenance.html');
+      const fallbackPath = path.join(__dirname, 'public', 'maintenance.html');
+      const htmlPath = fs.existsSync(maintenancePath) ? maintenancePath : fallbackPath;
+      try {
+        const html = fs.readFileSync(htmlPath, 'utf8');
+        res.writeHead(503, { 'Content-Type': 'text/html', 'Retry-After': '10' });
+        return res.end(html);
+      } catch {
+        res.writeHead(503, { 'Content-Type': 'text/plain' });
+        return res.end('Mise à jour en cours, veuillez patienter...');
+      }
+    }
+  }
 
   try {
     // ═══════════════════════════════════════════════════════════════
@@ -756,22 +791,53 @@ const server = http.createServer(async (req, res) => {
     // API: Mise à jour et Restauration
     // ═══════════════════════════════════════════════════════════════
 
+    // GET /api/update/status - Progression de la mise à jour
+    if (pathname === '/api/update/status' && req.method === 'GET') {
+      const progress = getUpdateProgress();
+      if (progress.complete) {
+        isUpdating = false;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ updating: isUpdating, ...progress }));
+    }
+
     if (pathname === '/api/update' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const silent = body.silent === true;
       const updateScript = path.join(__dirname, 'Mettre a jour MediaVault.bat');
       if (fs.existsSync(updateScript)) {
-        exec(`start cmd /c "${updateScript}"`, (err) => {
-          if (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: err.message }));
-          }
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Mise à jour lancée' }));
-        });
+        // Initialiser le fichier de progression
+        try {
+          fs.writeFileSync(UPDATE_PROGRESS_FILE, JSON.stringify({
+            step: 0, percent: 0, status: 'Démarrage de la mise à jour...', complete: false
+          }));
+        } catch {}
+
+        isUpdating = true;
+        addLog('info', 'update', `Mise à jour lancée (mode ${silent ? 'silencieux' : 'terminal'})`);
+
+        if (silent) {
+          // Mode silencieux : PowerShell en arrière-plan, pas de fenêtre
+          const psCmd = `powershell -WindowStyle Hidden -Command "& cmd /c '${updateScript.replace(/'/g, "''")}'"`; 
+          exec(psCmd, { cwd: __dirname }, (err) => {
+            if (err) {
+              addLog('error', 'update', `Erreur mise à jour silencieuse: ${err.message}`);
+            }
+          });
+        } else {
+          exec(`start cmd /c "${updateScript}"`, (err) => {
+            if (err) {
+              addLog('error', 'update', `Erreur mise à jour: ${err.message}`);
+            }
+          });
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, message: 'Mise à jour lancée', silent }));
       } else {
         res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Script de mise à jour introuvable' }));
+        return res.end(JSON.stringify({ error: 'Script de mise à jour introuvable' }));
       }
-      return;
     }
 
     if (pathname === '/api/restore' && req.method === 'POST') {
