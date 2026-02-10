@@ -20,10 +20,10 @@ export function NotificationsSettings() {
     localStorage.getItem('mediavault-disable-auto-update-check') !== 'true'
   );
   const [realtimeCheckEnabled, setRealtimeCheckEnabled] = useState(() => 
-    localStorage.getItem('mediavault-realtime-update-check') === 'true'
+    localStorage.getItem('mediavault-realtime-update-check') !== 'false'
   );
   const [realtimeCheckInterval, setRealtimeCheckInterval] = useState(() => 
-    parseInt(localStorage.getItem('mediavault-realtime-update-interval') || '60')
+    parseInt(localStorage.getItem('mediavault-realtime-update-interval') || '10')
   );
 
   const { lastCheck: realtimeLastCheck, isChecking: isRealtimeChecking } = useRealtimeUpdateCheck({

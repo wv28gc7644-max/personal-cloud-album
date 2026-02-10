@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
-import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link } from 'lucide-react';
+import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { useAdvancedCardSettings } from './CardDesignEditor';
+import { MediaInfoDialog } from './MediaInfoDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ export const MediaCardTwitter = ({
   const [isLiked, setIsLiked] = useState(item.tags.some(t => t.name === 'Favoris'));
   const [isHovered, setIsHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { settings: basicSettings } = useCardSettings();
   const advancedSettings = useAdvancedCardSettings();
@@ -288,6 +290,19 @@ export const MediaCardTwitter = ({
         </div>
       )}
 
+      {/* Info button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }}
+        className={cn(
+          "absolute top-3 right-3 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white transition-opacity duration-300",
+          viewCount > 0 && showViewCount ? "top-10" : "top-3",
+          isHovered ? "opacity-100" : "opacity-0"
+        )}
+        title="Informations"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+
       {/* Linked file indicator */}
       {item.isLinked && (
         <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-primary/80 backdrop-blur-sm text-xs text-primary-foreground font-medium flex items-center gap-1" title={item.sourcePath || 'Fichier lié'}>
@@ -402,6 +417,8 @@ export const MediaCardTwitter = ({
           {renderActions()}
         </>
       )}
+
+      <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
     </article>
   );
 };

@@ -65,7 +65,7 @@ export function GridSettings() {
             <Grid3X3 className="w-5 h-5" />
             Configuration de la grille
           </CardTitle>
-          <CardDescription>Personnalisez l'affichage de la galerie de médias</CardDescription>
+          <CardDescription>Personnalisez l'affichage de la galerie — s'applique à toutes les vues</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Nombre de colonnes */}

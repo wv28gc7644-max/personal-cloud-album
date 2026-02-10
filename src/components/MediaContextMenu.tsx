@@ -49,7 +49,7 @@ export function MediaContextMenu({
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          {children}
+          <div>{children}</div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-52">
           <ContextMenuItem onClick={onView} className="gap-2">

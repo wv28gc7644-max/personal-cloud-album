@@ -121,7 +121,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarOpen(false)} />
@@ -156,33 +156,37 @@ const Index = () => {
             <SmartHomeDashboard />
           </div>
         ) : currentView === 'timeline' ? (
-          <div className="flex-1 overflow-y-auto">
+          <>
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
-            <TimelineView
-              media={getDisplayMedia()}
-              viewMode="grid"
-              onView={handleViewMedia}
-              onDelete={(item) => removeMedia(item.id)}
-              onDownload={handleDownload}
-              onToggleFavorite={(item) => handleToggleFavorite(item.id)}
-            />
-          </div>
+            <div className="flex-1 overflow-y-auto">
+              <TimelineView
+                media={getDisplayMedia()}
+                viewMode="grid"
+                onView={handleViewMedia}
+                onDelete={(item) => removeMedia(item.id)}
+                onDownload={handleDownload}
+                onToggleFavorite={(item) => handleToggleFavorite(item.id)}
+              />
+            </div>
+          </>
         ) : currentView === 'calendar' ? (
-          <div className="flex-1 overflow-y-auto">
+          <>
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
               onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
-            <CalendarView
-              media={getDisplayMedia()}
-              onView={handleViewMedia}
-            />
-          </div>
+            <div className="flex-1 overflow-y-auto">
+              <CalendarView
+                media={getDisplayMedia()}
+                onView={handleViewMedia}
+              />
+            </div>
+          </>
         ) : currentView === 'albums' ? (
           <div className="flex-1 overflow-y-auto p-6">
             <div className="mb-6">
