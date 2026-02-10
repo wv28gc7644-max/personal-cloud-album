@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -292,8 +293,23 @@ export const CardDesignEditor = () => {
     </div>
   );
 
+  const navigate = useNavigate();
+
   return (
-    <div className="flex gap-6 h-full min-h-[600px]">
+    <div className="flex flex-col gap-4 h-full min-h-[600px]">
+      {/* Banner prototype */}
+      <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Layers className="w-4 h-4 text-primary" />
+          <span>Testez 6 concepts différents de personnalisation de carte</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => navigate('/demo-card-editor')} className="gap-2">
+          <Layers className="w-4 h-4" />
+          Tester les prototypes
+        </Button>
+      </div>
+
+      <div className="flex gap-6 flex-1 min-h-0">
       {/* Left - Preview */}
       <div className="w-1/2 flex-shrink-0 sticky top-0 self-start">
         <Card className="h-full">
@@ -521,6 +537,7 @@ export const CardDesignEditor = () => {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   );
