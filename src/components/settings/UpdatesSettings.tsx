@@ -184,7 +184,7 @@ export function UpdatesSettings() {
       'echo [3/3] Demarrage du serveur...',
       'start "" "http://localhost:3001"',
       'echo [INFO] Ouverture d\'une fenetre serveur (logs en direct)...',
-      'start "MediaVault Server" cmd /k "cd /d ""%MV_ROOT%"" ^& node server.cjs"',
+      'start "MediaVault Server" /d "%MV_ROOT%" cmd /k node server.cjs',
       'echo [OK] Serveur lance. Cette fenetre peut etre fermee.',
       'exit /b 0',
       '',
