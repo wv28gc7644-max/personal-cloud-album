@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, SlidersHorizontal, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ViewMode, SortOption, SourceFilter } from '@/types/media';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { cn } from '@/lib/utils';
@@ -13,21 +14,24 @@ import { EditableElement } from './EditableElement';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { FolderScanner } from './FolderScanner';
 import { ThemeToggle } from './ThemeToggle';
-import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
   onStartSlideshow?: () => void;
+  onToggleSidebar?: () => void;
 }
 
-export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
+export function MediaHeader({ onUploadClick, onStartSlideshow, onToggleSidebar }: MediaHeaderProps) {
   const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
+  const isMobile = useIsMobile();
   const filteredMedia = getFilteredMedia();
   const filteredCount = filteredMedia.length;
   const localCount = filteredMedia.filter(m => !m.isLinked).length;
   const linkedCount = filteredMedia.filter(m => m.isLinked).length;
   const [folderScannerOpen, setFolderScannerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const sourceFolders = getSourceFolders();
 
   // Auto-reset filter if folder no longer exists
@@ -55,26 +59,124 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
     { value: 'type-video', label: 'Vidéos d\'abord' },
   ];
 
+  const FiltersContent = () => (
+    <div className="space-y-4">
+      {/* Sort */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">Tri</label>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+          <SelectTrigger className="w-full">
+            <ArrowUpDown className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Source filter */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">Source</label>
+        <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+          <SelectTrigger className="w-full">
+            <Filter className="w-4 h-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous</SelectItem>
+            <SelectItem value="local">Locaux</SelectItem>
+            <SelectItem value="linked">Liés</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Source folder filter */}
+      {sourceFolders.length > 0 && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-muted-foreground">Dossier</label>
+          <div className="flex items-center gap-1">
+            <Select 
+              value={sourceFolderFilter || '__all__'} 
+              onValueChange={(v) => setSourceFolderFilter(v === '__all__' ? null : v)}
+            >
+              <SelectTrigger className="w-full">
+                <FolderTree className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Tous les dossiers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Tous les dossiers</SelectItem>
+                {sourceFolders.map((folder) => (
+                  <SelectItem key={folder} value={folder}>
+                    {folder.split(/[/\\]/).pop() || folder}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {sourceFolderFilter && (
+              <Button variant="ghost" size="icon-sm" onClick={() => setSourceFolderFilter(null)}>
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* View modes */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">Affichage</label>
+        <div className="grid grid-cols-3 gap-2">
+          {viewModes.map(({ mode, icon: Icon, label }) => (
+            <Button
+              key={mode}
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewMode(mode)}
+              className={cn(
+                "flex flex-col gap-1 h-auto py-2",
+                viewMode === mode && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              <span className="text-xs">{label}</span>
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border">
       <EditableElement id="header-container" type="container" name="Header">
-        <div className="flex items-center justify-between gap-4 p-4">
+        <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4">
+          {/* Hamburger menu for mobile */}
+          {onToggleSidebar && (
+            <Button variant="ghost" size="icon" onClick={onToggleSidebar} className="md:hidden shrink-0">
+              <Menu className="w-5 h-5" />
+            </Button>
+          )}
+
           {/* Search */}
           <EditableElement id="header-search" type="container" name="Recherche">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
               <Input
-                placeholder="Rechercher par nom ou tag..."
+                placeholder={isMobile ? "Rechercher..." : "Rechercher par nom ou tag..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-muted/50 border-transparent focus:border-primary"
+                className="pl-9 sm:pl-10 bg-muted/50 border-transparent focus:border-primary"
               />
             </div>
           </EditableElement>
 
-          {/* Stats */}
+          {/* Stats - hidden on mobile */}
           <EditableElement id="header-stats" type="text" name="Compteur médias">
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <div className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground">
               <button
                 onClick={() => setSourceFilter('all')}
                 className={cn(
@@ -109,8 +211,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
             </div>
           </EditableElement>
 
-          {/* Sort */}
-          <EditableElement id="header-sort" type="container" name="Tri">
+          {/* Desktop filters - hidden on mobile */}
+          <div className="hidden md:flex items-center gap-2">
+            {/* Sort */}
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
               <SelectTrigger className="w-40">
                 <ArrowUpDown className="w-4 h-4 mr-2" />
@@ -124,10 +227,8 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                 ))}
               </SelectContent>
             </Select>
-          </EditableElement>
 
-          {/* Source filter */}
-          <EditableElement id="header-source-filter" type="container" name="Filtre source">
+            {/* Source filter */}
             <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
               <SelectTrigger className="w-36">
                 <Filter className="w-4 h-4 mr-2" />
@@ -139,11 +240,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                 <SelectItem value="linked">Liés</SelectItem>
               </SelectContent>
             </Select>
-          </EditableElement>
 
-          {/* Source folder filter */}
-          {sourceFolders.length > 0 && (
-            <EditableElement id="header-folder-filter" type="container" name="Filtre dossier">
+            {/* Source folder filter */}
+            {sourceFolders.length > 0 && (
               <div className="flex items-center gap-1">
                 <Select 
                   value={sourceFolderFilter || '__all__'} 
@@ -163,21 +262,14 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                   </SelectContent>
                 </Select>
                 {sourceFolderFilter && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setSourceFolderFilter(null)}
-                    title="Effacer le filtre dossier"
-                  >
+                  <Button variant="ghost" size="icon-sm" onClick={() => setSourceFolderFilter(null)}>
                     <X className="w-3.5 h-3.5" />
                   </Button>
                 )}
               </div>
-            </EditableElement>
-          )}
+            )}
 
-          {/* View mode toggles */}
-          <EditableElement id="header-view-modes" type="container" name="Modes de vue">
+            {/* View mode toggles */}
             <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50">
               {viewModes.map(({ mode, icon: Icon, label }) => (
                 <Button
@@ -195,51 +287,73 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                 </Button>
               ))}
             </div>
-          </EditableElement>
 
-          {/* Slideshow button */}
-          {onStartSlideshow && (
-            <EditableElement id="header-slideshow" type="button" name="Bouton Diaporama">
+            {/* Slideshow button */}
+            {onStartSlideshow && (
               <Button variant="outline" size="sm" onClick={onStartSlideshow} className="gap-2">
                 <Play className="w-4 h-4" />
                 Diaporama
               </Button>
-            </EditableElement>
-          )}
+            )}
+          </div>
+
+          {/* Mobile filters button */}
+          <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" className="md:hidden shrink-0">
+                <SlidersHorizontal className="w-4 h-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl">
+              <SheetHeader>
+                <SheetTitle>Filtres & Affichage</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 overflow-y-auto">
+                <FiltersContent />
+                {/* Stats on mobile */}
+                <div className="mt-4 pt-4 border-t border-border flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                  <span>{filteredCount} médias</span>
+                  <span className="text-border">·</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    {localCount} locaux
+                  </span>
+                  <span className="text-border">·</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    {linkedCount} liés
+                  </span>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* Theme Toggle */}
           <ThemeToggle />
 
-          {/* Notification Center */}
-          <EditableElement id="header-notifications" type="icon" name="Notifications">
+          {/* Notification Center - hidden on mobile */}
+          <div className="hidden sm:block">
             <NotificationCenter />
-          </EditableElement>
+          </div>
 
-          {/* AI Assistant */}
-          <EditableElement id="header-ai-assistant" type="icon" name="Assistant IA">
+          {/* AI Assistant - hidden on mobile */}
+          <div className="hidden sm:block">
             <AIAssistant />
-          </EditableElement>
+          </div>
 
           {/* User Menu */}
-          <EditableElement id="header-user-menu" type="icon" name="Menu Utilisateur">
-            <UserMenu />
-          </EditableElement>
+          <UserMenu />
 
           {/* Link folder button */}
-          <EditableElement id="header-link-folder" type="button" name="Lier un dossier">
-            <Button variant="outline" onClick={() => setFolderScannerOpen(true)} className="gap-2">
-              <FolderSearch className="w-4 h-4" />
-              Lier un dossier
-            </Button>
-          </EditableElement>
+          <Button variant="outline" size="icon" onClick={() => setFolderScannerOpen(true)} className="shrink-0" title="Lier un dossier">
+            <FolderSearch className="w-4 h-4" />
+          </Button>
 
           {/* Upload button */}
-          <EditableElement id="header-upload" type="button" name="Bouton Ajouter">
-            <Button onClick={onUploadClick} className="gap-2">
-              <Upload className="w-4 h-4" />
-              Ajouter
-            </Button>
-          </EditableElement>
+          <Button onClick={onUploadClick} size={isMobile ? "icon" : "default"} className={cn(!isMobile && "gap-2", "shrink-0")}>
+            <Upload className="w-4 h-4" />
+            {!isMobile && "Ajouter"}
+          </Button>
         </div>
       </EditableElement>
 
