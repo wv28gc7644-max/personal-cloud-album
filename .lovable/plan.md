@@ -1,88 +1,45 @@
 
 
-## Mise a jour silencieuse avec page de maintenance
+## Probleme identifie
 
-### Ce qui sera fait
+Le bouton de suppression (croix/poubelle) appelle `handleUnlinkFolder(folder)` ou `folder` est le **nom court** du dossier (ex: `"Pictures"`), extrait de `media.sourceFolder`. Or :
 
-Quand tu cliques sur "Mettre a jour" depuis la notification ou le panneau admin, la mise a jour se lancera **sans ouvrir de terminal** (mode silencieux). Pendant ce temps, **tous les utilisateurs connectes** verront une page de maintenance professionnelle avec le logo MediaVault, une barre de progression et les etapes en temps reel. Une fois terminee, la page se deverrouille automatiquement.
+1. **Le serveur attend un `id`** pour supprimer un dossier lie (`data.linkedFolders.filter(f => f.id !== body.id)`), mais le client envoie `{ path: "Pictures" }` -- le serveur ne trouve jamais le dossier a supprimer.
 
-### Comment ca marche
+2. **L'historique localStorage** stocke le **chemin complet** (ex: `C:\Users\jimmy\Pictures`) dans `h.path`, mais le filtre de nettoyage compare avec le nom court `"Pictures"` -- jamais de correspondance, donc l'historique n'est jamais nettoye.
 
-1. Le serveur lance le script de mise a jour en mode **cache** (PowerShell avec `-WindowStyle Hidden`)
-2. Le serveur passe en "mode maintenance" et sert la page `maintenance.html` a toutes les requetes
-3. Le serveur expose un endpoint `/api/update/status` qui retourne la progression en temps reel
-4. La page de maintenance interroge ce endpoint toutes les 2 secondes pour afficher la progression
-5. Quand la mise a jour est terminee et le serveur redemarre, la page se recharge automatiquement
+3. **`removeMediaByFolder`** fonctionne correctement (il compare `m.sourceFolder` avec le nom court), mais les deux autres operations echouent silencieusement, donnant l'impression que rien ne se passe.
 
-### Modifications techniques
+## Solution
+
+### 1. Stocker le chemin complet dans `sourceFolder` (FolderScanner.tsx)
+
+Actuellement ligne 213 : `sourceFolder: folderName` (nom court).
+Changer en : `sourceFolder: scanResult.path` (chemin complet, ex: `C:\Users\jimmy\Pictures`).
+
+Cela aligne `sourceFolder` avec ce qui est stocke dans l'historique (`h.path`) et sur le serveur.
+
+### 2. Corriger le DELETE serveur (server.cjs)
+
+Ligne 779 : `data.linkedFolders.filter(f => f.id !== body.id)`
+Changer en : filtrer aussi par `f.path` pour supporter `{ path: "..." }` envoye par le client.
+
+### 3. Corriger handleUnlinkFolder (MediaHeader.tsx)
+
+Envoyer `{ path: folder }` au serveur (deja fait) mais aussi envoyer `{ id: folder }` pour couvrir les deux cas, ou mieux : le serveur accepte les deux.
+
+### 4. Afficher le nom court dans le dropdown
+
+Puisque `sourceFolder` contiendra maintenant le chemin complet, afficher seulement le dernier segment dans le dropdown pour la lisibilite (ex: `C:\Users\jimmy\Pictures` affiche `Pictures`).
+
+## Modifications techniques
 
 | Fichier | Modification |
 |---------|-------------|
-| **server.cjs** | 1. Ajouter une variable `isUpdating = false` et `updateProgress = { step, percent, status }` |
-|                 | 2. Modifier `/api/update` POST pour lancer le script en mode silencieux via `powershell -WindowStyle Hidden` au lieu de `start cmd /c` |
-|                 | 3. Ajouter un endpoint `GET /api/update/status` qui retourne `updateProgress` |
-|                 | 4. Ajouter un middleware en haut du handler HTTP : si `isUpdating === true` et que la requete n'est pas `/api/update/status`, servir `maintenance.html` |
-|                 | 5. Le script de mise a jour ecrit dans un fichier `update-progress.json` que le serveur lit pour suivre la progression reelle |
-| **public/maintenance.html** | 1. Remplacer la simulation de progression par un polling reel vers `/api/update/status` |
-|                              | 2. Ameliorer le design avec le logo MediaVault, les etapes reelles (sauvegarde, telechargement, installation, reconstruction, finalisation) |
-|                              | 3. Ajouter un rechargement automatique quand le statut passe a "complete" |
-| **src/components/AdminPanel.tsx** | Modifier `triggerUpdateScript` pour passer `{ silent: true }` dans le body du POST `/api/update` |
-| **src/components/NotificationCenter.tsx** | Idem, passer `{ silent: true }` |
-| **src/components/InAppUpdate.tsx** | Idem, passer `{ silent: true }` dans le body |
+| `src/components/FolderScanner.tsx` | Ligne 213 : changer `sourceFolder: folderName` en `sourceFolder: scanResult.path` pour stocker le chemin complet |
+| `src/components/MediaHeader.tsx` | 1. Afficher le dernier segment du chemin dans le dropdown (`folder.split(/[/\\]/).pop()`) au lieu du chemin complet |
+| | 2. Envoyer `{ path: folder, id: folder }` au serveur DELETE pour maximiser la compatibilite |
+| `server.cjs` | Ligne 779 : changer le filtre pour accepter suppression par `path` OU par `id` : `data.linkedFolders.filter(f => f.id !== body.id && f.path !== body.path)` |
 
-### Detail du flux
+Ces 3 corrections alignent les identifiants entre le store, l'historique localStorage et le serveur, ce qui fait que le bouton de suppression fonctionne reellement.
 
-**Cote serveur (server.cjs)** :
-
-```text
-Requete POST /api/update { silent: true }
-  |
-  +-> isUpdating = true
-  +-> Ecrire update-progress.json { step: 0, percent: 0, status: "Demarrage..." }
-  +-> Lancer le .bat via PowerShell en mode cache :
-      powershell -WindowStyle Hidden -Command "& 'Mettre a jour MediaVault.bat'"
-  +-> Le .bat ecrit dans update-progress.json a chaque etape
-  +-> Reponse 200 { success: true }
-
-Middleware (toutes les requetes) :
-  Si isUpdating ET pas /api/update/status ET pas /maintenance.html assets
-    -> Servir maintenance.html
-
-GET /api/update/status
-  -> Lire update-progress.json
-  -> Retourner { updating: true, step: 2, percent: 45, status: "Installation...", complete: false }
-```
-
-**Cote client (maintenance.html)** :
-
-```text
-Page chargee
-  |
-  +-> Polling /api/update/status toutes les 2s
-  +-> Mise a jour barre de progression + etape active
-  +-> Si complete === true : afficher "Mise a jour terminee !" + reload apres 3s
-  +-> Si le serveur ne repond plus (redemarrage) : tenter de recharger toutes les 3s
-```
-
-### Gestion du fichier de progression
-
-Le script `.bat` de mise a jour ecrira dans `C:\MediaVault\update-progress.json` a chaque etape :
-
-- Etape 0 : `{ "step": 0, "percent": 5, "status": "Sauvegarde des donnees..." }`
-- Etape 1 : `{ "step": 1, "percent": 25, "status": "Telechargement en cours..." }`
-- Etape 2 : `{ "step": 2, "percent": 50, "status": "Installation des dependances..." }`
-- Etape 3 : `{ "step": 3, "percent": 80, "status": "Reconstruction de l'application..." }`
-- Etape 4 : `{ "step": 4, "percent": 95, "status": "Finalisation..." }`
-- Fin : `{ "step": 5, "percent": 100, "status": "complete", "complete": true }`
-
-Le serveur lit ce fichier pour `/api/update/status` et remet `isUpdating = false` quand `complete === true`.
-
-### Ce que les utilisateurs verront
-
-Pendant la mise a jour, toute personne accedant au site verra la page de maintenance avec :
-- Le logo MediaVault anime
-- Le titre "Mise a jour en cours"
-- Une barre de progression reelle
-- Les 5 etapes avec indicateurs (en attente / en cours / termine)
-- Le temps estime restant
-- Un rechargement automatique une fois termine
