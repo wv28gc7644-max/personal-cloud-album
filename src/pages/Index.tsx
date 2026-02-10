@@ -34,9 +34,11 @@ const Index = () => {
   const [compareOpen, setCompareOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('home');
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   const { getFilteredMedia, getFavorites, media, removeMedia, updateMedia } = useMediaStore();
+  const isMobile = useIsMobile();
 
   // Listen for navigation events
   useEffect(() => {
