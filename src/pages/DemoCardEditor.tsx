@@ -84,7 +84,7 @@ const PreviewElement = ({ el }: { el: CardElement }) => {
       return (
         <div className="w-full aspect-video bg-gradient-to-br from-primary/10 via-accent/10 to-secondary/20 flex items-center justify-center relative overflow-hidden">
           <Image className="w-10 h-10 text-muted-foreground/40" />
-          <span className="absolute bottom-2 right-2 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded">Photo de vacances</span>
+          <span className="absolute bottom-2 right-2 text-[10px] bg-foreground/70 text-background px-1.5 py-0.5 rounded">Photo de vacances</span>
         </div>
       );
     case 'title':
