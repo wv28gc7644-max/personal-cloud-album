@@ -8,6 +8,7 @@ import { fr } from 'date-fns/locale';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { useAdvancedCardSettings } from './CardDesignEditor';
+import { MediaInfoDialog } from './MediaInfoDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
