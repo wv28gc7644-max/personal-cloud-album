@@ -24,6 +24,7 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
   const mediaContainerRef = useRef<HTMLDivElement>(null);
   const lastSegmentTimeRef = useRef<number>(0);
   const { recordVideoSegment, getStats } = useMediaStats();
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (item) {
