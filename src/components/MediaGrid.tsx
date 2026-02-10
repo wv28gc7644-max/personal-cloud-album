@@ -91,20 +91,24 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
   // Get grid columns from validated localStorage settings
   const gridColumns = getAdminSettings().gridColumns;
 
+  const getGridStyle = (): React.CSSProperties | undefined => {
+    if (viewMode === 'masonry' || viewMode === 'media-only' || viewMode === 'list') return undefined;
+    if (viewMode === 'grid-large') return { display: 'grid', gridTemplateColumns: `repeat(${Math.min(gridColumns, 2)}, minmax(0, 1fr))`, gap: '1.5rem' };
+    return { display: 'grid', gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`, gap: '1rem' };
+  };
+
   const getGridClasses = () => {
     switch (viewMode) {
       case 'masonry':
       case 'media-only':
-        return "columns-2 sm:columns-2 lg:columns-3 xl:columns-4 gap-3 sm:gap-4 space-y-3 sm:space-y-4";
+        return `columns-${Math.min(gridColumns, 2)} sm:columns-${gridColumns} gap-3 sm:gap-4 space-y-3 sm:space-y-4`;
       case 'list':
         return "flex flex-col gap-3 sm:gap-4";
       case 'grid-large':
-        return "grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6";
       case 'adaptive':
-        return "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 auto-rows-auto";
       case 'grid':
       default:
-        return "grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4";
+        return "";
     }
   };
 
