@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2 } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2, Settings2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -179,22 +180,9 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                   <SelectContent>
                     <SelectItem value="__all__">Tous les dossiers</SelectItem>
                     {sourceFolders.map((folder) => (
-                      <div key={folder} className="flex items-center justify-between group">
-                        <SelectItem value={folder} className="flex-1">
-                          {folder.split(/[/\\]/).pop() || folder}
-                        </SelectItem>
-                        <button
-                          className="p-1 mr-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleUnlinkFolder(folder);
-                          }}
-                          title="Délier ce dossier"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      <SelectItem key={folder} value={folder}>
+                        {folder.split(/[/\\]/).pop() || folder}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -219,6 +207,39 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                     </Button>
                   </>
                 )}
+                {/* Popover de gestion des dossiers liés */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" title="Gérer les dossiers liés">
+                      <Settings2 className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80" align="end">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Dossiers liés</h4>
+                      {sourceFolders.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Aucun dossier lié</p>
+                      )}
+                      {sourceFolders.map((folder) => (
+                        <div key={folder} className="flex items-center justify-between gap-2 p-2 rounded-md bg-muted/50">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{folder.split(/[/\\]/).pop() || folder}</p>
+                            <p className="text-xs text-muted-foreground truncate">{folder}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleUnlinkFolder(folder)}
+                            className="text-destructive hover:text-destructive/80 shrink-0"
+                            title="Délier ce dossier"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </EditableElement>
           )}
