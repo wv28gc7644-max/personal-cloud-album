@@ -253,12 +253,15 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
       </div>
 
       {/* Counter */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-muted-foreground bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm">
+      <div className={cn(
+        "absolute left-1/2 -translate-x-1/2 text-sm text-muted-foreground bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm",
+        isMobile ? "top-4" : "bottom-4"
+      )}>
         {currentIndex + 1} / {items.length}
       </div>
 
-      {/* Click hint */}
-      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50">
+      {/* Click hint - desktop only */}
+      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground/50 hidden sm:block">
         Cliquez en dehors pour fermer · F pour plein écran
       </div>
     </div>
