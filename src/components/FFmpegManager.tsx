@@ -387,7 +387,7 @@ export const FFmpegManager = () => {
       '    echo       Serveur deja en cours sur le port 3001',
        ') else (',
        '    echo       Demarrage du serveur local...',
-       '    start "MediaVault Server" cmd /k "cd /d ""%~dp0"" ^& node server.cjs"',
+       '    start "MediaVault Server" /d "%~dp0" cmd /k node server.cjs',
        '    timeout /t 2 /nobreak >nul',
        ')',
        '',
