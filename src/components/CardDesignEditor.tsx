@@ -472,8 +472,10 @@ export const CardDesignEditor = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Detailed Settings */}
+        {/* Detailed Settings - Scrollable */}
+        <div className="flex-1 overflow-y-auto space-y-6 mt-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
