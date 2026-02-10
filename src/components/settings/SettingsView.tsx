@@ -50,6 +50,7 @@ const COMPONENT_MAP: Record<string, React.ComponentType> = {
   AutoSyncSettings,
   AdvancedColorEditor,
   HomeAutomationHub,
+  ContextMenuSettings,
 };
 
 export function SettingsView() {

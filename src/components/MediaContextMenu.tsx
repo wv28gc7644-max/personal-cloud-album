@@ -11,6 +11,11 @@ import { MediaItem } from '@/types/media';
 import { Eye, Info, Download, Save, Heart, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useContextMenuConfig, ContextMenuItem as ConfigItem } from '@/hooks/useContextMenuConfig';
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Eye, Info, Download, Save, Heart, Copy, Trash2,
+};
 
 interface MediaContextMenuProps {
   item: MediaItem;
@@ -30,6 +35,7 @@ export function MediaContextMenu({
   onToggleFavorite,
 }: MediaContextMenuProps) {
   const [infoOpen, setInfoOpen] = useState(false);
+  const { items } = useContextMenuConfig();
   const isFavorite = item.tags.some(t => t.name === 'Favoris');
 
   const handleSaveAs = () => {
@@ -45,6 +51,24 @@ export function MediaContextMenu({
     toast.success('Chemin copié !');
   };
 
+  const ACTION_HANDLERS: Record<string, () => void> = {
+    view: onView,
+    info: () => setInfoOpen(true),
+    download: onDownload,
+    saveAs: handleSaveAs,
+    favorite: onToggleFavorite || (() => {}),
+    copyPath: handleCopyPath,
+    delete: onDelete,
+  };
+
+  const enabledItems = items.filter(i => i.type === 'separator' || (i.type === 'action' && i.enabled));
+
+  // Filter out favorite if no handler
+  const visibleItems = enabledItems.filter(i => {
+    if (i.type === 'action' && i.id === 'favorite' && !onToggleFavorite) return false;
+    return true;
+  });
+
   return (
     <>
       <ContextMenu>
@@ -52,39 +76,28 @@ export function MediaContextMenu({
           <div>{children}</div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-52">
-          <ContextMenuItem onClick={onView} className="gap-2">
-            <Eye className="w-4 h-4" />
-            Voir
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => setInfoOpen(true)} className="gap-2">
-            <Info className="w-4 h-4" />
-            Informations
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={onDownload} className="gap-2">
-            <Download className="w-4 h-4" />
-            Télécharger
-          </ContextMenuItem>
-          <ContextMenuItem onClick={handleSaveAs} className="gap-2">
-            <Save className="w-4 h-4" />
-            Enregistrer sous...
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          {onToggleFavorite && (
-            <ContextMenuItem onClick={onToggleFavorite} className="gap-2">
-              <Heart className={cn("w-4 h-4", isFavorite && "fill-current text-red-500")} />
-              {isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-            </ContextMenuItem>
-          )}
-          <ContextMenuItem onClick={handleCopyPath} className="gap-2">
-            <Copy className="w-4 h-4" />
-            Copier le chemin
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={onDelete} className="gap-2 text-destructive focus:text-destructive">
-            <Trash2 className="w-4 h-4" />
-            Supprimer
-          </ContextMenuItem>
+          {visibleItems.map((ci) => {
+            if (ci.type === 'separator') {
+              return <ContextMenuSeparator key={ci.id} />;
+            }
+            const IconComp = ICON_MAP[ci.icon];
+            const handler = ACTION_HANDLERS[ci.id];
+            const isDelete = ci.id === 'delete';
+            const isFav = ci.id === 'favorite';
+
+            return (
+              <ContextMenuItem
+                key={ci.id}
+                onClick={handler}
+                className={cn("gap-2", isDelete && "text-destructive focus:text-destructive")}
+              >
+                {IconComp && (
+                  <IconComp className={cn("w-4 h-4", isFav && isFavorite && "fill-current text-red-500")} />
+                )}
+                {isFav ? (isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris') : ci.label}
+              </ContextMenuItem>
+            );
+          })}
         </ContextMenuContent>
       </ContextMenu>
 

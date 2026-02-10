@@ -77,7 +77,7 @@ export const DEFAULT_MODULES: SettingsModule[] = [
 
 export const DEFAULT_CATEGORIES: SettingsCategory[] = [
   { id: 'system', name: 'Système', icon: 'Settings', iconColor: 'hsl(215, 20%, 65%)', order: 0, visible: true, modules: ['notifications', 'updates', 'security', 'server', 'ffmpeg'] },
-  { id: 'appearance', name: 'Apparence', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', order: 1, visible: true, modules: ['theme', 'colorEditor', 'cards', 'grid', 'cardDisplay'] },
+  { id: 'appearance', name: 'Apparence', icon: 'Palette', iconColor: 'hsl(326, 100%, 74%)', order: 1, visible: true, modules: ['theme', 'colorEditor', 'cards', 'grid', 'cardDisplay', 'contextMenu'] },
   { id: 'media', name: 'Médias', icon: 'Image', iconColor: 'hsl(199, 89%, 48%)', order: 2, visible: true, modules: ['tags', 'playlists', 'autoSync'] },
   { id: 'integrations', name: 'Intégrations', icon: 'Plug', iconColor: 'hsl(142, 71%, 45%)', order: 3, visible: true, modules: ['homeHub', 'discord', 'telegram', 'webhooks'] },
 ];
