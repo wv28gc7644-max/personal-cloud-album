@@ -218,10 +218,29 @@ export const useMediaStore = create<MediaStore>()(
       setSourceFilter: (filter) => set({ sourceFilter: filter }),
       setSourceFolderFilter: (folder) => set({ sourceFolderFilter: folder }),
 
-      removeMediaByFolder: (folder) => set((state) => ({
-        media: state.media.filter((m) => m.sourceFolder !== folder),
-        sourceFolderFilter: state.sourceFolderFilter === folder ? null : state.sourceFolderFilter,
-      })),
+      removeMediaByFolder: (folder) => set((state) => {
+        const folderName = folder.split(/[/\\]/).pop()?.toLowerCase() || '';
+        const folderNormalized = folder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+
+        const remaining = state.media.filter((m) => {
+          if (!m.isLinked) return true;
+
+          if (m.sourceFolder === folder) return false;
+
+          if (m.sourceFolder && m.sourceFolder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase() === folderNormalized) return false;
+
+          if (m.sourceFolder && m.sourceFolder.toLowerCase() === folderName && folderName.length > 0) return false;
+
+          if (m.sourcePath && m.sourcePath.replace(/\\/g, '/').toLowerCase().startsWith(folderNormalized + '/')) return false;
+
+          return true;
+        });
+
+        return {
+          media: remaining,
+          sourceFolderFilter: state.sourceFolderFilter === folder ? null : state.sourceFolderFilter,
+        };
+      }),
 
       getSourceFolders: () => {
         const { media } = get();

@@ -41,8 +41,15 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
   const HISTORY_KEY = 'mediavault-folder-history';
 
   const handleUnlinkFolder = async (folder: string) => {
-    // Remove media from store
+    const mediaBeforeCount = getFilteredMedia().length + useMediaStore.getState().media.filter(m => m.isLinked).length;
+    const mediaBefore = useMediaStore.getState().media.length;
+    
+    // Remove media from store (multi-criteria matching)
     removeMediaByFolder(folder);
+    
+    const mediaAfter = useMediaStore.getState().media.length;
+    const removedCount = mediaBefore - mediaAfter;
+
     // Remove from localStorage history
     const history = safeGetLocalStorage<any[]>(HISTORY_KEY, []).filter((h: any) => h.path !== folder);
     safeSetLocalStorage(HISTORY_KEY, history);
@@ -57,7 +64,13 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
     } catch (e) {
       // Server may not be running
     }
-    toast.success('Dossier délié et médias supprimés');
+    
+    const folderName = folder.split(/[/\\]/).pop() || folder;
+    if (removedCount > 0) {
+      toast.success(`${removedCount} média(s) supprimé(s) du dossier "${folderName}"`);
+    } else {
+      toast.warning(`Dossier "${folderName}" délié mais aucun média trouvé à supprimer`);
+    }
   };
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
