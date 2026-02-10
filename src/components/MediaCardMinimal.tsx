@@ -14,6 +14,7 @@ interface MediaCardMinimalProps {
 export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { settings: basicSettings } = useCardSettings();
   const { getStats } = useMediaStats();
