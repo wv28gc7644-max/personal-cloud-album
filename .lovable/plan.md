@@ -1,113 +1,58 @@
 
 
-# Refonte du Design des Cartes + Personnalisation du clic droit
+# Page de demo interactive : 6 concepts de Card Designer
 
-## Ce qui va changer
+## Objectif
 
-### 1. Remplacement des presets par les vraies vues
+Creer une page temporaire `/demo-card-editor` avec les 6 concepts presentes precedemment, chacun fonctionnel et interactif. Tu pourras naviguer entre les 6 avec des onglets numerotes, tester le drag-and-drop, et me dire lequel tu preferes.
 
-Les 3 presets actuels (Normal, Minimaliste, Compact) dans le **Design des cartes** seront remplaces par les 6 vues reelles de l'application :
+## Ce que tu verras
 
-| Vue | Description |
-|-----|-------------|
-| Grille | Cartes alignees en rangees |
-| Grande grille | Cartes plus grandes, 2 colonnes |
-| Liste | Vue en ligne horizontale |
-| Mosaique | Colonnes decalees style Pinterest |
-| Media seul | Photo/video sans decoration |
-| Adaptatif | Ratio original preserve |
-
-Quand on clique sur une vue, la preview a gauche affiche exactement a quoi ressemble cette vue. Et les parametres de personnalisation avancee a droite s'appliquent specifiquement a cette vue. Chaque vue a ses propres reglages sauvegardes independamment.
-
-### 2. Editeur drag-and-drop des elements de carte (style widgets Mac)
-
-Un nouveau panneau "Constructeur" sera ajoute sous les presets de vue, permettant de :
-
-- **Voir tous les elements disponibles** : En-tete, Zone media, Metadonnees, Actions, Titre, Badge duree, Compteur de vues, Bouton Info (i)
-- **Activer/desactiver** chaque element avec un switch
-- **Reordonner** les elements par drag-and-drop (en utilisant `@dnd-kit` deja installe)
-- **Ajouter/supprimer** des elements depuis un catalogue lateral
-
-La preview se met a jour en temps reel au fur et a mesure des modifications.
-
-### 3. Personnalisation du menu contextuel (clic droit)
-
-Un nouveau module dans **Apparence** > **Menu contextuel** permettra de :
-
-- Voir la liste de toutes les actions disponibles (Voir, Informations, Telecharger, Enregistrer sous, Favoris, Copier le chemin, Supprimer, plus de futures actions)
-- **Activer/desactiver** chaque action
-- **Reordonner** les actions par drag-and-drop
-- **Ajouter des separateurs** entre les groupes d'actions
-- Preview en temps reel du menu contextuel resultant
-
-Le `MediaContextMenu` lira cette configuration depuis le store pour afficher uniquement les actions choisies, dans l'ordre choisi.
-
----
+- **6 onglets** en haut : "1 - Finder", "2 - Builder", "3 - Stack", "4 - Split", "5 - Direct", "6 - macOS+"
+- Chaque onglet montre un prototype fonctionnel du concept avec :
+  - De vrais elements draggables (Titre, Media, Actions, Metadonnees, Badge, Info)
+  - Une zone de preview de carte qui reagit au drag-and-drop
+  - Le look and feel propre a chaque concept
+- Un bouton "Je choisis celui-ci" sur chaque onglet
 
 ## Details techniques
 
-### Fichiers a creer
+### Fichier a creer
 
 | Fichier | Description |
 |---------|-------------|
-| `src/hooks/useContextMenuConfig.ts` | Store Zustand pour la configuration du menu contextuel (actions actives, ordre, separateurs) |
-| `src/components/settings/ContextMenuSettings.tsx` | Module de parametres avec drag-and-drop pour personnaliser le clic droit |
+| `src/pages/DemoCardEditor.tsx` | Page complete avec les 6 concepts en onglets, chacun avec du drag-and-drop fonctionnel via `@dnd-kit` |
 
 ### Fichiers a modifier
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/CardDesignEditor.tsx` | Remplacer les 3 presets par les 6 vues reelles. Ajouter un panneau "Constructeur" avec drag-and-drop des elements de carte. Sauvegarder les settings par vue (cle `mediavault-card-settings-{viewMode}`). La preview reflette la vue selectionnee. |
-| `src/components/MediaContextMenu.tsx` | Lire la config depuis `useContextMenuConfig` pour filtrer et ordonner les actions affichees |
-| `src/types/settings.ts` | Ajouter le module `ContextMenuSettings` dans `DEFAULT_LAYOUT_CONFIG` (categorie Apparence) |
-| `src/components/settings/SettingsView.tsx` | Ajouter `ContextMenuSettings` dans le `COMPONENT_MAP` |
-| `src/hooks/useSettingsLayout.ts` | Ajouter le nouveau module dans les defaults |
+| `src/App.tsx` | Ajouter la route `/demo-card-editor` pointant vers `DemoCardEditor` |
 
-### Architecture des settings par vue
+### Contenu de chaque onglet
 
-```text
-localStorage:
-  mediavault-card-settings-grid       -> { showHeader, showActions, ... }
-  mediavault-card-settings-grid-large -> { showHeader, showActions, ... }
-  mediavault-card-settings-list       -> { ... }
-  mediavault-card-settings-masonry    -> { ... }
-  mediavault-card-settings-media-only -> { ... }
-  mediavault-card-settings-adaptive   -> { ... }
-```
+**Concept 1 - Finder Style** : Palette d'elements en haut (icones + labels draggables), zone de drop en bas representant la carte, ligne de separateur "jeu par defaut"
 
-Chaque vue a ses propres parametres. Le `CardDesignEditor` charge/sauvegarde les settings de la vue actuellement selectionnee dans l'editeur.
+**Concept 2 - Builder Canvas** : Preview de carte interactive a gauche, catalogue d'elements a droite avec toggles, lignes de connexion visuelles
 
-### Structure du store menu contextuel
+**Concept 3 - Stack Constructor** : Carte verticale avec elements empiles, chaque element a une poignee de drag et un bouton supprimer, dock d'elements inutilises en bas
 
-```text
-useContextMenuConfig:
-  actions: [
-    { id: 'view', label: 'Voir', icon: 'Eye', enabled: true, order: 0 },
-    { id: 'info', label: 'Informations', icon: 'Info', enabled: true, order: 1 },
-    { id: 'separator-1', type: 'separator', order: 2 },
-    { id: 'download', label: 'Telecharger', icon: 'Download', enabled: true, order: 3 },
-    ...
-  ]
-```
+**Concept 4 - Split Panels** : 3 colonnes (liste elements | preview centrale | inspecteur de proprietes a droite)
 
-### Flux de donnees
+**Concept 5 - Direct Interactive** : La carte elle-meme est l'editeur, chaque element a un handle au survol et un engrenage pour les reglages locaux
 
-```text
-CardDesignEditor                    MediaGrid / MediaCards
-       |                                    |
-  [selectionne vue "grille"]         [lit viewMode actif]
-       |                                    |
-  [charge settings de "grid"]        [charge settings de viewMode]
-       |                                    |
-  [modifie via sliders/drag]         [applique les parametres]
-       |                                    |
-  [sauvegarde dans localStorage]     [ecoute 'settings-changed' event]
+**Concept 6 - macOS Toolbar + Live** : Palette d'elements en haut fidelite au screenshot macOS, preview en bas, bouton "Avance" pour le fine-tuning
 
+### Comportement commun aux 6 concepts
 
-ContextMenuSettings                 MediaContextMenu
-       |                                    |
-  [drag-and-drop actions]           [lit config depuis store]
-       |                                    |
-  [sauvegarde dans store]           [affiche actions actives dans l'ordre]
-```
+- Les elements disponibles : En-tete, Zone media, Titre, Metadonnees, Actions, Badge duree, Compteur vues, Bouton Info
+- Drag-and-drop fonctionnel avec `@dnd-kit` (deja installe)
+- Preview de carte qui se met a jour en temps reel
+- Donnees fictives pour la preview (image placeholder, titre "Photo de vacances", tags, etc.)
+
+### Acces
+
+Une fois deploye, tu pourras y acceder en ajoutant `/demo-card-editor` a l'URL dans la barre d'adresse du navigateur. La page sera independante du reste de l'app -- c'est juste une zone de test.
+
+Une fois ton choix fait, je supprimerai cette page et j'implementerai le concept choisi dans le vrai `CardDesignEditor`.
 
