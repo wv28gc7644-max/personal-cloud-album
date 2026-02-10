@@ -198,6 +198,7 @@ const Index = () => {
             <MediaHeader 
               onUploadClick={() => setUploadOpen(true)} 
               onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             />
             <div className="flex-1 overflow-y-auto">
               <MediaGrid 
