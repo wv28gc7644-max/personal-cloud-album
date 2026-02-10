@@ -6,6 +6,7 @@ import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaCardTwitter } from './MediaCardTwitter';
 import { MediaCardMinimal } from './MediaCardMinimal';
 import { MediaCardAdaptive } from './MediaCardAdaptive';
+import { MediaContextMenu } from './MediaContextMenu';
 import { MediaViewer } from './MediaViewer';
 import { MediaItem } from '@/types/media';
 import { cn } from '@/lib/utils';
