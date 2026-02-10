@@ -212,7 +212,7 @@ export function Sidebar({
   };
 
   return (
-    <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col min-h-0">
+    <aside className="w-64 h-screen bg-sidebar border-r border-sidebar-border flex flex-col min-h-0 shrink-0">
       {/* Logo */}
       <div className="p-6">
         <EditableElement id="sidebar-logo" type="container" name="Logo">
