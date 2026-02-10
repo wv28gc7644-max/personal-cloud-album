@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,6 +68,9 @@ export function UpdatesSettings() {
   );
   const [restoreTarget, setRestoreTarget] = useState<UpdateHistoryItem | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [showMaintenancePage, setShowMaintenancePage] = useState(() =>
+    localStorage.getItem('mediavault-show-maintenance-page') !== 'false'
+  );
 
   const { history: updateHistory, clearHistory: clearUpdateHistory } = useUpdateHistory();
 
@@ -286,6 +290,7 @@ export function UpdatesSettings() {
       'call :RESTORE',
       'if errorlevel 1 exit /b %errorlevel%',
       '',
+      'powershell -NoProfile -Command "\'{\\"step\\":5,\\"percent\\":100,\\"status\\":\\"Termine\\",\\"complete\\":true}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'echo [OK] Mise a jour terminee.',
       'exit /b 0',
       '',
@@ -297,6 +302,7 @@ export function UpdatesSettings() {
       'set "MV_KEEP=%MV_TMP%\\keep"',
       'if not exist "%MV_KEEP%" mkdir "%MV_KEEP%" >nul 2>&1',
       'echo [0/4] Sauvegarde des donnees utilisateur (media/, data.json, AI/)...',
+      'powershell -NoProfile -Command "\'{\\"step\\":0,\\"percent\\":10,\\"status\\":\\"Sauvegarde...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'if exist "%MV_ROOT%\\data.json" copy /y "%MV_ROOT%\\data.json" "%MV_KEEP%\\data.json" >nul 2>&1',
       'if exist "%MV_ROOT%\\media" robocopy "%MV_ROOT%\\media" "%MV_KEEP%\\media" /E /NFL /NDL /NJH /NJS >nul',
       'if exist "%MV_ROOT%\\AI" robocopy "%MV_ROOT%\\AI" "%MV_KEEP%\\AI" /E /NFL /NDL /NJH /NJS >nul',
@@ -304,6 +310,7 @@ export function UpdatesSettings() {
       '',
       ':RESTORE',
       'echo [4/4] Restauration des donnees utilisateur...',
+      'powershell -NoProfile -Command "\'{\\"step\\":4,\\"percent\\":90,\\"status\\":\\"Finalisation...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'if exist "%MV_KEEP%\\data.json" copy /y "%MV_KEEP%\\data.json" "%MV_ROOT%\\data.json" >nul 2>&1',
       'if exist "%MV_KEEP%\\media" robocopy "%MV_KEEP%\\media" "%MV_ROOT%\\media" /E /NFL /NDL /NJH /NJS >nul',
       'if exist "%MV_KEEP%\\AI" robocopy "%MV_KEEP%\\AI" "%MV_ROOT%\\AI" /E /NFL /NDL /NJH /NJS >nul',
@@ -314,6 +321,7 @@ export function UpdatesSettings() {
       ':: ----------------------------',
       ':UPDATE_GIT',
       'echo [1/4] Mode Git: synchro forcee...',
+      'powershell -NoProfile -Command "\'{\\"step\\":1,\\"percent\\":30,\\"status\\":\\"Telechargement...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'git rev-parse --is-inside-work-tree >nul 2>nul',
       'if errorlevel 1 goto NOT_GIT',
       '',
@@ -347,6 +355,7 @@ export function UpdatesSettings() {
       '',
       ':BOOTSTRAP_NONGIT',
       'echo [1/4] Mode sans Git: telechargement + installation...',
+      'powershell -NoProfile -Command "\'{\\"step\\":1,\\"percent\\":30,\\"status\\":\\"Telechargement...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'if "%MV_REPO_URL%"=="" goto REPO_MISSING',
       '',
       ':: Parse owner/repo depuis https://github.com/owner/repo',
@@ -393,11 +402,13 @@ export function UpdatesSettings() {
       ':: ----------------------------',
       ':NPM_INSTALL_BUILD',
       'echo [2/4] Installation dependances (npm install)...',
+      'powershell -NoProfile -Command "\'{\\"step\\":2,\\"percent\\":50,\\"status\\":\\"Installation...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'cd /d "%MV_ROOT%"',
       'call npm install',
       'if errorlevel 1 goto NPM_INSTALL_FAIL',
       '',
       'echo [3/4] Build (npm run build)...',
+      'powershell -NoProfile -Command "\'{\\"step\\":3,\\"percent\\":70,\\"status\\":\\"Reconstruction...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'call npm run build',
       'if errorlevel 1 goto BUILD_FAIL',
       'exit /b 0',
@@ -528,6 +539,7 @@ export function UpdatesSettings() {
       'set "MV_KEEP=%MV_TMP%\\keep"',
       'if not exist "%MV_KEEP%" mkdir "%MV_KEEP%" >nul 2>&1',
       'echo [1/4] Sauvegarde des donnees...',
+      'powershell -NoProfile -Command "\'{\\"step\\":0,\\"percent\\":10,\\"status\\":\\"Sauvegarde...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'if exist "%MV_ROOT%\\data.json" copy /y "%MV_ROOT%\\data.json" "%MV_KEEP%\\data.json" >nul 2>&1',
       'if exist "%MV_ROOT%\\media" robocopy "%MV_ROOT%\\media" "%MV_KEEP%\\media" /E /NFL /NDL /NJH /NJS >nul',
       'if exist "%MV_ROOT%\\AI" robocopy "%MV_ROOT%\\AI" "%MV_KEEP%\\AI" /E /NFL /NDL /NJH /NJS >nul',
@@ -535,6 +547,7 @@ export function UpdatesSettings() {
       ':: Mise a jour Git ou ZIP',
       'if exist "%MV_ROOT%\\.git\\HEAD" (',
       '  echo [2/4] Mode Git: synchro forcee...',
+      '  powershell -NoProfile -Command "\'{\\"step\\":1,\\"percent\\":30,\\"status\\":\\"Telechargement...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       '  for /f "delims=" %%b in (\'git rev-parse --abbrev-ref HEAD 2^>nul\') do set "BRANCH=%%b"',
       '  if "!BRANCH!"=="" set "BRANCH=%MV_BRANCH_PREF%"',
       '  git fetch --all --prune >nul 2>&1',
@@ -549,6 +562,7 @@ export function UpdatesSettings() {
       '  )',
       ') else (',
       '  echo [2/4] Mode ZIP: telechargement...',
+      '  powershell -NoProfile -Command "\'{\\"step\\":1,\\"percent\\":30,\\"status\\":\\"Telechargement...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       '  if "%MV_REPO_URL%"=="" (',
       '    echo [ERREUR] Repo non configure',
       '    exit /b 12',
@@ -574,6 +588,7 @@ export function UpdatesSettings() {
       '',
       ':: Build',
       'echo [3/4] Installation dependances...',
+      'powershell -NoProfile -Command "\'{\\"step\\":2,\\"percent\\":50,\\"status\\":\\"Installation...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'call npm install >nul 2>&1',
       'if errorlevel 1 (',
       '  echo [ERREUR] npm install echoue',
@@ -581,6 +596,7 @@ export function UpdatesSettings() {
       ')',
       '',
       'echo [4/4] Build...',
+      'powershell -NoProfile -Command "\'{\\"step\\":3,\\"percent\\":70,\\"status\\":\\"Reconstruction...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'call npm run build >nul 2>&1',
       'if errorlevel 1 (',
       '  echo [ERREUR] npm run build echoue',
@@ -589,10 +605,12 @@ export function UpdatesSettings() {
       '',
       ':: Restauration',
       'echo [OK] Restauration des donnees...',
+      'powershell -NoProfile -Command "\'{\\"step\\":4,\\"percent\\":90,\\"status\\":\\"Finalisation...\\",\\"complete\\":false}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'if exist "%MV_KEEP%\\data.json" copy /y "%MV_KEEP%\\data.json" "%MV_ROOT%\\data.json" >nul 2>&1',
       'if exist "%MV_KEEP%\\media" robocopy "%MV_KEEP%\\media" "%MV_ROOT%\\media" /E /NFL /NDL /NJH /NJS >nul',
       'if exist "%MV_KEEP%\\AI" robocopy "%MV_KEEP%\\AI" "%MV_ROOT%\\AI" /E /NFL /NDL /NJH /NJS >nul',
       '',
+      'powershell -NoProfile -Command "\'{\\"step\\":5,\\"percent\\":100,\\"status\\":\\"Termine\\",\\"complete\\":true}\' | Set-Content \'%MV_ROOT%update-progress.json\'"',
       'echo [OK] Mise a jour silencieuse terminee!',
       'exit /b 0',
       '',
@@ -823,6 +841,22 @@ export function UpdatesSettings() {
               S'exécute en arrière-plan sans fenêtre visible. Une notification Windows apparaît à la fin (succès ou échec). 
               Les logs sont dans <code>logs/silent/</code>.
             </p>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+            <div>
+              <p className="text-sm font-medium">Page de maintenance</p>
+              <p className="text-xs text-muted-foreground">
+                Afficher une page de maintenance aux utilisateurs pendant les mises à jour
+              </p>
+            </div>
+            <Switch
+              checked={showMaintenancePage}
+              onCheckedChange={(checked) => {
+                setShowMaintenancePage(checked);
+                localStorage.setItem('mediavault-show-maintenance-page', String(checked));
+              }}
+            />
           </div>
 
           <div className="space-y-2 text-sm">
