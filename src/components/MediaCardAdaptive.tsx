@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Heart, Download, Share, Eye, MoreHorizontal, Link } from 'lucide-react';
+import { Play, Heart, Download, Share, Eye, MoreHorizontal, Link, Info } from 'lucide-react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
+import { MediaInfoDialog } from './MediaInfoDialog';
 import { cn } from '@/lib/utils';
 
 interface MediaCardAdaptiveProps {
