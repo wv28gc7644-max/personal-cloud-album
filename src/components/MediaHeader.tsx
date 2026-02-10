@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X } from 'lucide-react';
+import { Search, Upload, Grid3X3, LayoutGrid, List, LayoutPanelTop, Play, ArrowUpDown, Image, FolderSearch, LayoutDashboard, Filter, FolderTree, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,6 +13,9 @@ import { EditableElement } from './EditableElement';
 import { useGlobalEditorContext } from './GlobalEditorProvider';
 import { FolderScanner } from './FolderScanner';
 import { ThemeToggle } from './ThemeToggle';
+import { getLocalServerUrl } from '@/utils/localServerUrl';
+import { safeGetLocalStorage, safeSetLocalStorage } from '@/utils/safeLocalStorage';
+import { toast } from 'sonner';
 
 interface MediaHeaderProps {
   onUploadClick: () => void;
@@ -20,7 +23,7 @@ interface MediaHeaderProps {
 }
 
 export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProps) {
-  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia } = useMediaStore();
+  const { viewMode, setViewMode, sortBy, setSortBy, searchQuery, setSearchQuery, sourceFilter, setSourceFilter, sourceFolderFilter, setSourceFolderFilter, getSourceFolders, getFilteredMedia, removeMediaByFolder } = useMediaStore();
   const { isEditMode } = useGlobalEditorContext();
   const filteredMedia = getFilteredMedia();
   const filteredCount = filteredMedia.length;
@@ -29,6 +32,32 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
   const [folderScannerOpen, setFolderScannerOpen] = useState(false);
   const sourceFolders = getSourceFolders();
 
+  // Auto-reset filter if folder no longer exists
+  if (sourceFolderFilter && !sourceFolders.includes(sourceFolderFilter)) {
+    setSourceFolderFilter(null);
+  }
+
+  const HISTORY_KEY = 'mediavault-folder-history';
+
+  const handleUnlinkFolder = async (folder: string) => {
+    // Remove media from store
+    removeMediaByFolder(folder);
+    // Remove from localStorage history
+    const history = safeGetLocalStorage<any[]>(HISTORY_KEY, []).filter((h: any) => h.path !== folder);
+    safeSetLocalStorage(HISTORY_KEY, history);
+    // Remove from server
+    try {
+      const serverUrl = getLocalServerUrl();
+      await fetch(`${serverUrl}/api/linked-folders`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: folder }),
+      });
+    } catch (e) {
+      // Server may not be running
+    }
+    toast.success('Dossier délié et médias supprimés');
+  };
   const viewModes: { mode: ViewMode; icon: typeof Grid3X3; label: string }[] = [
     { mode: 'grid', icon: Grid3X3, label: 'Grille' },
     { mode: 'grid-large', icon: LayoutGrid, label: 'Grande grille' },
@@ -150,21 +179,45 @@ export function MediaHeader({ onUploadClick, onStartSlideshow }: MediaHeaderProp
                   <SelectContent>
                     <SelectItem value="__all__">Tous les dossiers</SelectItem>
                     {sourceFolders.map((folder) => (
-                      <SelectItem key={folder} value={folder}>
-                        {folder}
-                      </SelectItem>
+                      <div key={folder} className="flex items-center justify-between group">
+                        <SelectItem value={folder} className="flex-1">
+                          {folder}
+                        </SelectItem>
+                        <button
+                          className="p-1 mr-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleUnlinkFolder(folder);
+                          }}
+                          title="Délier ce dossier"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     ))}
                   </SelectContent>
                 </Select>
                 {sourceFolderFilter && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setSourceFolderFilter(null)}
-                    title="Effacer le filtre dossier"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setSourceFolderFilter(null)}
+                      title="Effacer le filtre dossier"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleUnlinkFolder(sourceFolderFilter)}
+                      title="Délier ce dossier et supprimer ses médias"
+                      className="text-destructive hover:text-destructive/80"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
                 )}
               </div>
             </EditableElement>
