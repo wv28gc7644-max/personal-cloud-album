@@ -151,7 +151,7 @@ export function MediaHeader({ onUploadClick, onStartSlideshow, onToggleSidebar }
   );
 
   return (
-    <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border">
+    <header className="shrink-0 z-10 bg-background/80 backdrop-blur-lg border-b border-border">
       <EditableElement id="header-container" type="container" name="Header">
         <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4">
           {/* Hamburger menu for mobile */}

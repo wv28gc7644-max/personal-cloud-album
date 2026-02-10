@@ -417,6 +417,8 @@ export const MediaCardTwitter = ({
           {renderActions()}
         </>
       )}
+
+      <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
     </article>
   );
 };

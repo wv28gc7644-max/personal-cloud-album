@@ -155,10 +155,21 @@ export function MediaCardAdaptive({
       {/* Compact info bar */}
       <div className="px-3 py-2 flex items-center justify-between">
         <p className="text-sm font-medium truncate flex-1 mr-2">{item.name}</p>
-        <span className="text-xs text-muted-foreground uppercase">
-          {item.type === 'video' ? 'Vidéo' : 'Photo'}
-        </span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }}
+            className="w-6 h-6 rounded-full hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            title="Informations"
+          >
+            <Info className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-xs text-muted-foreground uppercase">
+            {item.type === 'video' ? 'Vidéo' : 'Photo'}
+          </span>
+        </div>
       </div>
+
+      <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
     </motion.div>
   );
 }

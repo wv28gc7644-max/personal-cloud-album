@@ -130,6 +130,18 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
         </div>
       )}
 
+      {/* Info button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }}
+        className={cn(
+          "absolute top-2 left-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white transition-opacity duration-300",
+          isHovered ? "opacity-100" : "opacity-0"
+        )}
+        title="Informations"
+      >
+        <Info className="w-3.5 h-3.5" />
+      </button>
+
       {/* Hover overlay with name */}
       <div className={cn(
         "absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent transition-opacity duration-300",
@@ -137,6 +149,8 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
       )}>
         <p className="text-white text-sm font-medium truncate">{item.name}</p>
       </div>
+
+      <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
     </div>
   );
 };

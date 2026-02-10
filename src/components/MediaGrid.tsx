@@ -122,6 +122,7 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
           exit={{ opacity: 0, scale: 0.97, y: -12 }}
           transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
           className={cn("p-3 sm:p-6", getGridClasses())}
+          style={getGridStyle()}
         >
           <AnimatePresence mode="popLayout">
             {displayMedia.map((item, index) => (
