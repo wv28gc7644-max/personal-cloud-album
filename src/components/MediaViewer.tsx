@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { TagBadge } from './TagBadge';
 import { CustomVideoPlayer, CustomVideoPlayerRef } from './video-player';
 import { useMediaStats } from '@/hooks/useMediaStats';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 interface MediaViewerProps {
