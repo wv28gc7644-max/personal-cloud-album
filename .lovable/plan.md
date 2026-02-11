@@ -1,26 +1,60 @@
 
-# Rendre la fenetre d'informations adaptative
+# Optimiser la fenetre d'informations media
 
-## Probleme
+## Problemes actuels
 
-La fenetre d'informations (`MediaInfoDialog`) a deux problemes :
-
-1. **Largeur fixe trop petite** : `sm:max-w-md` (448px) coupe le contenu horizontalement, obligeant a scroller
-2. **Preview figee en 16:9** : La classe `aspect-video` force un ratio fixe, donc les photos en portrait ou en carre sont mal affichees
+1. **Scroll horizontal/vertical inutile** : Le contenu deborde, forçant des scrolls qui rendent la navigation penible
+2. **Pas responsive mobile** : La fenetre ne s'adapte pas correctement aux petits ecrans
+3. **Chemin non cliquable** : Le chemin du fichier est juste du texte, impossible d'ouvrir le dossier directement
 
 ## Solution
 
-### Changements dans `src/components/MediaInfoDialog.tsx`
+### 1. Fenetre adaptative sans scroll
 
-1. **Elargir la fenetre** : Remplacer `sm:max-w-md` par `sm:max-w-2xl` (672px) pour donner plus de place au contenu et a la preview
+- Passer la fenetre en `sm:max-w-4xl` (896px) sur desktop pour afficher plus de contenu
+- Sur mobile : plein ecran avec `max-w-[100vw] h-[100dvh]` pour utiliser tout l'espace disponible
+- Reduire la hauteur max de la preview media a `max-h-[35vh]` sur mobile et `max-h-[40vh]` sur desktop pour laisser de la place aux infos en dessous
+- Supprimer `overflow-y-auto` au profit d'un layout flex qui repartit l'espace naturellement entre preview et infos
+- Utiliser `overflow-y-auto` uniquement sur la zone des metadonnees si vraiment necessaire, pas sur toute la fenetre
 
-2. **Preview adaptative** : Supprimer le ratio fixe `aspect-video` et utiliser une hauteur max (`max-h-[50vh]`) avec `w-auto` et `object-contain` pour que l'image ou la video s'affiche dans ses proportions naturelles sans etre coupee
+### 2. Layout deux colonnes sur desktop
 
-3. **Scroll interne propre** : Garder `max-h-[90vh] overflow-y-auto` pour que la fenetre reste dans l'ecran meme avec beaucoup de contenu, mais le contenu ne sera plus coupe horizontalement
+Sur ecran large, afficher la preview a gauche et les infos a droite cote a cote pour eviter le scroll vertical :
 
-### Resultat attendu
+```text
+Desktop (>640px):
++---------------------------+-------------------+
+|                           |  Nom: photo.jpg   |
+|    Preview adaptative     |  Type: Photo      |
+|    (occupe la hauteur)    |  Taille: 2.4 MB   |
+|                           |  Date: 12 fev     |
+|                           |  Chemin: /usr/...  |
+|                           |  Tags: [Vac] [Ete]|
++---------------------------+-------------------+
 
-- Photo en paysage : la preview est large et basse
-- Photo en portrait : la preview est etroite et haute (limitee a 50% de la hauteur d'ecran)
-- Video : meme comportement adaptatif
-- Toutes les informations (nom, tags, metadonnees) restent visibles sans scroll horizontal
+Mobile:
++---------------------------+
+|    Preview (35vh max)     |
++---------------------------+
+|  Nom: photo.jpg           |
+|  Type: Photo              |
+|  Taille: 2.4 MB           |
+|  Tags: [Vac] [Ete]        |
++---------------------------+
+```
+
+### 3. Chemin cliquable pour ouvrir le gestionnaire de fichiers
+
+Pour la ligne "Chemin", transformer le texte en lien cliquable :
+- Utiliser le protocole `file:///` pour construire l'URL du dossier parent
+- Le clic ouvrira le gestionnaire de fichiers du systeme (Finder sur macOS, Explorateur sur Windows)
+- Garder aussi le bouton Copier a cote
+- Ajouter une icone `ExternalLink` pour indiquer que c'est cliquable
+
+Note : le protocole `file:///` fonctionne quand l'app tourne en local. En mode web pur, le navigateur peut bloquer l'ouverture, donc on affichera un toast d'erreur dans ce cas.
+
+## Detail technique
+
+| Fichier | Modification |
+|---------|-------------|
+| `src/components/MediaInfoDialog.tsx` | Refonte du layout : deux colonnes sur desktop, empile sur mobile. Preview adaptative. InfoRow pour "Chemin" transforme en lien cliquable avec `file:///`. Ajout d'une fonction `openInFileManager` qui extrait le dossier parent du chemin et ouvre via `window.open('file:///...')`. Responsive complet avec classes Tailwind conditionnelles. |
