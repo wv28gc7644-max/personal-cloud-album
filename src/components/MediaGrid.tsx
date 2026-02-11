@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { useMediaStats } from '@/hooks/useMediaStats';
@@ -18,55 +17,80 @@ interface MediaGridProps {
   filterFavorites?: boolean;
 }
 
+const BATCH_SIZE = 40;
+const LOAD_MORE_THRESHOLD = 600; // px from bottom
+
 export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
   const { viewMode, getFilteredMedia, getFavorites, removeMedia, updateMedia, tags } = useMediaStore();
   const { deleteFromServer } = useBidirectionalSync();
   const { recordView } = useMediaStats();
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   
   const filteredMedia = filterFavorites ? getFavorites() : getFilteredMedia();
   
-  // Apply additional type filter if specified
   const displayMedia = useMemo(() => {
     if (!filterType) return filteredMedia;
     return filteredMedia.filter(item => item.type === filterType);
   }, [filteredMedia, filterType]);
 
-  const handleView = (item: MediaItem) => {
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(BATCH_SIZE);
+  }, [filterType, filterFavorites, viewMode]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < displayMedia.length) {
+          setVisibleCount(prev => Math.min(prev + BATCH_SIZE, displayMedia.length));
+        }
+      },
+      { rootMargin: `${LOAD_MORE_THRESHOLD}px` }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, displayMedia.length]);
+
+  const visibleMedia = useMemo(() => displayMedia.slice(0, visibleCount), [displayMedia, visibleCount]);
+
+  const handleView = useCallback((item: MediaItem) => {
     recordView(item.id);
     setViewerItem(item);
-  };
+  }, [recordView]);
 
-  const handleDownload = (item: MediaItem) => {
+  const handleDownload = useCallback((item: MediaItem) => {
     const link = document.createElement('a');
     link.href = item.url;
     link.download = item.name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, []);
 
-  const handleDelete = async (item: MediaItem) => {
-    // If it's a local server file, delete from server too
+  const handleDelete = useCallback(async (item: MediaItem) => {
     if (item.url.includes('localhost')) {
       await deleteFromServer(item);
     } else {
-      // Just remove from local store
       removeMedia(item.id);
     }
-  };
+  }, [deleteFromServer, removeMedia]);
 
-  const handleToggleFavorite = (item: MediaItem) => {
+  const handleToggleFavorite = useCallback((item: MediaItem) => {
     const favorisTag = tags.find(t => t.name === 'Favoris');
     if (!favorisTag) return;
-
     const hasFavoris = item.tags.some(t => t.id === favorisTag.id);
     const newTags = hasFavoris 
       ? item.tags.filter(t => t.id !== favorisTag.id)
       : [...item.tags, favorisTag];
-    
     updateMedia(item.id, { tags: newTags });
-  };
+  }, [tags, updateMedia]);
 
   if (displayMedia.length === 0) {
     return (
@@ -88,7 +112,6 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
     );
   }
 
-  // Get grid columns from validated localStorage settings
   const gridColumns = getAdminSettings().gridColumns;
 
   const getGridStyle = (): React.CSSProperties | undefined => {
@@ -114,69 +137,60 @@ export function MediaGrid({ filterType, filterFavorites }: MediaGridProps) {
 
   return (
     <>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={viewMode}
-          initial={{ opacity: 0, scale: 0.97, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.97, y: -12 }}
-          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-          className={cn("p-3 sm:p-6", getGridClasses())}
-          style={getGridStyle()}
-        >
-          <AnimatePresence mode="popLayout">
-            {displayMedia.map((item, index) => (
-              <motion.div
-                key={item.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                transition={{ 
-                  duration: 0.25, 
-                  delay: Math.min(index * 0.03, 0.3),
-                  layout: { type: 'spring', stiffness: 300, damping: 30 }
-                }}
-                className={cn(
-                  (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
-                  viewMode === 'list' && "max-w-3xl mx-auto w-full"
-                )}
-              >
-                <MediaContextMenu
+      <div
+        className={cn("p-3 sm:p-6", getGridClasses())}
+        style={getGridStyle()}
+      >
+        {visibleMedia.map((item) => (
+          <div
+            key={item.id}
+            className={cn(
+              (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
+              viewMode === 'list' && "max-w-3xl mx-auto w-full"
+            )}
+          >
+            <MediaContextMenu
+              item={item}
+              onView={() => handleView(item)}
+              onDelete={() => handleDelete(item)}
+              onDownload={() => handleDownload(item)}
+              onToggleFavorite={() => handleToggleFavorite(item)}
+            >
+              {viewMode === 'media-only' ? (
+                <MediaCardMinimal
+                  item={item}
+                  onView={() => handleView(item)}
+                />
+              ) : viewMode === 'adaptive' ? (
+                <MediaCardAdaptive
                   item={item}
                   onView={() => handleView(item)}
                   onDelete={() => handleDelete(item)}
                   onDownload={() => handleDownload(item)}
                   onToggleFavorite={() => handleToggleFavorite(item)}
-                >
-                  {viewMode === 'media-only' ? (
-                    <MediaCardMinimal
-                      item={item}
-                      onView={() => handleView(item)}
-                    />
-                  ) : viewMode === 'adaptive' ? (
-                    <MediaCardAdaptive
-                      item={item}
-                      onView={() => handleView(item)}
-                      onDelete={() => handleDelete(item)}
-                      onDownload={() => handleDownload(item)}
-                      onToggleFavorite={() => handleToggleFavorite(item)}
-                    />
-                  ) : (
-                    <MediaCardTwitter
-                      item={item}
-                      onView={() => handleView(item)}
-                      onDelete={() => handleDelete(item)}
-                      onDownload={() => handleDownload(item)}
-                      onToggleFavorite={() => handleToggleFavorite(item)}
-                    />
-                  )}
-                </MediaContextMenu>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
-      </AnimatePresence>
+                />
+              ) : (
+                <MediaCardTwitter
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                />
+              )}
+            </MediaContextMenu>
+          </div>
+        ))}
+      </div>
+
+      {/* Sentinel for infinite scroll */}
+      {visibleCount < displayMedia.length && (
+        <div ref={sentinelRef} className="flex items-center justify-center py-8">
+          <p className="text-sm text-muted-foreground">
+            {visibleCount} / {displayMedia.length} médias affichés
+          </p>
+        </div>
+      )}
 
       <MediaViewer
         item={viewerItem}

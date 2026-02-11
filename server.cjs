@@ -265,6 +265,159 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ status: 'ok', folder: MEDIA_FOLDER }));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // API: Miniatures en résolution réduite (Solution 1)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname.startsWith('/api/thumbnail/')) {
+      try {
+        const encodedPath = pathname.slice('/api/thumbnail/'.length);
+        const filePath = Buffer.from(encodedPath, 'base64url').toString('utf8');
+        const normalizedFilePath = path.normalize(filePath);
+
+        if (!fs.existsSync(normalizedFilePath) || !fs.statSync(normalizedFilePath).isFile()) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Fichier introuvable' }));
+        }
+
+        const ext = path.extname(normalizedFilePath).toLowerCase();
+        const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'].includes(ext);
+        const isVideo = ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
+
+        // Thumbnail cache directory
+        const cacheDir = path.join(__dirname, '.thumbnail-cache');
+        if (!fs.existsSync(cacheDir)) {
+          fs.mkdirSync(cacheDir, { recursive: true });
+        }
+
+        const hash = Buffer.from(normalizedFilePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const cachePath = path.join(cacheDir, hash + '.jpg');
+
+        // Serve from cache if available
+        if (fs.existsSync(cachePath)) {
+          const stat = fs.statSync(cachePath);
+          res.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': stat.size,
+            'Cache-Control': 'public, max-age=31536000, immutable'
+          });
+          return fs.createReadStream(cachePath).pipe(res);
+        }
+
+        if (isImage) {
+          // Try to use sharp for resized thumbnails
+          try {
+            const sharp = require('sharp');
+            const buffer = await sharp(normalizedFilePath)
+              .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+              .jpeg({ quality: 75 })
+              .toBuffer();
+            fs.writeFileSync(cachePath, buffer);
+            res.writeHead(200, {
+              'Content-Type': 'image/jpeg',
+              'Content-Length': buffer.length,
+              'Cache-Control': 'public, max-age=31536000, immutable'
+            });
+            return res.end(buffer);
+          } catch {
+            // sharp not available, serve original with aggressive caching
+            const stat = fs.statSync(normalizedFilePath);
+            res.writeHead(200, {
+              'Content-Type': getMimeType(ext),
+              'Content-Length': stat.size,
+              'Cache-Control': 'public, max-age=31536000'
+            });
+            return fs.createReadStream(normalizedFilePath).pipe(res);
+          }
+        }
+
+        if (isVideo) {
+          // For videos, try ffmpeg to extract a frame
+          const ffmpegPath = (() => {
+            try {
+              const userProfile = process.env.USERPROFILE || '';
+              const installRoot = path.join(userProfile, 'MediaVault-AI', 'ffmpeg');
+              if (fs.existsSync(installRoot)) {
+                const dirs = fs.readdirSync(installRoot).filter(d => {
+                  try { return fs.statSync(path.join(installRoot, d)).isDirectory() && d.startsWith('ffmpeg'); } catch { return false; }
+                });
+                if (dirs.length > 0) {
+                  const exe = path.join(installRoot, dirs[0], 'bin', 'ffmpeg.exe');
+                  if (fs.existsSync(exe)) return exe;
+                }
+              }
+            } catch {}
+            return 'ffmpeg'; // fallback to PATH
+          })();
+
+          try {
+            await new Promise((resolve, reject) => {
+              exec(`"${ffmpegPath}" -i "${normalizedFilePath}" -ss 00:00:01 -vframes 1 -vf "scale=400:-2" -q:v 5 "${cachePath}" -y`,
+                { timeout: 15000 },
+                (error) => error ? reject(error) : resolve()
+              );
+            });
+            if (fs.existsSync(cachePath)) {
+              const stat = fs.statSync(cachePath);
+              res.writeHead(200, {
+                'Content-Type': 'image/jpeg',
+                'Content-Length': stat.size,
+                'Cache-Control': 'public, max-age=31536000, immutable'
+              });
+              return fs.createReadStream(cachePath).pipe(res);
+            }
+          } catch {
+            // ffmpeg failed, return a placeholder or 204
+          }
+
+          // No thumbnail possible, return 204
+          res.writeHead(204);
+          return res.end();
+        }
+
+        // Unsupported type
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Type non supporté pour miniature' }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: Révéler un fichier dans l'explorateur natif (Solution 4)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/reveal-in-explorer' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const filePath = body.path;
+
+      if (!filePath) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Chemin requis' }));
+      }
+
+      const normalizedFilePath = path.normalize(filePath);
+      const platform = process.platform;
+
+      try {
+        if (platform === 'win32') {
+          exec(`explorer /select,"${normalizedFilePath}"`);
+        } else if (platform === 'darwin') {
+          exec(`open -R "${normalizedFilePath}"`);
+        } else {
+          // Linux: open parent directory
+          const parentDir = path.dirname(normalizedFilePath);
+          exec(`xdg-open "${parentDir}"`);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
     // Rapport diagnostic exportable (à envoyer au support)
     if (pathname === '/api/debug/report' && req.method === 'GET') {
       const now = new Date();
@@ -586,10 +739,11 @@ const server = http.createServer(async (req, res) => {
               const stats = fs.statSync(abs);
               const ext = path.extname(entry.name).toLowerCase();
               const urlPath = rel.split(path.sep).map(encodeURIComponent).join('/');
+              const encodedAbsPath = Buffer.from(abs).toString('base64url');
               out.push({
                 name: rel,
                 url: `http://localhost:${PORT}/media/${urlPath}`,
-                thumbnailUrl: `http://localhost:${PORT}/media/${urlPath}`,
+                thumbnailUrl: `http://localhost:${PORT}/api/thumbnail/${encodedAbsPath}`,
                 size: stats.size,
                 type: ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 
                       ['.mp3', '.wav'].includes(ext) ? 'audio' : 'image',
@@ -695,7 +849,7 @@ const server = http.createServer(async (req, res) => {
                 absolutePath: abs,
                 folder: path.relative(baseDir, dir) || '.',
                 url: `http://localhost:${PORT}/linked-media/${encodedAbsPath}`,
-                thumbnailUrl: `http://localhost:${PORT}/linked-media/${encodedAbsPath}`,
+                thumbnailUrl: `http://localhost:${PORT}/api/thumbnail/${encodedAbsPath}`,
                 size: fileStats.size,
                 type: ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext) ? 'video' : 
                       ['.mp3', '.wav', '.flac', '.ogg'].includes(ext) ? 'audio' : 'image',

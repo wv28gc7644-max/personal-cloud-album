@@ -57,13 +57,19 @@ export function MediaInfoDialog({ item, open, onOpenChange }: MediaInfoDialogPro
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const openInFileManager = (path: string) => {
+  const openInFileManager = async (filePath: string) => {
     try {
-      const parentDir = path.substring(0, path.lastIndexOf('/')) || path.substring(0, path.lastIndexOf('\\'));
-      const fileUrl = `file:///${parentDir.replace(/\\/g, '/').replace(/^\//, '')}`;
-      window.open(fileUrl, '_blank');
+      const { getLocalServerUrl } = await import('@/utils/localServerUrl');
+      const serverUrl = getLocalServerUrl();
+      const response = await fetch(`${serverUrl}/api/reveal-in-explorer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath }),
+      });
+      if (!response.ok) throw new Error('Erreur serveur');
+      toast.success('Fichier révélé dans l\'explorateur');
     } catch {
-      toast.error("Impossible d'ouvrir le gestionnaire de fichiers depuis le navigateur");
+      toast.error("Impossible d'ouvrir l'explorateur. Vérifiez que le serveur local est lancé.");
     }
   };
 

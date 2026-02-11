@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { ChevronRight, Folder, Home } from 'lucide-react';
 import { useMediaStore } from '@/hooks/useMediaStore';
 import { MediaCardTwitter } from './MediaCardTwitter';
@@ -13,53 +12,48 @@ import { Images } from 'lucide-react';
 import { getAdminSettings } from '@/utils/safeLocalStorage';
 import { useBidirectionalSync } from '@/hooks/useBidirectionalSync';
 import { useMediaStats } from '@/hooks/useMediaStats';
+import { motion } from 'framer-motion';
 
 interface FolderExplorerProps {
   initialFolder?: string;
 }
 
+const BATCH_SIZE = 40;
+const LOAD_MORE_THRESHOLD = 600;
+
 export function FolderExplorer({ initialFolder }: FolderExplorerProps) {
   const [currentFolder, setCurrentFolder] = useState(initialFolder || '');
-  const { viewMode, getMediaByFolderPrefix, getSourceFolders, removeMedia, updateMedia, tags, media, sortBy } = useMediaStore();
+  const { viewMode, getMediaByFolderPrefix, getSourceFolders, removeMedia, updateMedia, tags, media } = useMediaStore();
   const { deleteFromServer } = useBidirectionalSync();
   const { recordView } = useMediaStats();
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Update currentFolder when initialFolder changes
   useState(() => {
     if (initialFolder) setCurrentFolder(initialFolder);
   });
 
-  // Get all source folders
   const allFolders = useMemo(() => getSourceFolders(), [media]);
-
-  // Normalize folder path
   const normalize = (p: string) => p.replace(/\\/g, '/').replace(/\/$/, '');
 
-  // Build breadcrumb parts from currentFolder
   const breadcrumbs = useMemo(() => {
     if (!currentFolder) return [];
     const norm = normalize(currentFolder);
     const parts = norm.split('/');
     const crumbs: { label: string; path: string }[] = [];
     for (let i = 0; i < parts.length; i++) {
-      crumbs.push({
-        label: parts[i],
-        path: parts.slice(0, i + 1).join('/'),
-      });
+      crumbs.push({ label: parts[i], path: parts.slice(0, i + 1).join('/') });
     }
     return crumbs;
   }, [currentFolder]);
 
-  // Get immediate subfolders of currentFolder
   const subfolders = useMemo(() => {
     const normCurrent = normalize(currentFolder);
     const subs = new Map<string, number>();
-
     allFolders.forEach(folder => {
       const normFolder = normalize(folder);
       if (!normCurrent) {
-        // Root level: get top-level segments
         const topSegment = normFolder.split('/')[0];
         if (topSegment) {
           const count = media.filter(m => {
@@ -83,46 +77,62 @@ export function FolderExplorer({ initialFolder }: FolderExplorerProps) {
         }
       }
     });
-
     return Array.from(subs.entries())
-      .map(([path, count]) => ({
-        path,
-        name: path.split('/').pop() || path,
-        count,
-      }))
+      .map(([path, count]) => ({ path, name: path.split('/').pop() || path, count }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [allFolders, currentFolder, media]);
 
-  // Get media for current folder (direct children only, not subfolders)
   const folderMedia = useMemo(() => {
     if (!currentFolder) return [];
-    const normCurrent = normalize(currentFolder);
-    return getMediaByFolderPrefix(normCurrent);
+    return getMediaByFolderPrefix(normalize(currentFolder));
   }, [currentFolder, getMediaByFolderPrefix, media]);
 
-  const handleView = (item: MediaItem) => {
+  // Reset visible count when folder changes
+  useEffect(() => {
+    setVisibleCount(BATCH_SIZE);
+  }, [currentFolder, viewMode]);
+
+  // Infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < folderMedia.length) {
+          setVisibleCount(prev => Math.min(prev + BATCH_SIZE, folderMedia.length));
+        }
+      },
+      { rootMargin: `${LOAD_MORE_THRESHOLD}px` }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, folderMedia.length]);
+
+  const visibleMedia = useMemo(() => folderMedia.slice(0, visibleCount), [folderMedia, visibleCount]);
+
+  const handleView = useCallback((item: MediaItem) => {
     recordView(item.id);
     setViewerItem(item);
-  };
+  }, [recordView]);
 
-  const handleDownload = (item: MediaItem) => {
+  const handleDownload = useCallback((item: MediaItem) => {
     const link = document.createElement('a');
     link.href = item.url;
     link.download = item.name;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, []);
 
-  const handleDelete = async (item: MediaItem) => {
+  const handleDelete = useCallback(async (item: MediaItem) => {
     if (item.url.includes('localhost')) {
       await deleteFromServer(item);
     } else {
       removeMedia(item.id);
     }
-  };
+  }, [deleteFromServer, removeMedia]);
 
-  const handleToggleFavorite = (item: MediaItem) => {
+  const handleToggleFavorite = useCallback((item: MediaItem) => {
     const favorisTag = tags.find(t => t.name === 'Favoris');
     if (!favorisTag) return;
     const hasFavoris = item.tags.some(t => t.id === favorisTag.id);
@@ -130,7 +140,7 @@ export function FolderExplorer({ initialFolder }: FolderExplorerProps) {
       ? item.tags.filter(t => t.id !== favorisTag.id)
       : [...item.tags, favorisTag];
     updateMedia(item.id, { tags: newTags });
-  };
+  }, [tags, updateMedia]);
 
   const gridColumns = getAdminSettings().gridColumns;
 
@@ -205,68 +215,60 @@ export function FolderExplorer({ initialFolder }: FolderExplorerProps) {
         </div>
       )}
 
-      {/* Media grid */}
-      {folderMedia.length > 0 ? (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={viewMode + currentFolder}
-            initial={{ opacity: 0, scale: 0.97, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97, y: -12 }}
-            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+      {/* Media grid - virtualized */}
+      {visibleMedia.length > 0 ? (
+        <>
+          <div
             className={cn("p-3 sm:p-6", getGridClasses())}
             style={getGridStyle()}
           >
-            <AnimatePresence mode="popLayout">
-              {folderMedia.map((item, index) => (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: -20 }}
-                  transition={{
-                    duration: 0.25,
-                    delay: Math.min(index * 0.03, 0.3),
-                    layout: { type: 'spring', stiffness: 300, damping: 30 }
-                  }}
-                  className={cn(
-                    (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
-                    viewMode === 'list' && "max-w-3xl mx-auto w-full"
-                  )}
+            {visibleMedia.map((item) => (
+              <div
+                key={item.id}
+                className={cn(
+                  (viewMode === 'masonry' || viewMode === 'media-only') && "break-inside-avoid",
+                  viewMode === 'list' && "max-w-3xl mx-auto w-full"
+                )}
+              >
+                <MediaContextMenu
+                  item={item}
+                  onView={() => handleView(item)}
+                  onDelete={() => handleDelete(item)}
+                  onDownload={() => handleDownload(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
                 >
-                  <MediaContextMenu
-                    item={item}
-                    onView={() => handleView(item)}
-                    onDelete={() => handleDelete(item)}
-                    onDownload={() => handleDownload(item)}
-                    onToggleFavorite={() => handleToggleFavorite(item)}
-                  >
-                    {viewMode === 'media-only' ? (
-                      <MediaCardMinimal item={item} onView={() => handleView(item)} />
-                    ) : viewMode === 'adaptive' ? (
-                      <MediaCardAdaptive
-                        item={item}
-                        onView={() => handleView(item)}
-                        onDelete={() => handleDelete(item)}
-                        onDownload={() => handleDownload(item)}
-                        onToggleFavorite={() => handleToggleFavorite(item)}
-                      />
-                    ) : (
-                      <MediaCardTwitter
-                        item={item}
-                        onView={() => handleView(item)}
-                        onDelete={() => handleDelete(item)}
-                        onDownload={() => handleDownload(item)}
-                        onToggleFavorite={() => handleToggleFavorite(item)}
-                      />
-                    )}
-                  </MediaContextMenu>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </motion.div>
-        </AnimatePresence>
+                  {viewMode === 'media-only' ? (
+                    <MediaCardMinimal item={item} onView={() => handleView(item)} />
+                  ) : viewMode === 'adaptive' ? (
+                    <MediaCardAdaptive
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  ) : (
+                    <MediaCardTwitter
+                      item={item}
+                      onView={() => handleView(item)}
+                      onDelete={() => handleDelete(item)}
+                      onDownload={() => handleDownload(item)}
+                      onToggleFavorite={() => handleToggleFavorite(item)}
+                    />
+                  )}
+                </MediaContextMenu>
+              </div>
+            ))}
+          </div>
+
+          {visibleCount < folderMedia.length && (
+            <div ref={sentinelRef} className="flex items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground">
+                {visibleCount} / {folderMedia.length} médias affichés
+              </p>
+            </div>
+          )}
+        </>
       ) : currentFolder && subfolders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center mb-6">
@@ -287,7 +289,6 @@ export function FolderExplorer({ initialFolder }: FolderExplorerProps) {
         </div>
       ) : null}
 
-      {/* Media Viewer */}
       <MediaViewer
         item={viewerItem}
         items={folderMedia}
