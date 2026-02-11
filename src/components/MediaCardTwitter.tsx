@@ -239,12 +239,13 @@ export const MediaCardTwitter = ({
         </>
       ) : (
         <img
-          src={item.url}
+          src={thumbnailUrl || item.url}
           alt={item.name}
           className={cn(
             "w-full h-full object-cover transition-transform duration-500",
             isHovered && "scale-105"
           )}
+          loading="lazy"
         />
       )}
       
