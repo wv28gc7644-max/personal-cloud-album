@@ -1,52 +1,92 @@
 
-# Explorateur de dossiers dans la sidebar
 
-## Objectif
-Ajouter une section "Explorateur" dans la sidebar qui affiche l'arborescence des dossiers lies (scannes), comme un explorateur de fichiers Windows. Cliquer sur un dossier affiche ses medias dans la zone principale avec les memes modes d'affichage que la galerie (grille, liste, mosaique, etc.) et le meme slider de colonnes.
+# Optimisation des performances et ouverture de fichiers
 
-## Comment ca marche
+## Deux problemes a resoudre
 
-1. **Nouvelle section dans la sidebar** : Une section pliable "Explorateur" apparait entre les sections existantes. Elle liste tous les dossiers sources (issus des scans) sous forme d'arborescence.
+### Probleme 1 : Lenteur et RAM excessive avec beaucoup de fichiers
 
-2. **Arborescence de dossiers** : Les dossiers sont regroupes par structure de chemin. Par exemple :
-   - `D:/Photos` (dossier parent)
-     - `D:/Photos/Vacances` (sous-dossier)
-     - `D:/Photos/Famille` (sous-dossier)
-   Chaque dossier affiche le nombre de medias qu'il contient.
+**Causes identifiees :**
+- Les miniatures des fichiers lies pointent vers le fichier original en pleine resolution (une image de 5 Mo est chargee telle quelle pour un apercu de 200px)
+- Toutes les cartes sont rendues dans le DOM en meme temps, meme celles hors ecran (2000+ elements DOM)
+- Les videos se prelancent immediatement au survol sans delai, declenchant des chargements reseau meme en passant la souris par erreur
+- Framer Motion applique des animations d'entree sur chaque carte (2000+ animations simultanees)
 
-3. **Clic sur un dossier** : Navigue vers une nouvelle vue "explorer" qui filtre et affiche uniquement les medias de ce dossier (et ses sous-dossiers), en utilisant les memes tuiles/cartes media que la galerie principale.
+### Probleme 2 : Le lien "ouvrir l'emplacement" lance le media au lieu de le localiser
 
-4. **Modes d'affichage** : La vue explorateur reutilise le composant `MediaGrid` existant et le slider de colonnes, donc tout ce qui est deja configure (grille, liste, mosaique, adaptive, etc.) fonctionne automatiquement.
+Le code actuel utilise `window.open('file:///...')` qui ouvre le fichier. Il faut un endpoint serveur qui execute la commande OS native pour reveler le fichier dans l'explorateur.
+
+---
+
+## Solution 1 : Miniatures en resolution reduite cote serveur
+
+Ajouter un endpoint `/api/thumbnail` au serveur qui genere et met en cache des miniatures reduites (max 400px de large) via le module `sharp` ou, a defaut, sert le fichier original avec un header de mise en cache aggressive.
+
+**Avantages :**
+- Reduction massive de la bande passante (image de 5 Mo remplacee par ~50 Ko)
+- Chargement quasi instantane des miniatures
+- Cache serveur : la miniature n'est generee qu'une seule fois
+
+**Inconvenients :**
+- Necessite d'installer le module `sharp` (optionnel, fallback sur le fichier original)
+- Premiere visite legerement plus lente (generation du cache)
+
+## Solution 2 : Virtualisation de la grille (ne rendre que le visible)
+
+Remplacer le rendu de toutes les cartes par une technique de "windowing" : seules les cartes visibles a l'ecran (+ un buffer) sont presentes dans le DOM. En scrollant, les cartes hors ecran sont detruites et les nouvelles sont creees.
+
+**Avantages :**
+- DOM reduit de 2000+ elements a ~30-50 elements visibles
+- RAM divisee par 10-20x pour les grandes collections
+- Scrolling fluide meme avec 10 000+ fichiers
+
+**Inconvenients :**
+- Leger travail de re-rendu au scroll (imperceptible avec les optimisations modernes)
+- Les animations d'entree de carte seront simplifiees (plus d'animation par carte individuelle)
+
+## Solution 3 : Delai sur le survol video (anti-declenchement accidentel)
+
+Ajouter un delai de 500ms avant de lancer la video au survol. Si la souris quitte la carte avant ce delai, rien ne se passe.
+
+**Avantages :**
+- Elimine les chargements video accidentels en deplacant la souris
+- Reduit drastiquement les requetes reseau inutiles
+- Zero impact sur l'experience : 500ms est naturel et imperceptible quand on veut vraiment regarder
+
+**Inconvenients :**
+- Quasi aucun : le delai de 500ms est a peine perceptible pour un survol intentionnel
+
+## Solution 4 : Endpoint serveur "Reveler dans l'explorateur"
+
+Ajouter un endpoint `/api/reveal-in-explorer` au serveur qui execute la commande OS native :
+- Windows : `explorer /select,"C:\chemin\vers\fichier.mp4"`
+- macOS : `open -R "/chemin/vers/fichier"`
+- Linux : `xdg-open` sur le dossier parent
+
+Le bouton dans la fenetre d'informations appellera cet endpoint au lieu de `window.open('file:///')`.
+
+**Avantages :**
+- Ouvre l'explorateur Windows/Finder au bon emplacement avec le fichier pre-selectionne
+- Fonctionne sur tous les OS
+
+**Inconvenients :**
+- Necessite que le serveur local soit lance (ce qui est deja le cas pour les fichiers lies)
+
+---
+
+## Plan d'implementation combine (les 4 solutions ensemble)
+
+### Recommandation : Appliquer les 4 solutions
+
+Elles sont complementaires et s'attaquent chacune a un aspect different du probleme. Ensemble, elles resolvent la lenteur a plus de 80%.
 
 ## Details techniques
 
-### Fichiers a creer
-
-| Fichier | Role |
-|---------|------|
-| `src/components/FolderExplorer.tsx` | Vue principale qui affiche les medias filtres par dossier, avec un fil d'ariane (breadcrumb) pour naviguer dans l'arborescence |
-
-### Fichiers a modifier
-
 | Fichier | Modification |
 |---------|-------------|
-| `src/types/views.ts` | Ajouter `'explorer'` au type `ViewType` |
-| `src/components/Sidebar.tsx` | Ajouter une section pliable "Explorateur" qui liste les dossiers sources depuis `getSourceFolders()`. Chaque dossier est cliquable et declenche la navigation vers la vue explorer avec le filtre dossier |
-| `src/pages/Index.tsx` | Ajouter le cas `currentView === 'explorer'` qui affiche le composant `FolderExplorer` avec le `MediaHeader` et les memes controles d'affichage |
-| `src/hooks/useMediaStore.ts` | Ajouter une methode `getMediaByFolderPrefix(folder: string)` qui retourne les medias dont le `sourceFolder` ou `sourcePath` commence par le chemin donne (pour inclure les sous-dossiers) |
+| `server.cjs` | Ajouter endpoint `GET /api/thumbnail/:encodedPath` qui sert une version reduite (400px max) avec cache disque. Ajouter endpoint `POST /api/reveal-in-explorer` qui execute `explorer /select` / `open -R` |
+| `src/components/MediaCardTwitter.tsx` | Ajouter un `setTimeout` de 500ms sur `handleMouseEnter` pour les videos, annule si la souris quitte avant. Changer `preload="metadata"` en `preload="none"` |
+| `src/components/MediaGrid.tsx` | Implementer la virtualisation avec `IntersectionObserver` : ne rendre que les cartes visibles + buffer. Supprimer les animations Framer Motion individuelles (garder une animation globale legere) |
+| `src/components/MediaInfoDialog.tsx` | Remplacer `window.open('file:///')` par un appel fetch a `/api/reveal-in-explorer` |
+| `src/components/FolderScanner.tsx` | Lors du scan, construire les `thumbnailUrl` vers le nouvel endpoint `/api/thumbnail/` au lieu du fichier original |
 
-### Fonctionnement de l'arborescence
-
-- `getSourceFolders()` existe deja et retourne la liste des dossiers uniques
-- On construit un arbre a partir de ces chemins en splittant par `/` ou `\`
-- Chaque noeud de l'arbre est un dossier cliquable avec un compteur de medias
-- Les sous-dossiers s'affichent en indent sous leur parent, pliables/depliables
-- Le dossier selectionne est mis en surbrillance
-
-### Vue Explorer (FolderExplorer.tsx)
-
-- Affiche un breadcrumb en haut avec le chemin du dossier actuel (cliquable pour remonter)
-- En dessous, affiche les sous-dossiers du niveau actuel sous forme de tuiles cliquables
-- Puis affiche les medias du dossier actuel via le meme systeme de cartes que `MediaGrid`
-- Supporte tous les modes de vue (grille, liste, mosaique, etc.) et le slider de colonnes
-- Le slider de colonnes peut aller jusqu'a 20 colonnes pour cette vue specifique
