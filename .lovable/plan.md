@@ -1,60 +1,29 @@
 
-# Optimiser la fenetre d'informations media
+# Texte complet visible et espaces optimises dans la fenetre d'informations
 
-## Problemes actuels
+## Probleme
 
-1. **Scroll horizontal/vertical inutile** : Le contenu deborde, forçant des scrolls qui rendent la navigation penible
-2. **Pas responsive mobile** : La fenetre ne s'adapte pas correctement aux petits ecrans
-3. **Chemin non cliquable** : Le chemin du fichier est juste du texte, impossible d'ouvrir le dossier directement
+Deux soucis dans le panneau de metadonnees :
+
+1. **Texte tronque** : Les valeurs longues (URL, chemins, dossiers) utilisent `truncate` qui coupe le texte avec "...". Impossible de voir l'URL ou le chemin complet.
+2. **Espaces perdus** : Le label (ex. "Type") a une largeur fixe (`w-16 sm:w-24`) meme quand la valeur est courte comme "Video", ce qui cree un espace vide inutile.
 
 ## Solution
 
-### 1. Fenetre adaptative sans scroll
+### 1. Texte qui passe a la ligne au lieu d'etre coupe
 
-- Passer la fenetre en `sm:max-w-4xl` (896px) sur desktop pour afficher plus de contenu
-- Sur mobile : plein ecran avec `max-w-[100vw] h-[100dvh]` pour utiliser tout l'espace disponible
-- Reduire la hauteur max de la preview media a `max-h-[35vh]` sur mobile et `max-h-[40vh]` sur desktop pour laisser de la place aux infos en dessous
-- Supprimer `overflow-y-auto` au profit d'un layout flex qui repartit l'espace naturellement entre preview et infos
-- Utiliser `overflow-y-auto` uniquement sur la zone des metadonnees si vraiment necessaire, pas sur toute la fenetre
+Remplacer `truncate` (qui force une seule ligne) par `break-all` sur les valeurs longues (URL, chemins). Le texte passera a la ligne suivante au lieu d'etre coupe, donc tout sera visible.
 
-### 2. Layout deux colonnes sur desktop
+- Sur le composant `InfoRow` : remplacer `truncate` par `break-all` pour que l'URL, le chemin et le dossier s'affichent en entier sur plusieurs lignes si necessaire.
+- Meme traitement pour le chemin cliquable : remplacer `truncate` par `break-all` et retirer `items-center` pour aligner l'icone en haut quand le texte est multi-ligne.
+- Changer `items-center` en `items-start` sur la ligne parente pour que l'icone et le label restent en haut quand la valeur passe sur plusieurs lignes.
 
-Sur ecran large, afficher la preview a gauche et les infos a droite cote a cote pour eviter le scroll vertical :
+### 2. Reduire l'espace entre label et valeur
 
-```text
-Desktop (>640px):
-+---------------------------+-------------------+
-|                           |  Nom: photo.jpg   |
-|    Preview adaptative     |  Type: Photo      |
-|    (occupe la hauteur)    |  Taille: 2.4 MB   |
-|                           |  Date: 12 fev     |
-|                           |  Chemin: /usr/...  |
-|                           |  Tags: [Vac] [Ete]|
-+---------------------------+-------------------+
-
-Mobile:
-+---------------------------+
-|    Preview (35vh max)     |
-+---------------------------+
-|  Nom: photo.jpg           |
-|  Type: Photo              |
-|  Taille: 2.4 MB           |
-|  Tags: [Vac] [Ete]        |
-+---------------------------+
-```
-
-### 3. Chemin cliquable pour ouvrir le gestionnaire de fichiers
-
-Pour la ligne "Chemin", transformer le texte en lien cliquable :
-- Utiliser le protocole `file:///` pour construire l'URL du dossier parent
-- Le clic ouvrira le gestionnaire de fichiers du systeme (Finder sur macOS, Explorateur sur Windows)
-- Garder aussi le bouton Copier a cote
-- Ajouter une icone `ExternalLink` pour indiquer que c'est cliquable
-
-Note : le protocole `file:///` fonctionne quand l'app tourne en local. En mode web pur, le navigateur peut bloquer l'ouverture, donc on affichera un toast d'erreur dans ce cas.
+Remplacer la largeur fixe du label (`w-16 sm:w-24`) par `w-auto` avec un `min-w-[3rem]` pour que le label prenne uniquement la place necessaire. La valeur occupe ainsi plus d'espace horizontal.
 
 ## Detail technique
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/MediaInfoDialog.tsx` | Refonte du layout : deux colonnes sur desktop, empile sur mobile. Preview adaptative. InfoRow pour "Chemin" transforme en lien cliquable avec `file:///`. Ajout d'une fonction `openInFileManager` qui extrait le dossier parent du chemin et ouvre via `window.open('file:///...')`. Responsive complet avec classes Tailwind conditionnelles. |
+| `src/components/MediaInfoDialog.tsx` | Dans `InfoRow` : remplacer `items-center` par `items-start`, remplacer `truncate` par `break-all` sur les valeurs, remplacer `w-16 sm:w-24` par `w-auto min-w-[3rem]` sur les labels. Meme ajustement sur le bouton cliquable du chemin. |
