@@ -77,7 +77,7 @@ export function MediaInfoDialog({ item, open, onOpenChange }: MediaInfoDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {item.type === 'image' ? <Image className="w-5 h-5" /> : <Video className="w-5 h-5" />}
@@ -86,11 +86,11 @@ export function MediaInfoDialog({ item, open, onOpenChange }: MediaInfoDialogPro
         </DialogHeader>
 
         {/* Thumbnail preview */}
-        <div className="rounded-lg overflow-hidden bg-muted aspect-video">
+        <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center">
           {item.type === 'image' ? (
-            <img src={item.thumbnailUrl || item.url} alt={item.name} className="w-full h-full object-contain" />
+            <img src={item.thumbnailUrl || item.url} alt={item.name} className="max-h-[50vh] w-auto max-w-full object-contain" />
           ) : (
-            <video src={item.url} className="w-full h-full object-contain" preload="metadata" />
+            <video src={item.url} className="max-h-[50vh] w-auto max-w-full object-contain" preload="metadata" />
           )}
         </div>
 
