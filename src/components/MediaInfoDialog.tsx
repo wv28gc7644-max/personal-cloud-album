@@ -79,20 +79,20 @@ export function MediaInfoDialog({ item, open, onOpenChange }: MediaInfoDialogPro
   );
 
   const InfoRow = ({ icon: Icon, label, value, copyable, clickablePath }: { icon: any; label: string; value: string; copyable?: boolean; clickablePath?: boolean }) => (
-    <div className="flex items-center gap-2 py-1.5 border-b border-border/30 last:border-0 min-w-0">
-      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
-      <span className="text-xs text-muted-foreground w-16 sm:w-24 shrink-0">{label}</span>
+    <div className="flex items-start gap-2 py-1.5 border-b border-border/30 last:border-0 min-w-0">
+      <Icon className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+      <span className="text-xs text-muted-foreground w-auto min-w-[3rem] shrink-0">{label}</span>
       {clickablePath ? (
         <button
           onClick={() => openInFileManager(value)}
-          className="text-xs flex-1 truncate text-primary hover:underline cursor-pointer text-left flex items-center gap-1 min-w-0"
+          className="text-xs flex-1 break-all text-primary hover:underline cursor-pointer text-left flex items-start gap-1 min-w-0"
           title="Ouvrir dans le gestionnaire de fichiers"
         >
-          <span className="truncate">{value}</span>
-          <ExternalLink className="w-3 h-3 shrink-0" />
+          <span className="break-all">{value}</span>
+          <ExternalLink className="w-3 h-3 shrink-0 mt-0.5" />
         </button>
       ) : (
-        <span className="text-xs flex-1 truncate min-w-0">{value}</span>
+        <span className="text-xs flex-1 break-all min-w-0">{value}</span>
       )}
       {copyable && <CopyButton text={value} field={label} />}
     </div>
