@@ -8,4 +8,5 @@ export type ViewType =
   | 'smart-home' 
   | 'timeline' 
   | 'calendar' 
-  | 'albums';
+  | 'albums'
+  | 'explorer';

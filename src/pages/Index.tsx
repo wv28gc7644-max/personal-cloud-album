@@ -18,6 +18,7 @@ import { AdvancedFiltersPanel } from '@/components/AdvancedFiltersPanel';
 import { TimelineView } from '@/components/TimelineView';
 import { CalendarView } from '@/components/CalendarView';
 import { AlbumManager } from '@/components/AlbumManager';
+import { FolderExplorer } from '@/components/FolderExplorer';
 import { WhatsNew } from '@/components/WhatsNew';
 import { MediaViewer } from '@/components/MediaViewer';
 import { ViewType } from '@/types/views';
@@ -199,6 +200,15 @@ const Index = () => {
             </div>
             <AlbumManager />
           </div>
+        ) : currentView === 'explorer' ? (
+          <>
+            <MediaHeader 
+              onUploadClick={() => setUploadOpen(true)} 
+              onStartSlideshow={() => setSlideshowOpen(true)}
+              onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            />
+            <FolderExplorer />
+          </>
         ) : (
           <>
             <MediaHeader 

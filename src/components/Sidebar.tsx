@@ -62,7 +62,7 @@ export function Sidebar({
   onOpenFilters,
   onOpenWhatsNew
 }: SidebarProps) {
-  const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites } = useMediaStore();
+  const { tags, selectedTags, toggleSelectedTag, clearSelectedTags, playlists, getFavorites, getSourceFolders } = useMediaStore();
   const { hasUpdate, commitsBehind } = useUpdateStatus();
   const { isConnected, testConnection } = useLocalServer();
   const { isEditMode, toggleEditMode } = useGlobalEditorContext();
@@ -297,6 +297,31 @@ export function Sidebar({
             </Collapsible>
           );
         })}
+
+        {/* Explorer section */}
+        {(() => {
+          const sourceFolders = getSourceFolders();
+          if (sourceFolders.length === 0) return null;
+          return (
+            <div className="pt-4">
+              <button
+                onClick={() => onViewChange('explorer')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200",
+                  currentView === 'explorer'
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                )}
+              >
+                <LucideIcons.FolderTree className="w-5 h-5" />
+                <span className="font-medium text-sm">Explorateur</span>
+                <span className="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                  {sourceFolders.length}
+                </span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Slideshow button */}
         {onStartSlideshow && (

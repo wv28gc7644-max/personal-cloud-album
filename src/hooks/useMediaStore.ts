@@ -38,6 +38,7 @@ interface MediaStore {
   setSourceFolderFilter: (folder: string | null) => void;
   removeMediaByFolder: (folder: string) => void;
   getSourceFolders: () => string[];
+  getMediaByFolderPrefix: (folder: string) => MediaItem[];
   
   // Getters
   getFilteredMedia: () => MediaItem[];
@@ -280,6 +281,17 @@ export const useMediaStore = create<MediaStore>()(
           if (m.sourceFolder) folders.add(m.sourceFolder);
         });
         return Array.from(folders).sort();
+      },
+
+      getMediaByFolderPrefix: (folder: string) => {
+        const { media, sortBy } = get();
+        const norm = folder.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+        const filtered = media.filter(m => {
+          const sf = (m.sourceFolder || '').replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
+          const sp = (m.sourcePath || '').replace(/\\/g, '/').toLowerCase();
+          return sf === norm || sf.startsWith(norm + '/') || sp.startsWith(norm + '/');
+        });
+        return sortMedia(filtered, sortBy);
       },
 
       getFilteredMedia: () => {
