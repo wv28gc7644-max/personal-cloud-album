@@ -1,29 +1,52 @@
 
-# Texte complet visible et espaces optimises dans la fenetre d'informations
+# Explorateur de dossiers dans la sidebar
 
-## Probleme
+## Objectif
+Ajouter une section "Explorateur" dans la sidebar qui affiche l'arborescence des dossiers lies (scannes), comme un explorateur de fichiers Windows. Cliquer sur un dossier affiche ses medias dans la zone principale avec les memes modes d'affichage que la galerie (grille, liste, mosaique, etc.) et le meme slider de colonnes.
 
-Deux soucis dans le panneau de metadonnees :
+## Comment ca marche
 
-1. **Texte tronque** : Les valeurs longues (URL, chemins, dossiers) utilisent `truncate` qui coupe le texte avec "...". Impossible de voir l'URL ou le chemin complet.
-2. **Espaces perdus** : Le label (ex. "Type") a une largeur fixe (`w-16 sm:w-24`) meme quand la valeur est courte comme "Video", ce qui cree un espace vide inutile.
+1. **Nouvelle section dans la sidebar** : Une section pliable "Explorateur" apparait entre les sections existantes. Elle liste tous les dossiers sources (issus des scans) sous forme d'arborescence.
 
-## Solution
+2. **Arborescence de dossiers** : Les dossiers sont regroupes par structure de chemin. Par exemple :
+   - `D:/Photos` (dossier parent)
+     - `D:/Photos/Vacances` (sous-dossier)
+     - `D:/Photos/Famille` (sous-dossier)
+   Chaque dossier affiche le nombre de medias qu'il contient.
 
-### 1. Texte qui passe a la ligne au lieu d'etre coupe
+3. **Clic sur un dossier** : Navigue vers une nouvelle vue "explorer" qui filtre et affiche uniquement les medias de ce dossier (et ses sous-dossiers), en utilisant les memes tuiles/cartes media que la galerie principale.
 
-Remplacer `truncate` (qui force une seule ligne) par `break-all` sur les valeurs longues (URL, chemins). Le texte passera a la ligne suivante au lieu d'etre coupe, donc tout sera visible.
+4. **Modes d'affichage** : La vue explorateur reutilise le composant `MediaGrid` existant et le slider de colonnes, donc tout ce qui est deja configure (grille, liste, mosaique, adaptive, etc.) fonctionne automatiquement.
 
-- Sur le composant `InfoRow` : remplacer `truncate` par `break-all` pour que l'URL, le chemin et le dossier s'affichent en entier sur plusieurs lignes si necessaire.
-- Meme traitement pour le chemin cliquable : remplacer `truncate` par `break-all` et retirer `items-center` pour aligner l'icone en haut quand le texte est multi-ligne.
-- Changer `items-center` en `items-start` sur la ligne parente pour que l'icone et le label restent en haut quand la valeur passe sur plusieurs lignes.
+## Details techniques
 
-### 2. Reduire l'espace entre label et valeur
+### Fichiers a creer
 
-Remplacer la largeur fixe du label (`w-16 sm:w-24`) par `w-auto` avec un `min-w-[3rem]` pour que le label prenne uniquement la place necessaire. La valeur occupe ainsi plus d'espace horizontal.
+| Fichier | Role |
+|---------|------|
+| `src/components/FolderExplorer.tsx` | Vue principale qui affiche les medias filtres par dossier, avec un fil d'ariane (breadcrumb) pour naviguer dans l'arborescence |
 
-## Detail technique
+### Fichiers a modifier
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/MediaInfoDialog.tsx` | Dans `InfoRow` : remplacer `items-center` par `items-start`, remplacer `truncate` par `break-all` sur les valeurs, remplacer `w-16 sm:w-24` par `w-auto min-w-[3rem]` sur les labels. Meme ajustement sur le bouton cliquable du chemin. |
+| `src/types/views.ts` | Ajouter `'explorer'` au type `ViewType` |
+| `src/components/Sidebar.tsx` | Ajouter une section pliable "Explorateur" qui liste les dossiers sources depuis `getSourceFolders()`. Chaque dossier est cliquable et declenche la navigation vers la vue explorer avec le filtre dossier |
+| `src/pages/Index.tsx` | Ajouter le cas `currentView === 'explorer'` qui affiche le composant `FolderExplorer` avec le `MediaHeader` et les memes controles d'affichage |
+| `src/hooks/useMediaStore.ts` | Ajouter une methode `getMediaByFolderPrefix(folder: string)` qui retourne les medias dont le `sourceFolder` ou `sourcePath` commence par le chemin donne (pour inclure les sous-dossiers) |
+
+### Fonctionnement de l'arborescence
+
+- `getSourceFolders()` existe deja et retourne la liste des dossiers uniques
+- On construit un arbre a partir de ces chemins en splittant par `/` ou `\`
+- Chaque noeud de l'arbre est un dossier cliquable avec un compteur de medias
+- Les sous-dossiers s'affichent en indent sous leur parent, pliables/depliables
+- Le dossier selectionne est mis en surbrillance
+
+### Vue Explorer (FolderExplorer.tsx)
+
+- Affiche un breadcrumb en haut avec le chemin du dossier actuel (cliquable pour remonter)
+- En dessous, affiche les sous-dossiers du niveau actuel sous forme de tuiles cliquables
+- Puis affiche les medias du dossier actuel via le meme systeme de cartes que `MediaGrid`
+- Supporte tous les modes de vue (grille, liste, mosaique, etc.) et le slider de colonnes
+- Le slider de colonnes peut aller jusqu'a 20 colonnes pour cette vue specifique
