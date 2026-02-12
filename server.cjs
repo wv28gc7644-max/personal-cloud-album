@@ -270,6 +270,13 @@ const server = http.createServer(async (req, res) => {
     // ═══════════════════════════════════════════════════════════════
 
     if (pathname.startsWith('/api/thumbnail/')) {
+      // Semaphore: limit concurrent thumbnail generation
+      if (typeof global.__thumbActive === 'undefined') global.__thumbActive = 0;
+      if (global.__thumbActive >= 10) {
+        res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '2' });
+        return res.end(JSON.stringify({ error: 'Trop de requêtes de miniatures simultanées' }));
+      }
+      global.__thumbActive++;
       try {
         const encodedPath = pathname.slice('/api/thumbnail/'.length);
         const filePath = Buffer.from(encodedPath, 'base64url').toString('utf8');
@@ -381,6 +388,8 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: e.message }));
+      } finally {
+        global.__thumbActive--;
       }
     }
 
@@ -402,14 +411,97 @@ const server = http.createServer(async (req, res) => {
 
       try {
         if (platform === 'win32') {
-          exec(`explorer /select,"${normalizedFilePath}"`);
+          // Use spawn with separate args to avoid quoting issues
+          const winPath = normalizedFilePath.replace(/\//g, '\\');
+          const child = spawn('explorer', ['/select,', winPath], { shell: false, detached: true, stdio: 'ignore' });
+          child.unref();
+          child.on('error', (err) => {
+            console.error('reveal-in-explorer spawn error:', err.message);
+            addLog('error', 'server', `reveal-in-explorer: ${err.message}`);
+          });
         } else if (platform === 'darwin') {
-          exec(`open -R "${normalizedFilePath}"`);
+          exec(`open -R "${normalizedFilePath}"`, (err) => {
+            if (err) { console.error('reveal-in-explorer error:', err.message); addLog('error', 'server', `reveal-in-explorer: ${err.message}`); }
+          });
         } else {
-          // Linux: open parent directory
           const parentDir = path.dirname(normalizedFilePath);
-          exec(`xdg-open "${parentDir}"`);
+          exec(`xdg-open "${parentDir}"`, (err) => {
+            if (err) { console.error('reveal-in-explorer error:', err.message); addLog('error', 'server', `reveal-in-explorer: ${err.message}`); }
+          });
         }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        console.error('reveal-in-explorer exception:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: Vérifier/Installer Sharp + Cache stats
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/check-sharp' && req.method === 'GET') {
+      try {
+        require('sharp');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ installed: true }));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ installed: false }));
+      }
+    }
+
+    if (pathname === '/api/install-sharp' && req.method === 'POST') {
+      try {
+        addLog('info', 'server', 'Installation de sharp en cours...');
+        const child = exec('npm install sharp', { cwd: __dirname, timeout: 120000 }, (error, stdout, stderr) => {
+          if (error) {
+            addLog('error', 'server', `Erreur installation sharp: ${error.message}`);
+          } else {
+            addLog('info', 'server', 'sharp installé avec succès');
+          }
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ started: true, message: 'Installation lancée. Redémarrez le serveur après.' }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    if (pathname === '/api/cache-stats' && req.method === 'GET') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      try {
+        if (!fs.existsSync(cacheDir)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ files: 0, sizeBytes: 0, sizeFormatted: '0 B' }));
+        }
+        const files = fs.readdirSync(cacheDir);
+        let totalSize = 0;
+        for (const f of files) {
+          try { totalSize += fs.statSync(path.join(cacheDir, f)).size; } catch {}
+        }
+        const fmt = totalSize < 1024 ? totalSize + ' B' : totalSize < 1048576 ? (totalSize / 1024).toFixed(1) + ' KB' : (totalSize / 1048576).toFixed(1) + ' MB';
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ files: files.length, sizeBytes: totalSize, sizeFormatted: fmt }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    if (pathname === '/api/cache' && req.method === 'DELETE') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      try {
+        if (fs.existsSync(cacheDir)) {
+          const files = fs.readdirSync(cacheDir);
+          for (const f of files) {
+            try { fs.unlinkSync(path.join(cacheDir, f)); } catch {}
+          }
+        }
+        addLog('info', 'server', 'Cache des miniatures vidé');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: true }));
       } catch (e) {
