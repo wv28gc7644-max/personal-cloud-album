@@ -1,94 +1,50 @@
 
 
-# Optimisation serveur, cache, et parametres de previsualisation video
+# Corrections : Explorateur de fichiers, miniatures et parametres
 
 ## Problemes identifies
 
-1. **Sharp non installe** : Le serveur tombe en fallback (sert le fichier original) car `sharp` n'est pas installe. Aucun guide dans l'interface pour l'installer.
-2. **"Reveler dans l'explorateur" ne fonctionne pas** : La commande `exec` sur Windows a un probleme de formatage du chemin avec les guillemets et les backslashes. Le serveur repond `success: true` mais `exec` echoue silencieusement.
-3. **Videos prechargees inutilement** : `preload="metadata"` charge encore des donnees. Les videos se lancent instantanement au survol sans delai, causant des chargements accidentels.
-4. **Serveur sature** : Trop de requetes simultanees (miniatures + fichiers) causent un crash du serveur Node.js. Pas de limite de connexions.
-5. **Miniatures perdues au rafraichissement** : Le cache serveur existe (`.thumbnail-cache/`) mais le navigateur ne le conserve pas toujours. Pas de visibilite sur le cache.
-6. **Pas de controle utilisateur** : Aucun reglage pour le delai de survol, la duree de previsualisation, ou la gestion du cache.
+### 1. "Reveler dans l'explorateur" ouvre le mauvais emplacement
+Le code actuel utilise `spawn('explorer', ['/select,', winPath])` qui passe `/select,` et le chemin comme deux arguments separes. Windows `explorer.exe` ne comprend pas ca et ouvre donc le dossier utilisateur par defaut. La solution est d'utiliser `exec` avec la commande complete en une seule chaine : `explorer /select,"C:\chemin\vers\fichier"`.
 
-## Plan d'implementation
+### 2. Dependances serveur et cache affichent "Non connecte"
+C'est normal : ces fonctionnalites necessitent que le serveur local soit demarre et que `server.cjs` contienne les endpoints `/api/check-sharp`, `/api/install-sharp`, `/api/cache-stats` et `DELETE /api/cache`. Ces endpoints existent deja dans le code du serveur. Le probleme est que l'utilisateur n'a pas encore telecharge la derniere version de `server.cjs` sur sa machine. Une fois mis a jour et redemarre, tout fonctionnera :
+- Le bouton "Installer" pour sharp lancera `npm install sharp` automatiquement
+- Le cache affichera le nombre de fichiers et la taille
+- Le bouton "Vider" supprimera les miniatures en cache
 
-### 1. Corriger "Reveler dans l'explorateur" (server.cjs)
+### 3. Parametres de previsualisation video
+L'interface existe deja avec :
+- Delai avant lecture (0-5000ms avec slider + saisie manuelle)
+- Previsualisation au survol (1-30s avec switch activer/desactiver)
+Le code dans `MediaCardTwitter.tsx` lit ces reglages et les applique. Pas de modification necessaire cote interface.
 
-Le probleme vient du formatage Windows. La commande `explorer /select,"path"` necessite que le chemin utilise des backslashes et soit entre guillemets correctement. On va aussi capturer les erreurs de `exec` au lieu de les ignorer.
+## Ce qui doit etre corrige dans le code
 
-| Fichier | Modification |
-|---------|-------------|
-| `server.cjs` | Corriger le formatage du chemin pour Windows : remplacer les `/` par `\`, utiliser `spawn` au lieu de `exec` pour eviter les problemes de guillemets. Ajouter un callback d'erreur sur `exec` pour loguer les echecs. |
+### Fichier : `server.cjs`
 
-### 2. Section "Serveur et optimisation" dans les parametres (ServerSettings.tsx)
+Remplacer la commande `spawn` par `exec` pour Windows dans l'endpoint `/api/reveal-in-explorer` :
 
-Ajouter des cartes dans la page "Serveur local" pour :
+```text
+// AVANT (ne fonctionne pas) :
+spawn('explorer', ['/select,', winPath], { shell: false, detached: true })
 
-**Carte "Dependances serveur"** :
-- Verifier si `sharp` est installe via un nouvel endpoint `/api/check-sharp`
-- Afficher l'etat (installe / non installe) avec un bouton "Installer" qui lance `npm install sharp` via un endpoint `/api/install-sharp`
-- Expliquer a quoi sert sharp (miniatures reduites = chargement plus rapide)
+// APRES (fonctionne) :
+exec('explorer /select,"' + winPath + '"')
+```
 
-**Carte "Cache des miniatures"** :
-- Afficher la taille du cache via un endpoint `/api/cache-stats` (nombre de fichiers, taille totale)
-- Bouton "Vider le cache" via `DELETE /api/cache`
-- Explication : "Les miniatures sont generees une seule fois puis stockees sur le serveur pour accelerer le chargement"
+Cela enverra la commande complete `explorer /select,"D:\Photos\image.jpg"` a Windows, qui ouvrira l'explorateur au bon emplacement avec le fichier selectionne.
 
-| Fichier | Modification |
-|---------|-------------|
-| `server.cjs` | Ajouter `GET /api/check-sharp` (teste `require('sharp')`), `POST /api/install-sharp` (lance `npm install sharp` dans `__dirname`), `GET /api/cache-stats` (compte les fichiers dans `.thumbnail-cache`), `DELETE /api/cache` (vide `.thumbnail-cache`) |
-| `src/components/settings/ServerSettings.tsx` | Ajouter les cartes "Dependances" et "Cache" avec etats et boutons |
+### Fichier : `src/assets/serverTemplate.ts`
 
-### 3. Parametres de previsualisation video (ServerSettings.tsx)
+Si ce fichier contient une copie du template serveur pour le telechargement, il doit aussi etre mis a jour avec la meme correction.
 
-Ajouter une carte "Previsualisation video" avec :
-
-**Delai de survol** :
-- Switch activer/desactiver
-- Slider de 0 a 5000ms : de 0 a 1000ms par pas de 1ms (precision fine), de 1000 a 5000ms par pas de 500ms
-- Champ de saisie pour entrer une valeur precise en millisecondes
-- Explication : "Temps d'attente avant de lancer la video quand vous survolez une miniature. Evite les chargements accidentels."
-
-**Previsualisation video** :
-- Switch activer/desactiver
-- Slider de 0 a 30 secondes par pas de 1s
-- Explication : "Si active, seules les X premieres secondes de la video sont chargees au survol. Si desactive, la video ne joue qu'au clic."
-- Quand desactive : la video ne se lance pas du tout au survol, uniquement au clic pour l'ouvrir en grand
-
-Ces reglages sont sauvegardes en localStorage et lus par `MediaCardTwitter`.
+## Resume
 
 | Fichier | Modification |
 |---------|-------------|
-| `src/components/settings/ServerSettings.tsx` | Ajouter la carte "Previsualisation video" avec les deux reglages (delai + duree) |
-| `src/components/MediaCardTwitter.tsx` | Lire les reglages depuis localStorage. Appliquer le delai (`setTimeout`) sur `handleMouseEnter`. Changer `preload="metadata"` en `preload="none"`. Si previsualisation desactivee, ne pas lancer la video au survol. Si duree limitee, arreter la video apres X secondes. |
+| `server.cjs` | Corriger reveal-in-explorer : utiliser `exec` au lieu de `spawn` avec la syntaxe `explorer /select,"chemin"` |
+| `src/assets/serverTemplate.ts` | Meme correction dans le template telechargeable |
 
-### 4. Protection contre la saturation du serveur (server.cjs)
-
-- Ajouter un compteur de requetes actives pour les miniatures
-- Limiter a 10 requetes de miniatures simultanees (les suivantes attendent)
-- Ajouter un timeout de 30s sur les requetes de miniatures
-- Loguer les depassements pour diagnostiquer
-
-| Fichier | Modification |
-|---------|-------------|
-| `server.cjs` | Ajouter un semaphore simple (compteur) sur l'endpoint `/api/thumbnail/` pour limiter la concurrence |
-
-### 5. Video preload="none" (MediaCardTwitter.tsx)
-
-Changer `preload="metadata"` en `preload="none"` pour empecher tout prechargement des videos. La miniature serveur (image JPG) sera affichee a la place. La video ne se charge que lorsque le survol est intentionnel (apres le delai configure).
-
-| Fichier | Modification |
-|---------|-------------|
-| `src/components/MediaCardTwitter.tsx` | `preload="none"` au lieu de `preload="metadata"` |
-
----
-
-## Resume des fichiers modifies
-
-| Fichier | Actions |
-|---------|---------|
-| `server.cjs` | Corriger reveal-in-explorer, ajouter check-sharp, install-sharp, cache-stats, delete cache, semaphore miniatures |
-| `src/components/settings/ServerSettings.tsx` | Ajouter cartes : Dependances, Cache miniatures, Previsualisation video |
-| `src/components/MediaCardTwitter.tsx` | Lire reglages localStorage, appliquer delai survol, preload="none", duree limitee |
+Tout le reste (sharp, cache, video settings) fonctionne deja dans le code. L'utilisateur doit simplement telecharger la nouvelle version de `server.cjs` via les parametres > Mises a jour, puis redemarrer le serveur.
 
