@@ -411,13 +411,12 @@ const server = http.createServer(async (req, res) => {
 
       try {
         if (platform === 'win32') {
-          // Use spawn with separate args to avoid quoting issues
           const winPath = normalizedFilePath.replace(/\//g, '\\');
-          const child = spawn('explorer', ['/select,', winPath], { shell: false, detached: true, stdio: 'ignore' });
-          child.unref();
-          child.on('error', (err) => {
-            console.error('reveal-in-explorer spawn error:', err.message);
-            addLog('error', 'server', `reveal-in-explorer: ${err.message}`);
+          exec('explorer /select,"' + winPath + '"', (err) => {
+            if (err) {
+              console.error('reveal-in-explorer error:', err.message);
+              addLog('error', 'server', `reveal-in-explorer: ${err.message}`);
+            }
           });
         } else if (platform === 'darwin') {
           exec(`open -R "${normalizedFilePath}"`, (err) => {

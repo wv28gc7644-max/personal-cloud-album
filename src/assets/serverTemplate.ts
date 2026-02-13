@@ -474,6 +474,211 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ===================================================================
+    // API: Miniatures en resolution reduite
+    // ===================================================================
+
+    if (pathname.startsWith('/api/thumbnail/')) {
+      if (typeof global.__thumbActive === 'undefined') global.__thumbActive = 0;
+      if (global.__thumbActive >= 10) {
+        res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '2' });
+        return res.end(JSON.stringify({ error: 'Trop de requetes simultanees' }));
+      }
+      global.__thumbActive++;
+      try {
+        const encodedPath = pathname.slice('/api/thumbnail/'.length);
+        const filePath = Buffer.from(encodedPath, 'base64url').toString('utf8');
+        const normalizedFilePath = path.normalize(filePath);
+
+        if (!fs.existsSync(normalizedFilePath) || !fs.statSync(normalizedFilePath).isFile()) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Fichier introuvable' }));
+        }
+
+        const ext = path.extname(normalizedFilePath).toLowerCase();
+        const isImage = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'].includes(ext);
+        const isVideo = ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
+
+        const cacheDir = path.join(__dirname, '.thumbnail-cache');
+        if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+        const hash = Buffer.from(normalizedFilePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const cachePath = path.join(cacheDir, hash + '.jpg');
+
+        if (fs.existsSync(cachePath)) {
+          const stat = fs.statSync(cachePath);
+          res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=31536000, immutable' });
+          return fs.createReadStream(cachePath).pipe(res);
+        }
+
+        if (isImage) {
+          try {
+            const sharp = require('sharp');
+            const buffer = await sharp(normalizedFilePath).resize(400, 400, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+            fs.writeFileSync(cachePath, buffer);
+            res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': buffer.length, 'Cache-Control': 'public, max-age=31536000, immutable' });
+            return res.end(buffer);
+          } catch {
+            const stat = fs.statSync(normalizedFilePath);
+            res.writeHead(200, { 'Content-Type': getMimeType(ext), 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=31536000' });
+            return fs.createReadStream(normalizedFilePath).pipe(res);
+          }
+        }
+
+        if (isVideo) {
+          const ffmpegPath = (() => {
+            try {
+              const userProfile = process.env.USERPROFILE || '';
+              const installRoot = path.join(userProfile, 'MediaVault-AI', 'ffmpeg');
+              if (fs.existsSync(installRoot)) {
+                const dirs = fs.readdirSync(installRoot).filter(d => { try { return fs.statSync(path.join(installRoot, d)).isDirectory() && d.startsWith('ffmpeg'); } catch { return false; } });
+                if (dirs.length > 0) {
+                  const exe = path.join(installRoot, dirs[0], 'bin', 'ffmpeg.exe');
+                  if (fs.existsSync(exe)) return exe;
+                }
+              }
+            } catch {}
+            return 'ffmpeg';
+          })();
+          try {
+            await new Promise((resolve, reject) => {
+              exec(\`"\${ffmpegPath}" -i "\${normalizedFilePath}" -ss 00:00:01 -vframes 1 -vf "scale=400:-2" -q:v 5 "\${cachePath}" -y\`, { timeout: 15000 }, (error) => error ? reject(error) : resolve());
+            });
+            if (fs.existsSync(cachePath)) {
+              const stat = fs.statSync(cachePath);
+              res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': stat.size, 'Cache-Control': 'public, max-age=31536000, immutable' });
+              return fs.createReadStream(cachePath).pipe(res);
+            }
+          } catch {}
+          res.writeHead(204);
+          return res.end();
+        }
+
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Type non supporte' }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      } finally {
+        global.__thumbActive--;
+      }
+    }
+
+    // ===================================================================
+    // API: Reveler dans l'explorateur
+    // ===================================================================
+
+    if (pathname === '/api/reveal-in-explorer' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const filePath = body.path;
+      if (!filePath) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Chemin requis' }));
+      }
+      const normalizedFilePath = path.normalize(filePath);
+      const platform = process.platform;
+      try {
+        if (platform === 'win32') {
+          const winPath = normalizedFilePath.replace(/\\//g, '\\\\');
+          exec('explorer /select,"' + winPath + '"', (err) => {
+            if (err) console.error('reveal-in-explorer error:', err.message);
+          });
+        } else if (platform === 'darwin') {
+          exec(\`open -R "\${normalizedFilePath}"\`);
+        } else {
+          exec(\`xdg-open "\${path.dirname(normalizedFilePath)}"\`);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ===================================================================
+    // API: Dependances serveur (sharp)
+    // ===================================================================
+
+    if (pathname === '/api/check-sharp' && req.method === 'GET') {
+      try {
+        require('sharp');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ installed: true }));
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ installed: false }));
+      }
+    }
+
+    if (pathname === '/api/install-sharp' && req.method === 'POST') {
+      try {
+        const child = spawn('npm', ['install', 'sharp'], { cwd: __dirname, shell: true });
+        let output = '';
+        child.stdout.on('data', (d) => { output += d.toString(); });
+        child.stderr.on('data', (d) => { output += d.toString(); });
+        child.on('close', (code) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: code === 0, message: code === 0 ? 'sharp installe avec succes. Redemarrez le serveur.' : 'Echec installation', output }));
+        });
+        child.on('error', (err) => {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        });
+        return;
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ===================================================================
+    // API: Cache des miniatures
+    // ===================================================================
+
+    if (pathname === '/api/cache-stats' && req.method === 'GET') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      try {
+        if (!fs.existsSync(cacheDir)) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ files: 0, sizeBytes: 0, sizeFormatted: '0 B' }));
+        }
+        const entries = fs.readdirSync(cacheDir);
+        let totalSize = 0;
+        for (const f of entries) {
+          try { totalSize += fs.statSync(path.join(cacheDir, f)).size; } catch {}
+        }
+        const formatSize = (b) => {
+          if (b < 1024) return b + ' B';
+          if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+          if (b < 1024 * 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + ' MB';
+          return (b / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ files: entries.length, sizeBytes: totalSize, sizeFormatted: formatSize(totalSize) }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    if (pathname === '/api/cache' && req.method === 'DELETE') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      try {
+        if (fs.existsSync(cacheDir)) {
+          const entries = fs.readdirSync(cacheDir);
+          for (const f of entries) {
+            try { fs.unlinkSync(path.join(cacheDir, f)); } catch {}
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
+    // ===================================================================
     // API: Mise a jour et Restauration
     // ===================================================================
 
