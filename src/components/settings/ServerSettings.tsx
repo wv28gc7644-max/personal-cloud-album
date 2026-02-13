@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getLocalServerUrl } from '@/utils/localServerUrl';
@@ -59,6 +59,11 @@ export function ServerSettings() {
   const [videoSettings, setVideoSettings] = useState<VideoPreviewSettings>(getVideoPreviewSettings);
 
   const serverBase = getLocalServerUrl();
+
+  // Detect mixed content (HTTPS page → HTTP server)
+  const isMixedContent = typeof window !== 'undefined'
+    && window.location.protocol === 'https:'
+    && /^http:\/\//i.test(serverBase);
 
   // ── Fetch sharp status + cache on mount ──
   useEffect(() => {
@@ -158,16 +163,45 @@ export function ServerSettings() {
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               ) : isConnected ? (
-                <CheckCircle className="w-5 h-5 text-green-500" />
+                <CheckCircle className="w-5 h-5 text-emerald-500" />
               ) : (
                 <XCircle className="w-5 h-5 text-destructive" />
               )}
-              <span className={cn("text-sm font-medium", isConnected ? "text-green-500" : "text-muted-foreground")}>
+              <span className={cn("text-sm font-medium", isConnected ? "text-emerald-500" : "text-muted-foreground")}>
                 {isLoading ? 'Connexion...' : isConnected ? 'Connecté' : 'Non connecté'}
               </span>
             </div>
             {error && <span className="text-sm text-destructive">{error}</span>}
           </div>
+
+          {/* Mixed content warning */}
+          {!isConnected && isMixedContent && (
+            <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-yellow-500">Connexion bloquée par le navigateur</p>
+                  <p className="text-xs text-muted-foreground">
+                    Tu consultes l'application depuis une page HTTPS, mais ton serveur local fonctionne en HTTP. 
+                    Le navigateur bloque cette connexion pour des raisons de sécurité.
+                  </p>
+                  <p className="text-xs text-muted-foreground font-medium">
+                    👉 Pour utiliser toutes les fonctionnalités (Sharp, cache, miniatures), ouvre l'application 
+                    directement depuis ton serveur local :
+                  </p>
+                  <a
+                    href={serverBase}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline mt-1"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Ouvrir {serverBase}
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <Button onClick={() => testConnection()} variant="outline" className="gap-2" disabled={isLoading}>
@@ -218,7 +252,9 @@ export function ServerSettings() {
                   Installer
                 </Button>
               ) : (
-                <span className="text-xs text-muted-foreground">Non connecté</span>
+                <span className="text-xs text-muted-foreground">
+                  {isMixedContent ? 'Ouvre l\'app en local' : 'Serveur non connecté'}
+                </span>
               )}
             </div>
           </div>
@@ -246,7 +282,7 @@ export function ServerSettings() {
                 </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  {cacheLoading ? 'Chargement...' : 'Non disponible'}
+                  {cacheLoading ? 'Chargement...' : isMixedContent ? 'Ouvre l\'app en local pour gérer le cache' : 'Serveur non connecté'}
                 </p>
               )}
             </div>
