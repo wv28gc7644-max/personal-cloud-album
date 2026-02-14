@@ -412,7 +412,7 @@ const server = http.createServer(async (req, res) => {
       try {
         if (platform === 'win32') {
           const winPath = normalizedFilePath.replace(/\//g, '\\');
-          exec('explorer /select,"' + winPath + '"', (err) => {
+          exec('C:\\Windows\\explorer.exe /select,"' + winPath + '"', (err) => {
             if (err) {
               console.error('reveal-in-explorer error:', err.message);
               addLog('error', 'server', `reveal-in-explorer: ${err.message}`);

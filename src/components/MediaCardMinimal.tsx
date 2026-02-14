@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { MediaItem } from '@/types/media';
 import { Play, Eye, Link, Info } from 'lucide-react';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { useMediaStats } from '@/hooks/useMediaStats';
 import { MediaInfoDialog } from './MediaInfoDialog';
+import { getVideoPreviewSettings } from '@/components/settings/ServerSettings';
 import { cn } from '@/lib/utils';
 
 interface MediaCardMinimalProps {
@@ -16,29 +17,64 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { settings: basicSettings } = useCardSettings();
   const { getStats } = useMediaStats();
   
   const stats = getStats(item.id);
   const viewCount = stats?.viewCount || 0;
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    if (item.type === 'video' && videoRef.current) {
-      videoRef.current.currentTime = 0;
-      videoRef.current.muted = !basicSettings.videoHoverSound;
-      videoRef.current.play().catch(() => {});
-      setIsVideoPlaying(true);
-    }
-  };
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+    };
+  }, []);
 
-  const handleMouseLeave = () => {
+  const startVideoPlayback = useCallback(() => {
+    if (item.type !== 'video' || !videoRef.current) return;
+    const vs = getVideoPreviewSettings();
+    if (!vs.previewEnabled) return;
+
+    videoRef.current.currentTime = 0;
+    videoRef.current.muted = !basicSettings.videoHoverSound;
+    videoRef.current.play().catch(() => {});
+    setIsVideoPlaying(true);
+
+    if (vs.previewDurationSec > 0) {
+      previewTimerRef.current = setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.pause();
+          setIsVideoPlaying(false);
+        }
+      }, vs.previewDurationSec * 1000);
+    }
+  }, [item.type, basicSettings.videoHoverSound]);
+
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true);
+    if (item.type !== 'video') return;
+
+    const vs = getVideoPreviewSettings();
+    if (!vs.previewEnabled) return;
+
+    if (vs.hoverDelayEnabled && vs.hoverDelayMs > 0) {
+      hoverTimerRef.current = setTimeout(startVideoPlayback, vs.hoverDelayMs);
+    } else {
+      startVideoPlayback();
+    }
+  }, [item.type, startVideoPlayback]);
+
+  const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
+    if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null; }
+    if (previewTimerRef.current) { clearTimeout(previewTimerRef.current); previewTimerRef.current = null; }
     if (item.type === 'video' && videoRef.current) {
       videoRef.current.pause();
       setIsVideoPlaying(false);
     }
-  };
+  }, [item.type]);
 
   const getThumbnailUrl = () => {
     if (item.thumbnailUrl && item.thumbnailUrl !== item.url) {
@@ -72,7 +108,7 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
             loop
             playsInline
             muted={!basicSettings.videoHoverSound}
-            preload="metadata"
+            preload="none"
           />
           {!isVideoPlaying && thumbnailUrl && (
             <img

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getLocalServerUrl } from '@/utils/localServerUrl';
@@ -54,6 +54,10 @@ export function ServerSettings() {
   // ── Cache stats ──
   const [cacheStats, setCacheStats] = useState<{ files: number; sizeFormatted: string } | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
+
+  // ── Diagnostic ──
+  const [diagRunning, setDiagRunning] = useState(false);
+  const [diagResults, setDiagResults] = useState<string | null>(null);
 
   // ── Video preview settings ──
   const [videoSettings, setVideoSettings] = useState<VideoPreviewSettings>(getVideoPreviewSettings);
@@ -119,6 +123,33 @@ export function ServerSettings() {
     } catch {
       toast.error('Erreur lors du vidage du cache');
     }
+  };
+
+  // ── Diagnostic complet ──
+  const runDiagnostic = async () => {
+    setDiagRunning(true);
+    const lines: string[] = [`=== Diagnostic serveur — ${new Date().toLocaleString()} ===`, `URL: ${serverBase}`, ''];
+
+    const endpoints = [
+      { name: '/api/health', url: `${serverBase}/api/health` },
+      { name: '/api/check-sharp', url: `${serverBase}/api/check-sharp` },
+      { name: '/api/cache-stats', url: `${serverBase}/api/cache-stats` },
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const r = await fetch(ep.url, { signal: AbortSignal.timeout(5000) });
+        const text = await r.text();
+        lines.push(`✅ ${ep.name} → ${r.status}`);
+        lines.push(`   ${text.slice(0, 300)}`);
+      } catch (err: any) {
+        lines.push(`❌ ${ep.name} → ${err.message || 'Erreur inconnue'}`);
+      }
+      lines.push('');
+    }
+
+    setDiagResults(lines.join('\n'));
+    setDiagRunning(false);
   };
 
   // ── Video settings helpers ──
@@ -213,6 +244,19 @@ export function ServerSettings() {
               Charger les fichiers
             </Button>
           </div>
+
+          <div className="flex gap-2">
+            <Button onClick={runDiagnostic} variant="outline" className="gap-2" disabled={diagRunning} size="sm">
+              <Stethoscope className={cn("w-4 h-4", diagRunning && "animate-spin")} />
+              Diagnostic complet
+            </Button>
+          </div>
+
+          {diagResults && (
+            <pre className="text-xs bg-muted/50 border border-border/50 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap max-h-60 overflow-y-auto font-mono">
+              {diagResults}
+            </pre>
+          )}
 
           {filesCount > 0 && (
             <p className="text-sm text-muted-foreground">{filesCount} fichier(s) chargé(s) depuis le serveur</p>

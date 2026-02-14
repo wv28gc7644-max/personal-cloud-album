@@ -145,7 +145,7 @@ export function MediaInfoDialog({ item, open, onOpenChange }: MediaInfoDialogPro
                   "object-contain",
                   isMobile ? "max-h-[35vh] w-auto max-w-full" : "max-h-[60vh] w-auto max-w-full"
                 )}
-                preload="metadata"
+                preload="none"
               />
             )}
           </div>
