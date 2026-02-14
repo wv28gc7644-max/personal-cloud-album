@@ -79,6 +79,7 @@ export const MediaCardMulti = ({ items, onClick, className }: MediaCardMultiProp
               poster={item.thumbnailUrl}
               className="w-full h-full object-cover"
               muted
+              preload="none"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <Play className="w-8 h-8 text-white drop-shadow-lg" />
@@ -172,6 +173,7 @@ export const MediaCardMulti = ({ items, onClick, className }: MediaCardMultiProp
                   controls
                   autoPlay
                   className="max-w-full max-h-[70vh] rounded-lg"
+                  preload="none"
                 />
               )}
             </div>
