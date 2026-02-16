@@ -123,7 +123,7 @@ export const MediaCardMinimal = ({ item, onView }: MediaCardMinimalProps) => {
         </>
       ) : (
         <img
-          src={item.url}
+          src={thumbnailUrl || item.url}
           alt={item.name}
           className={cn(
             "w-full h-auto object-cover transition-transform duration-500",

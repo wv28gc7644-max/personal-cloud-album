@@ -455,15 +455,28 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/install-sharp' && req.method === 'POST') {
       try {
         addLog('info', 'server', 'Installation de sharp en cours...');
-        const child = exec('npm install sharp', { cwd: __dirname, timeout: 120000 }, (error, stdout, stderr) => {
+        // Créer package.json s'il n'existe pas (requis pour npm install)
+        const pkgPath = path.join(__dirname, 'package.json');
+        if (!fs.existsSync(pkgPath)) {
+          fs.writeFileSync(pkgPath, JSON.stringify({ name: 'mediavault-server', private: true, dependencies: {} }, null, 2));
+          addLog('info', 'server', 'package.json créé automatiquement');
+        }
+        const child = exec('npm install sharp --save', { cwd: __dirname, timeout: 120000 }, (error, stdout, stderr) => {
+          const output = (stdout || '') + '\n' + (stderr || '');
           if (error) {
-            addLog('error', 'server', `Erreur installation sharp: ${error.message}`);
+            addLog('error', 'server', `Erreur installation sharp: ${error.message}\n${output}`);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Échec de l\'installation', output: output.trim(), error: error.message }));
           } else {
             addLog('info', 'server', 'sharp installé avec succès');
+            // Vérifier que sharp est chargeable
+            let verified = false;
+            try { delete require.cache[require.resolve('sharp')]; require('sharp'); verified = true; } catch {}
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, verified, message: verified ? 'Sharp installé et vérifié !' : 'Sharp installé mais nécessite un redémarrage du serveur.', output: output.trim() }));
           }
         });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ started: true, message: 'Installation lancée. Redémarrez le serveur après.' }));
+        return; // Attendre la fin avant de répondre
       } catch (e) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: e.message }));
@@ -507,6 +520,137 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: e.message }));
       }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: Diagnostic du cache
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/cache-diagnostic' && req.method === 'GET') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      const results = { cacheDir, cacheDirExists: false, cacheDirWritable: false, sharpAvailable: false, ffmpegAvailable: false, totalMedia: 0, cachedCount: 0, missingCount: 0, errors: [] };
+      
+      // 1. Vérifier le dossier cache
+      try {
+        if (fs.existsSync(cacheDir)) {
+          results.cacheDirExists = true;
+          // Tester l'écriture
+          const testFile = path.join(cacheDir, '__test_write__');
+          try { fs.writeFileSync(testFile, 'test'); fs.unlinkSync(testFile); results.cacheDirWritable = true; } catch (e) { results.errors.push('Cache non inscriptible: ' + e.message); }
+        } else {
+          try { fs.mkdirSync(cacheDir, { recursive: true }); results.cacheDirExists = true; results.cacheDirWritable = true; } catch (e) { results.errors.push('Impossible de créer le cache: ' + e.message); }
+        }
+      } catch (e) { results.errors.push('Erreur accès cache: ' + e.message); }
+      
+      // 2. Vérifier sharp
+      try { require('sharp'); results.sharpAvailable = true; } catch { results.errors.push('Sharp non disponible'); }
+      
+      // 3. Vérifier ffmpeg
+      try {
+        await new Promise((resolve) => {
+          exec('ffmpeg -version', { timeout: 5000 }, (err) => { results.ffmpegAvailable = !err; resolve(); });
+        });
+      } catch {}
+      if (!results.ffmpegAvailable) {
+        // Tester le chemin MediaVault-AI
+        const userProfile = process.env.USERPROFILE || '';
+        const installRoot = path.join(userProfile, 'MediaVault-AI', 'ffmpeg');
+        try {
+          if (fs.existsSync(installRoot)) {
+            const dirs = fs.readdirSync(installRoot).filter(d => { try { return fs.statSync(path.join(installRoot, d)).isDirectory(); } catch { return false; } });
+            for (const d of dirs) {
+              const exe = path.join(installRoot, d, 'bin', 'ffmpeg.exe');
+              if (fs.existsSync(exe)) { results.ffmpegAvailable = true; break; }
+            }
+          }
+        } catch {}
+      }
+      
+      // 4. Compter les médias et les miniatures en cache
+      const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav)$/i.test(name);
+      const countFiles = (dir) => {
+        let count = 0;
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) count += countFiles(path.join(dir, entry.name));
+            else if (entry.isFile() && isSupported(entry.name)) count++;
+          }
+        } catch {}
+        return count;
+      };
+      results.totalMedia = countFiles(MEDIA_FOLDER);
+      try { results.cachedCount = results.cacheDirExists ? fs.readdirSync(cacheDir).length : 0; } catch {}
+      results.missingCount = Math.max(0, results.totalMedia - results.cachedCount);
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API: Pré-générer toutes les miniatures
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/generate-thumbnails' && req.method === 'POST') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+      
+      let sharpModule = null;
+      try { sharpModule = require('sharp'); } catch {}
+      
+      const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
+      const isImage = (ext) => ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'].includes(ext);
+      const isVideo = (ext) => ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
+      
+      // Collecter tous les fichiers
+      const allFiles = [];
+      const collectFiles = (dir) => {
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const abs = path.join(dir, entry.name);
+            if (entry.isDirectory()) collectFiles(abs);
+            else if (entry.isFile() && isSupported(entry.name)) allFiles.push(abs);
+          }
+        } catch {}
+      };
+      collectFiles(MEDIA_FOLDER);
+      
+      let generated = 0, skipped = 0, errors = 0;
+      
+      for (const filePath of allFiles) {
+        const hash = Buffer.from(filePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const cachePath = path.join(cacheDir, hash + '.jpg');
+        
+        if (fs.existsSync(cachePath)) { skipped++; continue; }
+        
+        const ext = path.extname(filePath).toLowerCase();
+        
+        if (isImage(ext) && sharpModule) {
+          try {
+            const buffer = await sharpModule(filePath).resize(400, 400, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer();
+            fs.writeFileSync(cachePath, buffer);
+            generated++;
+          } catch { errors++; }
+        } else if (isVideo(ext)) {
+          // Essayer ffmpeg
+          try {
+            await new Promise((resolve, reject) => {
+              exec(`ffmpeg -i "${filePath}" -ss 00:00:01 -vframes 1 -vf "scale=400:-2" -q:v 5 "${cachePath}" -y`,
+                { timeout: 15000 },
+                (error) => error ? reject(error) : resolve()
+              );
+            });
+            if (fs.existsSync(cachePath)) generated++; else errors++;
+          } catch { errors++; }
+        } else {
+          skipped++;
+        }
+      }
+      
+      addLog('info', 'server', `Pré-génération terminée: ${generated} générées, ${skipped} déjà en cache, ${errors} erreurs sur ${allFiles.length} fichiers`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors }));
     }
 
     // Rapport diagnostic exportable (à envoyer au support)

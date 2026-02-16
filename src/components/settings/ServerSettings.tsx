@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink, Stethoscope } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink, Stethoscope, Play, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { getLocalServerUrl } from '@/utils/localServerUrl';
 
@@ -50,10 +51,19 @@ export function ServerSettings() {
   const [sharpInstalled, setSharpInstalled] = useState<boolean | null>(null);
   const [sharpChecking, setSharpChecking] = useState(false);
   const [sharpInstalling, setSharpInstalling] = useState(false);
+  const [sharpInstallResult, setSharpInstallResult] = useState<{ success: boolean; message: string; output?: string } | null>(null);
 
   // ── Cache stats ──
   const [cacheStats, setCacheStats] = useState<{ files: number; sizeFormatted: string } | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
+
+  // ── Cache diagnostic ──
+  const [cacheDiagRunning, setCacheDiagRunning] = useState(false);
+  const [cacheDiagResults, setCacheDiagResults] = useState<string | null>(null);
+
+  // ── Pre-generate ──
+  const [pregenRunning, setPregenRunning] = useState(false);
+  const [pregenResults, setPregenResults] = useState<string | null>(null);
 
   // ── Diagnostic ──
   const [diagRunning, setDiagRunning] = useState(false);
@@ -91,11 +101,24 @@ export function ServerSettings() {
 
   const installSharp = async () => {
     setSharpInstalling(true);
+    setSharpInstallResult(null);
     try {
       const r = await fetch(`${serverBase}/api/install-sharp`, { method: 'POST' });
       const d = await r.json();
-      toast.success(d.message || 'Installation lancée');
-    } catch {
+      setSharpInstallResult(d);
+      if (d.success) {
+        toast.success(d.message || 'Sharp installé avec succès');
+        setSharpInstalled(d.verified || false);
+        if (!d.verified) {
+          toast.info('Redémarrez le serveur pour activer Sharp');
+        }
+      } else {
+        toast.error(d.message || "Échec de l'installation");
+      }
+      // Re-check sharp status
+      checkSharp();
+    } catch (e) {
+      setSharpInstallResult({ success: false, message: "Erreur réseau lors de l'installation" });
       toast.error("Erreur lors de l'installation de sharp");
     } finally {
       setSharpInstalling(false);
@@ -122,6 +145,62 @@ export function ServerSettings() {
       fetchCacheStats();
     } catch {
       toast.error('Erreur lors du vidage du cache');
+    }
+  };
+
+  // ── Diagnostic cache ──
+  const runCacheDiagnostic = async () => {
+    setCacheDiagRunning(true);
+    setCacheDiagResults(null);
+    try {
+      const r = await fetch(`${serverBase}/api/cache-diagnostic`, { signal: AbortSignal.timeout(10000) });
+      const d = await r.json();
+      const lines = [
+        `=== Diagnostic Cache — ${new Date().toLocaleString()} ===`,
+        '',
+        `📁 Dossier cache: ${d.cacheDir}`,
+        `   Existe: ${d.cacheDirExists ? '✅ Oui' : '❌ Non'}`,
+        `   Inscriptible: ${d.cacheDirWritable ? '✅ Oui' : '❌ Non'}`,
+        '',
+        `🔧 Sharp: ${d.sharpAvailable ? '✅ Disponible' : '❌ Non installé'}`,
+        `🎬 FFmpeg: ${d.ffmpegAvailable ? '✅ Disponible' : '❌ Non trouvé'}`,
+        '',
+        `📊 Médias: ${d.totalMedia} fichier(s)`,
+        `   En cache: ${d.cachedCount}`,
+        `   Manquants: ${d.missingCount}`,
+        '',
+        ...(d.errors.length > 0 ? ['⚠️ Erreurs:', ...d.errors.map((e: string) => `   - ${e}`)] : ['✅ Aucune erreur']),
+      ];
+      setCacheDiagResults(lines.join('\n'));
+    } catch (err: any) {
+      setCacheDiagResults(`❌ Erreur: ${err.message || 'Impossible de contacter le serveur'}`);
+    } finally {
+      setCacheDiagRunning(false);
+    }
+  };
+
+  // ── Pré-générer les miniatures ──
+  const runPregenerate = async () => {
+    setPregenRunning(true);
+    setPregenResults(null);
+    try {
+      const r = await fetch(`${serverBase}/api/generate-thumbnails`, { method: 'POST' });
+      const d = await r.json();
+      const lines = [
+        `=== Pré-génération terminée ===`,
+        `Total: ${d.total} fichier(s)`,
+        `Générées: ${d.generated}`,
+        `Déjà en cache: ${d.skipped}`,
+        `Erreurs: ${d.errors}`,
+      ];
+      setPregenResults(lines.join('\n'));
+      toast.success(`${d.generated} miniature(s) générée(s)`);
+      fetchCacheStats();
+    } catch (err: any) {
+      setPregenResults(`❌ Erreur: ${err.message}`);
+      toast.error('Erreur lors de la pré-génération');
+    } finally {
+      setPregenRunning(false);
     }
   };
 
@@ -276,31 +355,50 @@ export function ServerSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border/50">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">sharp</p>
-              <p className="text-xs text-muted-foreground">
-                Génère des miniatures réduites (400px) au lieu de servir l'image originale. Réduit la bande passante et accélère le chargement de la galerie.
-              </p>
+          <div className="p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">sharp</p>
+                <p className="text-xs text-muted-foreground">
+                  Génère des miniatures réduites (400px) au lieu de servir l'image originale. Réduit la bande passante et accélère le chargement de la galerie.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                {sharpChecking ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : sharpInstalled === true ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
+                      <CheckCircle className="w-4 h-4" /> Installé
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={installSharp} disabled={sharpInstalling} className="gap-1 h-7 px-2">
+                      <RotateCcw className="w-3 h-3" />
+                      <span className="text-xs">Réinstaller</span>
+                    </Button>
+                  </div>
+                ) : sharpInstalled === false ? (
+                  <Button size="sm" onClick={installSharp} disabled={sharpInstalling} className="gap-1">
+                    {sharpInstalling && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {sharpInstalling ? 'Installation...' : 'Installer Sharp'}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {isMixedContent ? 'Ouvre l\'app en local' : 'Serveur non connecté'}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 ml-4">
-              {sharpChecking ? (
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              ) : sharpInstalled === true ? (
-                <span className="flex items-center gap-1 text-green-500 text-xs font-medium">
-                  <CheckCircle className="w-4 h-4" /> Installé
-                </span>
-              ) : sharpInstalled === false ? (
-                <Button size="sm" onClick={installSharp} disabled={sharpInstalling} className="gap-1">
-                  {sharpInstalling && <Loader2 className="w-3 h-3 animate-spin" />}
-                  Installer
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  {isMixedContent ? 'Ouvre l\'app en local' : 'Serveur non connecté'}
-                </span>
-              )}
-            </div>
+            {sharpInstalling && (
+              <Progress value={undefined} className="h-1.5" />
+            )}
+            {sharpInstallResult && (
+              <div className={cn("p-2 rounded text-xs border", sharpInstallResult.success ? "bg-emerald-500/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30")}>
+                <p className="font-medium">{sharpInstallResult.message}</p>
+                {sharpInstallResult.output && (
+                  <pre className="mt-1 text-[10px] max-h-32 overflow-y-auto whitespace-pre-wrap font-mono opacity-70">{sharpInstallResult.output}</pre>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -340,6 +438,27 @@ export function ServerSettings() {
               </Button>
             </div>
           </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={runPregenerate} disabled={pregenRunning || !isConnected} className="gap-1">
+              {pregenRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+              Pré-générer toutes les miniatures
+            </Button>
+            <Button size="sm" variant="outline" onClick={runCacheDiagnostic} disabled={cacheDiagRunning || !isConnected} className="gap-1">
+              {cacheDiagRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Stethoscope className="w-3 h-3" />}
+              Diagnostiquer le cache
+            </Button>
+          </div>
+
+          {pregenRunning && <Progress value={undefined} className="h-1.5" />}
+
+          {pregenResults && (
+            <pre className="text-xs bg-muted/50 border border-border/50 rounded-lg p-3 whitespace-pre-wrap font-mono">{pregenResults}</pre>
+          )}
+
+          {cacheDiagResults && (
+            <pre className="text-xs bg-muted/50 border border-border/50 rounded-lg p-3 whitespace-pre-wrap max-h-60 overflow-y-auto font-mono">{cacheDiagResults}</pre>
+          )}
         </CardContent>
       </Card>
 
