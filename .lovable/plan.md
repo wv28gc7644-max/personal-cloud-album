@@ -1,79 +1,103 @@
 
 
-# Corrections completes : Explorer, Sharp, Cache, Miniatures unifiees et Diagnostic
+# Installation de Sharp, cache fonctionnel et miniatures fiables
 
-## Problemes identifies et solutions
+## Diagnostic de la situation actuelle
 
-### 1. "Reveler dans l'explorateur" -- script PowerShell OEM intercepte la commande
+Le diagnostic serveur confirme :
+- Le serveur repond bien sur `/api/health` (200 OK)
+- Sharp **n'est pas installe** (`installed: false`)
+- Le cache est **vide** (0 fichiers)
 
-**Probleme** : Sur ta machine, un script `C:\Windows\OEM\Explorer.ps1` intercepte la commande `explorer`. Le `server.cjs` actuel utilise `exec('explorer /select,"...')` sans chemin absolu, donc Windows execute le script PowerShell au lieu de `explorer.exe`.
+Sans Sharp, les miniatures images sont servies en taille originale (lent, gros fichiers). Sans Sharp NI FFmpeg, les miniatures videos retournent un code 204 (vide) -- donc les cartes video restent blanches.
 
-**Solution** : Utiliser le chemin absolu `C:\\Windows\\explorer.exe` dans `server.cjs` (le fichier que tu telecharges depuis les parametres).
-
-| Fichier | Modification |
-|---------|-------------|
-| `server.cjs` ligne 415 | `exec('C:\\Windows\\explorer.exe /select,"' + winPath + '"', ...)` |
-| `src/assets/serverTemplate.ts` ligne 582 | Meme correction (template de secours) |
+De plus, un bug dans `MediaCardMinimal` fait que les images utilisent `src={item.url}` (fichier original) au lieu de `src={thumbnailUrl}` (miniature optimisee). Les miniatures serveur ne sont donc meme pas utilisees sur certaines vues.
 
 ---
 
-### 2. Sharp, Cache, boutons inactifs -- probleme de synchronisation serveur
+## Corrections prevues
 
-**Probleme** : Le fichier `server.cjs` dans le projet contient deja les endpoints `/api/check-sharp`, `/api/install-sharp`, `/api/cache-stats` et `DELETE /api/cache`. Mais quand tu telecharges via le bouton dans "Mises a jour", c'est bien CE fichier qui est telecharge (`import('../../../server.cjs?raw')`). Donc si tu as bien remplace et redemarre, ces endpoints devraient fonctionner.
+### 1. Installation de Sharp amelioree (server.cjs + serverTemplate.ts)
 
-**Solution pour debugger** : Ajouter un **bouton de diagnostic** dans `ServerSettings.tsx` qui :
-- Appelle `/api/health`, `/api/check-sharp`, `/api/cache-stats` en sequence
-- Affiche les resultats detailles (reponse HTTP, erreur, contenu) directement dans l'interface
-- Permet de copier le rapport pour me l'envoyer
+Le probleme actuel : `npm install sharp` est lance dans le dossier du serveur, mais il n'y a probablement pas de `package.json` dans ce dossier, ce qui peut causer des erreurs silencieuses.
 
-Cela permettra de comprendre exactement pourquoi ca ne repond pas (serveur pas demarre, mauvais port, vieux fichier, etc.)
+**Corrections :**
+- Avant d'executer `npm install sharp`, verifier/creer un `package.json` minimal dans le dossier du serveur s'il n'existe pas
+- Attendre la fin de l'installation avant de repondre (au lieu de repondre immediatement "Installation lancee")
+- Retourner le stdout + stderr complet pour savoir exactement ce qui s'est passe
+- Ajouter un endpoint `/api/install-sharp-status` pour verifier l'avancement si l'installation prend du temps
 
-| Fichier | Modification |
-|---------|-------------|
-| `src/components/settings/ServerSettings.tsx` | Ajouter un bouton "Diagnostic" qui teste chaque endpoint et affiche les resultats |
+### 2. Interface d'installation Sharp amelioree (ServerSettings.tsx)
+
+**Corrections :**
+- Le bouton "Installer" affichera un spinner + barre de progression
+- Apres l'installation, re-verifier automatiquement le statut de Sharp
+- Afficher un message clair : "Sharp installe avec succes. Redemarrez le serveur pour activer les miniatures."
+- En cas d'erreur, afficher les details de l'erreur (stdout/stderr du npm install)
+- Ajouter un bouton "Reinstaller" visible meme quand Sharp est deja installe
+
+### 3. Bouton "Pre-generer le cache" (server.cjs + ServerSettings.tsx)
+
+Un nouveau endpoint `/api/generate-thumbnails` qui :
+- Parcourt tous les fichiers medias du dossier
+- Genere les miniatures une par une (images via sharp, videos via ffmpeg)
+- Retourne le nombre de miniatures generees
+
+Dans l'interface, un bouton "Pre-generer toutes les miniatures" dans la carte Cache qui lance cette operation et affiche la progression.
+
+### 4. Diagnostic specifique au cache (ServerSettings.tsx)
+
+Un bouton "Diagnostiquer le cache" qui teste :
+- Est-ce que le dossier `.thumbnail-cache` existe ?
+- Est-ce que Sharp peut generer une miniature test ?
+- Est-ce que FFmpeg est disponible pour les videos ?
+- Combien de fichiers media n'ont pas encore de miniature en cache ?
+
+Le rapport s'affiche directement dans l'interface.
+
+### 5. Corriger les miniatures sur toutes les vues
+
+**MediaCardMinimal.tsx** (ligne 125-126) : les images utilisent `src={item.url}` au lieu de `src={thumbnailUrl || item.url}`. Cela charge le fichier original entier au lieu de la miniature optimisee.
+
+**Correction sur tous les composants :**
+
+| Composant | Correction |
+|-----------|-----------|
+| `MediaCardMinimal.tsx` | Changer `src={item.url}` en `src={thumbnailUrl &#x7C;&#x7C; item.url}` pour les images |
+| `MediaCardAdaptive.tsx` | Deja correct (`src={item.thumbnailUrl &#x7C;&#x7C; item.url}`) |
+| `MediaCardTwitter.tsx` | Deja correct (`src={thumbnailUrl &#x7C;&#x7C; item.url}`) |
 
 ---
 
-### 3. Miniatures videos non unifiees sur toutes les grilles
+## Details techniques
 
-**Probleme** : Seul `MediaCardTwitter.tsx` utilise les reglages de previsualisation video (`getVideoPreviewSettings`). Les autres composants (`MediaCardMinimal`, `MediaCardAdaptive`, `MediaCardMulti`) ont `preload="metadata"` (charge des donnees video inutilement) et ne respectent pas le delai de survol ni la duree de previsualisation.
-
-**Corrections par fichier** :
+### Fichiers modifies
 
 | Fichier | Modifications |
 |---------|--------------|
-| `src/components/MediaCardMinimal.tsx` | Changer `preload="metadata"` en `preload="none"`. Importer `getVideoPreviewSettings`. Ajouter des refs `hoverTimerRef`/`previewTimerRef`. Modifier `handleMouseEnter`/`handleMouseLeave` pour appliquer le delai et la duree configures (meme logique que `MediaCardTwitter.tsx`). |
-| `src/components/MediaCardAdaptive.tsx` | Changer `preload="metadata"` en `preload="none"`. Supprimer le `document.createElement('video')` (lignes 42-49) qui charge la video entiere juste pour obtenir le ratio -- utiliser `16/9` par defaut pour les videos. Ajouter la logique de survol avec delai/duree comme `MediaCardTwitter.tsx`. |
-| `src/components/MediaCardMulti.tsx` | Ajouter `preload="none"` sur les deux elements `<video>` (lignes 77 et 170). |
-| `src/components/MediaInfoDialog.tsx` | Changer `preload="metadata"` en `preload="none"` (ligne 148). |
+| `server.cjs` | Creer `package.json` avant `npm install sharp`, attendre la fin, retourner le resultat complet. Ajouter `/api/generate-thumbnails` pour pre-generer le cache. Ajouter `/api/cache-diagnostic` pour tester le cache. |
+| `src/assets/serverTemplate.ts` | Memes corrections que server.cjs |
+| `src/components/settings/ServerSettings.tsx` | Ameliorer le flux d'installation Sharp (spinner, resultat, re-verification auto). Ajouter bouton "Pre-generer le cache". Ajouter bouton "Diagnostiquer le cache". |
+| `src/components/MediaCardMinimal.tsx` | Corriger `src={item.url}` en `src={thumbnailUrl &#x7C;&#x7C; item.url}` pour les images |
 
----
+### Flux d'installation Sharp (cote serveur)
 
-### 4. Bouton de diagnostic serveur (nouveau)
+```text
+POST /api/install-sharp
+  1. Verifier si package.json existe dans __dirname
+     -> Si non, creer { "name": "mediavault-server", "private": true }
+  2. Executer: npm install sharp --save
+  3. Attendre la fin (timeout 120s)
+  4. Retourner: { success: true/false, output: "...", message: "..." }
+```
 
-Un nouveau bouton "Tester les endpoints" dans la carte "Connexion au serveur local" qui :
-1. Appelle `/api/health` et affiche le resultat
-2. Appelle `/api/check-sharp` et affiche si sharp est detecte
-3. Appelle `/api/cache-stats` et affiche les stats du cache
-4. En cas d'erreur, affiche le message exact pour que tu puisses me le copier-coller
+### Flux pre-generation du cache (cote serveur)
 
-Le resultat s'affiche dans un bloc de texte dans l'interface, pas besoin d'ouvrir le terminal.
-
-| Fichier | Modification |
-|---------|-------------|
-| `src/components/settings/ServerSettings.tsx` | Ajouter un bouton "Diagnostic complet" et un bloc d'affichage des resultats |
-
----
-
-## Resume de tous les fichiers modifies
-
-| Fichier | Actions |
-|---------|---------|
-| `server.cjs` | Chemin absolu `C:\Windows\explorer.exe` pour reveal |
-| `src/assets/serverTemplate.ts` | Meme correction reveal |
-| `src/components/settings/ServerSettings.tsx` | Ajouter bouton diagnostic avec affichage resultats |
-| `src/components/MediaCardMinimal.tsx` | `preload="none"`, delai/duree de survol unifies |
-| `src/components/MediaCardAdaptive.tsx` | `preload="none"`, supprimer chargement video pour ratio, ajouter hover avec delai |
-| `src/components/MediaCardMulti.tsx` | Ajouter `preload="none"` sur les 2 video |
-| `src/components/MediaInfoDialog.tsx` | `preload="none"` |
+```text
+POST /api/generate-thumbnails
+  1. Lister tous les fichiers media du MEDIA_FOLDER
+  2. Pour chaque fichier, verifier si une miniature existe dans .thumbnail-cache
+  3. Si non, generer la miniature (sharp pour images, ffmpeg pour videos)
+  4. Retourner: { total: N, generated: M, skipped: S, errors: E }
+```
 
