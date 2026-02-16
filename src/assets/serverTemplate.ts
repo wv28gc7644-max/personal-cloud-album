@@ -452,10 +452,11 @@ const server = http.createServer(async (req, res) => {
               const stats = fs.statSync(abs);
               const ext = path.extname(entry.name).toLowerCase();
               const urlPath = rel.split(path.sep).map(encodeURIComponent).join('/');
+              const encodedAbsPath = Buffer.from(abs).toString('base64url');
               out.push({
                 name: rel,
                 url: \`http://localhost:\${PORT}/media/\${urlPath}\`,
-                thumbnailUrl: \`http://localhost:\${PORT}/media/\${urlPath}\`,
+                thumbnailUrl: \`http://localhost:\${PORT}/api/thumbnail/\${encodedAbsPath}\`,
                 size: stats.size,
                 type: ['.mp4', '.webm', '.mov'].includes(ext) ? 'video' : 
                       ['.mp3', '.wav'].includes(ext) ? 'audio' : 'image',
@@ -612,13 +613,29 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === '/api/install-sharp' && req.method === 'POST') {
       try {
-        const child = spawn('npm', ['install', 'sharp'], { cwd: __dirname, shell: true });
+        addLog('info', 'server', 'Installation de sharp en cours...');
+        // Creer package.json s'il n'existe pas (requis pour npm install)
+        const pkgPath = path.join(__dirname, 'package.json');
+        if (!fs.existsSync(pkgPath)) {
+          fs.writeFileSync(pkgPath, JSON.stringify({ name: 'mediavault-server', private: true, dependencies: {} }, null, 2));
+          addLog('info', 'server', 'package.json cree automatiquement');
+        }
+        const child = spawn('npm', ['install', 'sharp', '--save'], { cwd: __dirname, shell: true });
         let output = '';
         child.stdout.on('data', (d) => { output += d.toString(); });
         child.stderr.on('data', (d) => { output += d.toString(); });
         child.on('close', (code) => {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: code === 0, message: code === 0 ? 'sharp installe avec succes. Redemarrez le serveur.' : 'Echec installation', output }));
+          if (code === 0) {
+            addLog('info', 'server', 'sharp installe avec succes');
+            let verified = false;
+            try { delete require.cache[require.resolve('sharp')]; require('sharp'); verified = true; } catch {}
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, verified, message: verified ? 'Sharp installe et verifie !' : 'Sharp installe mais necessite un redemarrage du serveur.', output: output.trim() }));
+          } else {
+            addLog('error', 'server', 'Echec installation sharp: ' + output);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: false, message: 'Echec installation', output: output.trim() }));
+          }
         });
         child.on('error', (err) => {
           res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -676,6 +693,67 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: e.message }));
       }
+    }
+
+    // ===================================================================
+    // API: Diagnostic du cache
+    // ===================================================================
+
+    if (pathname === '/api/cache-diagnostic' && req.method === 'GET') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      const results = { cacheDir, cacheDirExists: false, cacheDirWritable: false, sharpAvailable: false, ffmpegAvailable: false, totalMedia: 0, cachedCount: 0, missingCount: 0, errors: [] };
+      try {
+        if (fs.existsSync(cacheDir)) {
+          results.cacheDirExists = true;
+          const testFile = path.join(cacheDir, '__test_write__');
+          try { fs.writeFileSync(testFile, 'test'); fs.unlinkSync(testFile); results.cacheDirWritable = true; } catch (e) { results.errors.push('Cache non inscriptible: ' + e.message); }
+        } else {
+          try { fs.mkdirSync(cacheDir, { recursive: true }); results.cacheDirExists = true; results.cacheDirWritable = true; } catch (e) { results.errors.push('Impossible de creer le cache: ' + e.message); }
+        }
+      } catch (e) { results.errors.push('Erreur acces cache: ' + e.message); }
+      try { require('sharp'); results.sharpAvailable = true; } catch { results.errors.push('Sharp non disponible'); }
+      try {
+        await new Promise((resolve) => { exec('ffmpeg -version', { timeout: 5000 }, (err) => { results.ffmpegAvailable = !err; resolve(); }); });
+      } catch {}
+      const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav)$/i.test(name);
+      const countFiles = (dir) => { let c = 0; try { const e = fs.readdirSync(dir, { withFileTypes: true }); for (const i of e) { if (i.isDirectory()) c += countFiles(path.join(dir, i.name)); else if (i.isFile() && isSupported(i.name)) c++; } } catch {} return c; };
+      results.totalMedia = countFiles(MEDIA_FOLDER);
+      try { results.cachedCount = results.cacheDirExists ? fs.readdirSync(cacheDir).length : 0; } catch {}
+      results.missingCount = Math.max(0, results.totalMedia - results.cachedCount);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    }
+
+    // ===================================================================
+    // API: Pre-generer toutes les miniatures
+    // ===================================================================
+
+    if (pathname === '/api/generate-thumbnails' && req.method === 'POST') {
+      const cacheDir = path.join(__dirname, '.thumbnail-cache');
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+      let sharpModule = null;
+      try { sharpModule = require('sharp'); } catch {}
+      const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov)$/i.test(name);
+      const isImage = (ext) => ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+      const isVideo = (ext) => ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
+      const allFiles = [];
+      const collectFiles = (dir) => { try { const e = fs.readdirSync(dir, { withFileTypes: true }); for (const i of e) { const a = path.join(dir, i.name); if (i.isDirectory()) collectFiles(a); else if (i.isFile() && isSupported(i.name)) allFiles.push(a); } } catch {} };
+      collectFiles(MEDIA_FOLDER);
+      let generated = 0, skipped = 0, errors = 0;
+      for (const filePath of allFiles) {
+        const hash = Buffer.from(filePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const cachePath = path.join(cacheDir, hash + '.jpg');
+        if (fs.existsSync(cachePath)) { skipped++; continue; }
+        const ext = path.extname(filePath).toLowerCase();
+        if (isImage(ext) && sharpModule) {
+          try { const buf = await sharpModule(filePath).resize(400, 400, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(); fs.writeFileSync(cachePath, buf); generated++; } catch { errors++; }
+        } else if (isVideo(ext)) {
+          try { await new Promise((resolve, reject) => { exec(\`ffmpeg -i "\${filePath}" -ss 00:00:01 -vframes 1 -vf "scale=400:-2" -q:v 5 "\${cachePath}" -y\`, { timeout: 15000 }, (error) => error ? reject(error) : resolve()); }); if (fs.existsSync(cachePath)) generated++; else errors++; } catch { errors++; }
+        } else { skipped++; }
+      }
+      addLog('info', 'server', \`Pre-generation terminee: \${generated} generees, \${skipped} deja en cache, \${errors} erreurs sur \${allFiles.length} fichiers\`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors }));
     }
 
     // ===================================================================
