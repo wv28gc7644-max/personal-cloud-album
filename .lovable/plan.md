@@ -1,71 +1,49 @@
 
 
-# Installation de Sharp, cache fonctionnel et miniatures fiables
+# Corrections : Cache fonctionnel, auto-connexion et curseurs de prechargement
 
-## Diagnostic de la situation actuelle
+## Problemes identifies
 
-Le diagnostic serveur confirme :
-- Le serveur repond bien sur `/api/health` (200 OK)
-- Sharp **n'est pas installe** (`installed: false`)
-- Le cache est **vide** (0 fichiers)
+### 1. "Total: 0 fichiers" lors de la pre-generation
+Le endpoint `/api/generate-thumbnails` ne scanne que `MEDIA_FOLDER` (`C:\Users\jimmy\Pictures`). Or les medias de l'utilisateur sont dans des **dossiers lies** (linked folders) stockes dans `data.json`. Ces dossiers ne sont pas du tout parcourus par la pre-generation, d'ou le resultat "total: 0".
 
-Sans Sharp, les miniatures images sont servies en taille originale (lent, gros fichiers). Sans Sharp NI FFmpeg, les miniatures videos retournent un code 204 (vide) -- donc les cartes video restent blanches.
+**Meme probleme** dans `/api/cache-diagnostic` : il ne compte que les fichiers de `MEDIA_FOLDER`, pas les dossiers lies.
 
-De plus, un bug dans `MediaCardMinimal` fait que les images utilisent `src={item.url}` (fichier original) au lieu de `src={thumbnailUrl}` (miniature optimisee). Les miniatures serveur ne sont donc meme pas utilisees sur certaines vues.
+### 2. Pas d'auto-connexion
+L'utilisateur doit cliquer manuellement "Tester la connexion" pour debloquer les boutons Sharp et Cache. Il n'y a aucun `useEffect` d'auto-connexion au montage du composant.
+
+### 3. Pas de curseurs de prechargement avance
+La carte "Previsualisation video" ne contient que le delai de survol et la duree de previsualisation. Il manque les 3 curseurs demandes.
 
 ---
 
 ## Corrections prevues
 
-### 1. Installation de Sharp amelioree (server.cjs + serverTemplate.ts)
+### 1. Pre-generation qui inclut les dossiers lies (server.cjs + serverTemplate.ts)
 
-Le probleme actuel : `npm install sharp` est lance dans le dossier du serveur, mais il n'y a probablement pas de `package.json` dans ce dossier, ce qui peut causer des erreurs silencieuses.
+Modifier `/api/generate-thumbnails` pour :
+1. Scanner `MEDIA_FOLDER` (comme avant)
+2. Lire `data.json` pour obtenir la liste des `linkedFolders`
+3. Scanner chaque dossier lie egalement
+4. Generer les miniatures pour TOUS les fichiers trouves
 
-**Corrections :**
-- Avant d'executer `npm install sharp`, verifier/creer un `package.json` minimal dans le dossier du serveur s'il n'existe pas
-- Attendre la fin de l'installation avant de repondre (au lieu de repondre immediatement "Installation lancee")
-- Retourner le stdout + stderr complet pour savoir exactement ce qui s'est passe
-- Ajouter un endpoint `/api/install-sharp-status` pour verifier l'avancement si l'installation prend du temps
+Meme correction pour `/api/cache-diagnostic` : compter les medias de TOUS les dossiers (pas seulement MEDIA_FOLDER).
 
-### 2. Interface d'installation Sharp amelioree (ServerSettings.tsx)
+### 2. Auto-connexion au montage (ServerSettings.tsx)
 
-**Corrections :**
-- Le bouton "Installer" affichera un spinner + barre de progression
-- Apres l'installation, re-verifier automatiquement le statut de Sharp
-- Afficher un message clair : "Sharp installe avec succes. Redemarrez le serveur pour activer les miniatures."
-- En cas d'erreur, afficher les details de l'erreur (stdout/stderr du npm install)
-- Ajouter un bouton "Reinstaller" visible meme quand Sharp est deja installe
+Ajouter un `useEffect` qui appelle `testConnection({ silent: true })` des le montage du composant. Plus besoin de cliquer manuellement.
 
-### 3. Bouton "Pre-generer le cache" (server.cjs + ServerSettings.tsx)
+### 3. Trois curseurs de prechargement avance (ServerSettings.tsx)
 
-Un nouveau endpoint `/api/generate-thumbnails` qui :
-- Parcourt tous les fichiers medias du dossier
-- Genere les miniatures une par une (images via sharp, videos via ffmpeg)
-- Retourne le nombre de miniatures generees
+Ajouter dans la carte "Previsualisation video" une nouvelle section avec :
 
-Dans l'interface, un bouton "Pre-generer toutes les miniatures" dans la carte Cache qui lance cette operation et affiche la progression.
+| Curseur | Fonction | Plage |
+|---------|----------|-------|
+| **Medias precharges** | Nombre total de medias dont la miniature est chargee en avance | 0 a "Tous" (illimite) avec champ de saisie libre |
+| **Lignes pre-scroll** | Nombre de lignes preparees sous l'ecran visible | 0 a "Toutes" (illimite) avec champ de saisie libre |
+| **Tampon video (secondes)** | Duree de video prebufferisee en avance | 0s a "Illimite" avec graduations secondes/minutes/heures |
 
-### 4. Diagnostic specifique au cache (ServerSettings.tsx)
-
-Un bouton "Diagnostiquer le cache" qui teste :
-- Est-ce que le dossier `.thumbnail-cache` existe ?
-- Est-ce que Sharp peut generer une miniature test ?
-- Est-ce que FFmpeg est disponible pour les videos ?
-- Combien de fichiers media n'ont pas encore de miniature en cache ?
-
-Le rapport s'affiche directement dans l'interface.
-
-### 5. Corriger les miniatures sur toutes les vues
-
-**MediaCardMinimal.tsx** (ligne 125-126) : les images utilisent `src={item.url}` au lieu de `src={thumbnailUrl || item.url}`. Cela charge le fichier original entier au lieu de la miniature optimisee.
-
-**Correction sur tous les composants :**
-
-| Composant | Correction |
-|-----------|-----------|
-| `MediaCardMinimal.tsx` | Changer `src={item.url}` en `src={thumbnailUrl &#x7C;&#x7C; item.url}` pour les images |
-| `MediaCardAdaptive.tsx` | Deja correct (`src={item.thumbnailUrl &#x7C;&#x7C; item.url}`) |
-| `MediaCardTwitter.tsx` | Deja correct (`src={thumbnailUrl &#x7C;&#x7C; item.url}`) |
+Valeur `-1` = illimite pour chaque curseur. Les valeurs sont stockees dans localStorage via `VideoPreviewSettings`.
 
 ---
 
@@ -75,29 +53,28 @@ Le rapport s'affiche directement dans l'interface.
 
 | Fichier | Modifications |
 |---------|--------------|
-| `server.cjs` | Creer `package.json` avant `npm install sharp`, attendre la fin, retourner le resultat complet. Ajouter `/api/generate-thumbnails` pour pre-generer le cache. Ajouter `/api/cache-diagnostic` pour tester le cache. |
+| `server.cjs` | `/api/generate-thumbnails` : scanner aussi les linkedFolders de data.json. `/api/cache-diagnostic` : compter aussi les medias des linkedFolders. |
 | `src/assets/serverTemplate.ts` | Memes corrections que server.cjs |
-| `src/components/settings/ServerSettings.tsx` | Ameliorer le flux d'installation Sharp (spinner, resultat, re-verification auto). Ajouter bouton "Pre-generer le cache". Ajouter bouton "Diagnostiquer le cache". |
-| `src/components/MediaCardMinimal.tsx` | Corriger `src={item.url}` en `src={thumbnailUrl &#x7C;&#x7C; item.url}` pour les images |
+| `src/components/settings/ServerSettings.tsx` | Ajouter `useEffect` auto-connexion. Ajouter 3 curseurs de prechargement dans la carte "Previsualisation video". Etendre `VideoPreviewSettings` avec `preloadMediaCount`, `preloadScrollRows`, `preloadBufferSeconds`. |
 
-### Flux d'installation Sharp (cote serveur)
-
-```text
-POST /api/install-sharp
-  1. Verifier si package.json existe dans __dirname
-     -> Si non, creer { "name": "mediavault-server", "private": true }
-  2. Executer: npm install sharp --save
-  3. Attendre la fin (timeout 120s)
-  4. Retourner: { success: true/false, output: "...", message: "..." }
-```
-
-### Flux pre-generation du cache (cote serveur)
+### Correction du scan dans generate-thumbnails
 
 ```text
 POST /api/generate-thumbnails
-  1. Lister tous les fichiers media du MEDIA_FOLDER
-  2. Pour chaque fichier, verifier si une miniature existe dans .thumbnail-cache
-  3. Si non, generer la miniature (sharp pour images, ffmpeg pour videos)
-  4. Retourner: { total: N, generated: M, skipped: S, errors: E }
+  1. Collecter fichiers de MEDIA_FOLDER (existant)
+  2. NOUVEAU: Lire data.json → linkedFolders
+  3. Pour chaque linkedFolder, scanner recursivement
+  4. Fusionner toutes les listes (dedupliquer par chemin absolu)
+  5. Generer les miniatures manquantes
+  6. Retourner { total, generated, skipped, errors, mediaFolder, linkedFoldersScanned }
 ```
+
+### Chemin d'acces pour l'utilisateur
+
+Tout se trouve dans **Parametres → Serveur local** :
+- **Auto-connexion** : automatique au chargement de la page, plus besoin de cliquer
+- **Installer Sharp** : carte "Dependances serveur" → bouton visible des la connexion
+- **Pre-generer les miniatures** : carte "Cache des miniatures" → bouton "Pre-generer toutes les miniatures" (scannera maintenant TOUS vos dossiers)
+- **Diagnostiquer le cache** : carte "Cache des miniatures" → bouton "Diagnostiquer le cache"
+- **Curseurs de prechargement** : carte "Previsualisation video" → section "Prechargement avance" (3 curseurs + champs de saisie)
 
