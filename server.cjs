@@ -566,7 +566,7 @@ const server = http.createServer(async (req, res) => {
         } catch {}
       }
       
-      // 4. Compter les médias et les miniatures en cache
+      // 4. Compter les médias et les miniatures en cache (MEDIA_FOLDER + linkedFolders)
       const isSupported = (name) => /\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav)$/i.test(name);
       const countFiles = (dir) => {
         let count = 0;
@@ -580,6 +580,17 @@ const server = http.createServer(async (req, res) => {
         return count;
       };
       results.totalMedia = countFiles(MEDIA_FOLDER);
+      // Scanner aussi les dossiers liés
+      try {
+        const dataContent = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const linkedFolders = dataContent.linkedFolders || [];
+        results.linkedFoldersScanned = linkedFolders.length;
+        for (const lf of linkedFolders) {
+          if (lf.path && fs.existsSync(lf.path)) {
+            results.totalMedia += countFiles(lf.path);
+          }
+        }
+      } catch {}
       try { results.cachedCount = results.cacheDirExists ? fs.readdirSync(cacheDir).length : 0; } catch {}
       results.missingCount = Math.max(0, results.totalMedia - results.cachedCount);
       
@@ -602,19 +613,35 @@ const server = http.createServer(async (req, res) => {
       const isImage = (ext) => ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'].includes(ext);
       const isVideo = (ext) => ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
       
-      // Collecter tous les fichiers
+      // Collecter tous les fichiers (MEDIA_FOLDER + linkedFolders)
       const allFiles = [];
+      const seenPaths = new Set();
       const collectFiles = (dir) => {
         try {
           const entries = fs.readdirSync(dir, { withFileTypes: true });
           for (const entry of entries) {
             const abs = path.join(dir, entry.name);
             if (entry.isDirectory()) collectFiles(abs);
-            else if (entry.isFile() && isSupported(entry.name)) allFiles.push(abs);
+            else if (entry.isFile() && isSupported(entry.name) && !seenPaths.has(abs)) {
+              seenPaths.add(abs);
+              allFiles.push(abs);
+            }
           }
         } catch {}
       };
       collectFiles(MEDIA_FOLDER);
+      // Scanner les dossiers liés depuis data.json
+      let linkedFoldersScanned = 0;
+      try {
+        const dataContent = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const linkedFolders = dataContent.linkedFolders || [];
+        for (const lf of linkedFolders) {
+          if (lf.path && fs.existsSync(lf.path)) {
+            collectFiles(lf.path);
+            linkedFoldersScanned++;
+          }
+        }
+      } catch {}
       
       let generated = 0, skipped = 0, errors = 0;
       
@@ -648,9 +675,9 @@ const server = http.createServer(async (req, res) => {
         }
       }
       
-      addLog('info', 'server', `Pré-génération terminée: ${generated} générées, ${skipped} déjà en cache, ${errors} erreurs sur ${allFiles.length} fichiers`);
+      addLog('info', 'server', `Pré-génération terminée: ${generated} générées, ${skipped} déjà en cache, ${errors} erreurs sur ${allFiles.length} fichiers (${linkedFoldersScanned} dossiers liés)`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors }));
+      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors, linkedFoldersScanned }));
     }
 
     // Rapport diagnostic exportable (à envoyer au support)

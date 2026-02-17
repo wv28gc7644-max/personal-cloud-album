@@ -718,6 +718,17 @@ const server = http.createServer(async (req, res) => {
       const isSupported = (name) => /\\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|mp3|wav)$/i.test(name);
       const countFiles = (dir) => { let c = 0; try { const e = fs.readdirSync(dir, { withFileTypes: true }); for (const i of e) { if (i.isDirectory()) c += countFiles(path.join(dir, i.name)); else if (i.isFile() && isSupported(i.name)) c++; } } catch {} return c; };
       results.totalMedia = countFiles(MEDIA_FOLDER);
+      // Scanner aussi les dossiers lies
+      try {
+        const dataContent = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const linkedFolders = dataContent.linkedFolders || [];
+        results.linkedFoldersScanned = linkedFolders.length;
+        for (const lf of linkedFolders) {
+          if (lf.path && fs.existsSync(lf.path)) {
+            results.totalMedia += countFiles(lf.path);
+          }
+        }
+      } catch {}
       try { results.cachedCount = results.cacheDirExists ? fs.readdirSync(cacheDir).length : 0; } catch {}
       results.missingCount = Math.max(0, results.totalMedia - results.cachedCount);
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -737,8 +748,21 @@ const server = http.createServer(async (req, res) => {
       const isImage = (ext) => ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
       const isVideo = (ext) => ['.mp4', '.webm', '.mov', '.avi', '.mkv'].includes(ext);
       const allFiles = [];
-      const collectFiles = (dir) => { try { const e = fs.readdirSync(dir, { withFileTypes: true }); for (const i of e) { const a = path.join(dir, i.name); if (i.isDirectory()) collectFiles(a); else if (i.isFile() && isSupported(i.name)) allFiles.push(a); } } catch {} };
+      const seenPaths = new Set();
+      const collectFiles = (dir) => { try { const e = fs.readdirSync(dir, { withFileTypes: true }); for (const i of e) { const a = path.join(dir, i.name); if (i.isDirectory()) collectFiles(a); else if (i.isFile() && isSupported(i.name) && !seenPaths.has(a)) { seenPaths.add(a); allFiles.push(a); } } } catch {} };
       collectFiles(MEDIA_FOLDER);
+      // Scanner les dossiers lies depuis data.json
+      let linkedFoldersScanned = 0;
+      try {
+        const dataContent = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        const linkedFolders = dataContent.linkedFolders || [];
+        for (const lf of linkedFolders) {
+          if (lf.path && fs.existsSync(lf.path)) {
+            collectFiles(lf.path);
+            linkedFoldersScanned++;
+          }
+        }
+      } catch {}
       let generated = 0, skipped = 0, errors = 0;
       for (const filePath of allFiles) {
         const hash = Buffer.from(filePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
@@ -751,9 +775,9 @@ const server = http.createServer(async (req, res) => {
           try { await new Promise((resolve, reject) => { exec(\`ffmpeg -i "\${filePath}" -ss 00:00:01 -vframes 1 -vf "scale=400:-2" -q:v 5 "\${cachePath}" -y\`, { timeout: 15000 }, (error) => error ? reject(error) : resolve()); }); if (fs.existsSync(cachePath)) generated++; else errors++; } catch { errors++; }
         } else { skipped++; }
       }
-      addLog('info', 'server', \`Pre-generation terminee: \${generated} generees, \${skipped} deja en cache, \${errors} erreurs sur \${allFiles.length} fichiers\`);
+      addLog('info', 'server', \`Pre-generation terminee: \${generated} generees, \${skipped} deja en cache, \${errors} erreurs sur \${allFiles.length} fichiers (\${linkedFoldersScanned} dossiers lies)\`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors }));
+      return res.end(JSON.stringify({ total: allFiles.length, generated, skipped, errors, linkedFoldersScanned }));
     }
 
     // ===================================================================

@@ -20,6 +20,9 @@ export interface VideoPreviewSettings {
   hoverDelayMs: number;
   previewEnabled: boolean;
   previewDurationSec: number;
+  preloadMediaCount: number;   // 0 = rien, -1 = tous
+  preloadScrollRows: number;   // 0 = écran visible seulement, -1 = toutes
+  preloadBufferSeconds: number; // 0 = rien, -1 = illimité
 }
 
 export const defaultVideoSettings: VideoPreviewSettings = {
@@ -27,6 +30,9 @@ export const defaultVideoSettings: VideoPreviewSettings = {
   hoverDelayMs: 500,
   previewEnabled: true,
   previewDurationSec: 5,
+  preloadMediaCount: 0,
+  preloadScrollRows: 0,
+  preloadBufferSeconds: 0,
 };
 
 export const getVideoPreviewSettings = (): VideoPreviewSettings => {
@@ -78,6 +84,11 @@ export function ServerSettings() {
   const isMixedContent = typeof window !== 'undefined'
     && window.location.protocol === 'https:'
     && /^http:\/\//i.test(serverBase);
+
+  // ── Auto-connexion au montage ──
+  useEffect(() => {
+    testConnection({ silent: true });
+  }, []);
 
   // ── Fetch sharp status + cache on mount ──
   useEffect(() => {
@@ -166,6 +177,7 @@ export function ServerSettings() {
         `🎬 FFmpeg: ${d.ffmpegAvailable ? '✅ Disponible' : '❌ Non trouvé'}`,
         '',
         `📊 Médias: ${d.totalMedia} fichier(s)`,
+        ...(d.linkedFoldersScanned != null ? [`   Dossiers liés scannés: ${d.linkedFoldersScanned}`] : []),
         `   En cache: ${d.cachedCount}`,
         `   Manquants: ${d.missingCount}`,
         '',
@@ -192,6 +204,7 @@ export function ServerSettings() {
         `Générées: ${d.generated}`,
         `Déjà en cache: ${d.skipped}`,
         `Erreurs: ${d.errors}`,
+        ...(d.linkedFoldersScanned != null ? [`Dossiers liés scannés: ${d.linkedFoldersScanned}`] : []),
       ];
       setPregenResults(lines.join('\n'));
       toast.success(`${d.generated} miniature(s) générée(s)`);
@@ -563,6 +576,94 @@ export function ServerSettings() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* ── Préchargement avancé ── */}
+          <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Préchargement avancé</p>
+              <p className="text-xs text-muted-foreground">
+                Contrôlez la quantité de contenu chargé en avance pour fluidifier la navigation. Valeurs élevées = plus de RAM/réseau utilisés.
+              </p>
+            </div>
+
+            {/* Médias préchargés */}
+            <div className="space-y-2">
+              <Label className="text-xs">Médias préchargés</Label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  min={-1}
+                  max={500}
+                  step={10}
+                  value={[videoSettings.preloadMediaCount]}
+                  onValueChange={([v]) => updateVideo({ preloadMediaCount: v })}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min={-1}
+                  max={9999}
+                  value={videoSettings.preloadMediaCount}
+                  onChange={(e) => updateVideo({ preloadMediaCount: Math.max(-1, Number(e.target.value) || 0) })}
+                  className="w-20 h-8 text-xs"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {videoSettings.preloadMediaCount === -1 ? '♾️ Tous les médias' : videoSettings.preloadMediaCount === 0 ? 'Aucun préchargement' : `${videoSettings.preloadMediaCount} médias`}
+              </p>
+            </div>
+
+            {/* Lignes pre-scroll */}
+            <div className="space-y-2">
+              <Label className="text-xs">Lignes pré-scroll</Label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  min={-1}
+                  max={50}
+                  step={1}
+                  value={[videoSettings.preloadScrollRows]}
+                  onValueChange={([v]) => updateVideo({ preloadScrollRows: v })}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min={-1}
+                  max={999}
+                  value={videoSettings.preloadScrollRows}
+                  onChange={(e) => updateVideo({ preloadScrollRows: Math.max(-1, Number(e.target.value) || 0) })}
+                  className="w-20 h-8 text-xs"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {videoSettings.preloadScrollRows === -1 ? '♾️ Toutes les lignes' : videoSettings.preloadScrollRows === 0 ? 'Écran visible uniquement' : `${videoSettings.preloadScrollRows} ligne(s) en avance`}
+              </p>
+            </div>
+
+            {/* Tampon vidéo */}
+            <div className="space-y-2">
+              <Label className="text-xs">Tampon vidéo (secondes)</Label>
+              <div className="flex items-center gap-2">
+                <Slider
+                  min={-1}
+                  max={300}
+                  step={5}
+                  value={[videoSettings.preloadBufferSeconds]}
+                  onValueChange={([v]) => updateVideo({ preloadBufferSeconds: v })}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  min={-1}
+                  max={3600}
+                  value={videoSettings.preloadBufferSeconds}
+                  onChange={(e) => updateVideo({ preloadBufferSeconds: Math.max(-1, Number(e.target.value) || 0) })}
+                  className="w-20 h-8 text-xs"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {videoSettings.preloadBufferSeconds === -1 ? '♾️ Illimité' : videoSettings.preloadBufferSeconds === 0 ? 'Aucun tampon' : videoSettings.preloadBufferSeconds >= 60 ? `${Math.floor(videoSettings.preloadBufferSeconds / 60)}min ${videoSettings.preloadBufferSeconds % 60}s` : `${videoSettings.preloadBufferSeconds}s`}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
