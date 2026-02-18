@@ -297,7 +297,7 @@ const server = http.createServer(async (req, res) => {
           fs.mkdirSync(cacheDir, { recursive: true });
         }
 
-        const hash = Buffer.from(normalizedFilePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const hash = require('crypto').createHash('md5').update(normalizedFilePath).digest('hex');
         const cachePath = path.join(cacheDir, hash + '.jpg');
 
         // Serve from cache if available
@@ -646,7 +646,7 @@ const server = http.createServer(async (req, res) => {
       let generated = 0, skipped = 0, errors = 0;
       
       for (const filePath of allFiles) {
-        const hash = Buffer.from(filePath).toString('base64url').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100);
+        const hash = require('crypto').createHash('md5').update(filePath).digest('hex');
         const cachePath = path.join(cacheDir, hash + '.jpg');
         
         if (fs.existsSync(cachePath)) { skipped++; continue; }
