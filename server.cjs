@@ -3026,6 +3026,24 @@ const server = http.createServer(async (req, res) => {
 // DÉMARRAGE
 // ═══════════════════════════════════════════════════════════════════
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log('');
+    console.log('⚠️  Le port ' + PORT + ' est déjà utilisé.');
+    console.log('   Une instance de MediaVault est probablement déjà en cours.');
+    console.log('');
+    console.log('   Solutions :');
+    console.log('   1. Ouvrez http://localhost:' + PORT + ' (le serveur tourne déjà)');
+    console.log('   2. Fermez l\'autre instance puis relancez');
+    console.log('   3. Sous Windows : taskkill /F /IM node.exe puis relancez');
+    console.log('');
+    process.exit(0);
+  } else {
+    console.error('Erreur serveur:', err);
+    process.exit(1);
+  }
+});
+
 server.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════════════════════╗');
