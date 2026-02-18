@@ -1,49 +1,48 @@
 
 
-# Corrections : Cache fonctionnel, auto-connexion et curseurs de prechargement
+# Ajout de l'installation FFmpeg dans l'interface + corrections cache
 
 ## Problemes identifies
 
-### 1. "Total: 0 fichiers" lors de la pre-generation
-Le endpoint `/api/generate-thumbnails` ne scanne que `MEDIA_FOLDER` (`C:\Users\jimmy\Pictures`). Or les medias de l'utilisateur sont dans des **dossiers lies** (linked folders) stockes dans `data.json`. Ces dossiers ne sont pas du tout parcourus par la pre-generation, d'ou le resultat "total: 0".
+### 1. FFmpeg non installe = 99 erreurs video
+Le diagnostic montre clairement **FFmpeg: Non trouve**. Le serveur possede deja les endpoints `/api/check-ffmpeg`, `/api/install-ffmpeg` et `/api/install-ffmpeg-status`, mais **aucun bouton** n'existe dans l'interface pour les utiliser. L'utilisateur n'a donc aucun moyen d'installer FFmpeg depuis les parametres.
 
-**Meme probleme** dans `/api/cache-diagnostic` : il ne compte que les fichiers de `MEDIA_FOLDER`, pas les dossiers lies.
+Sur 163 fichiers : 8 images generees avec Sharp, 56 deja en cache, et **99 erreurs** = toutes les videos, car sans FFmpeg il est impossible d'extraire une frame.
 
-### 2. Pas d'auto-connexion
-L'utilisateur doit cliquer manuellement "Tester la connexion" pour debloquer les boutons Sharp et Cache. Il n'y a aucun `useEffect` d'auto-connexion au montage du composant.
+### 2. Miniatures dupliquees (meme image sur plusieurs cartes)
+Le hash utilise pour nommer les fichiers cache est genere avec `base64url` du chemin complet, puis **tronque a 100 caracteres**. Si deux fichiers ont des chemins longs avec le meme prefixe, ils peuvent produire le meme hash tronque, resultant en la meme miniature affichee pour des fichiers differents.
 
-### 3. Pas de curseurs de prechargement avance
-La carte "Previsualisation video" ne contient que le delai de survol et la duree de previsualisation. Il manque les 3 curseurs demandes.
+**Correction** : utiliser un hash cryptographique (MD5 ou SHA1) du chemin complet au lieu de base64url tronque. Cela garantit l'unicite quel que soit la longueur du chemin.
 
 ---
 
 ## Corrections prevues
 
-### 1. Pre-generation qui inclut les dossiers lies (server.cjs + serverTemplate.ts)
+### 1. Bouton d'installation FFmpeg dans l'interface
 
-Modifier `/api/generate-thumbnails` pour :
-1. Scanner `MEDIA_FOLDER` (comme avant)
-2. Lire `data.json` pour obtenir la liste des `linkedFolders`
-3. Scanner chaque dossier lie egalement
-4. Generer les miniatures pour TOUS les fichiers trouves
+Ajouter dans la carte "Dependances serveur" de `ServerSettings.tsx` une section FFmpeg identique a celle de Sharp :
+- Detection automatique au montage (appel `/api/check-ffmpeg`)
+- Bouton "Installer FFmpeg" si non installe
+- Barre de progression pendant le telechargement/extraction
+- Suivi du statut via `/api/install-ffmpeg-status` (polling toutes les 2 secondes)
+- Bouton "Reinstaller" meme quand deja installe
+- Affichage de la version detectee
 
-Meme correction pour `/api/cache-diagnostic` : compter les medias de TOUS les dossiers (pas seulement MEDIA_FOLDER).
+### 2. Corriger le hash des miniatures pour eviter les doublons
 
-### 2. Auto-connexion au montage (ServerSettings.tsx)
+Dans `server.cjs` et `serverTemplate.ts`, remplacer :
+```text
+AVANT: Buffer.from(filePath).toString('base64url').replace(...).slice(0, 100)
+APRES: require('crypto').createHash('md5').update(filePath).digest('hex')
+```
 
-Ajouter un `useEffect` qui appelle `testConnection({ silent: true })` des le montage du composant. Plus besoin de cliquer manuellement.
+Le hash MD5 produit toujours 32 caracteres, est unique pour chaque chemin, et ne risque pas de collision par troncature.
 
-### 3. Trois curseurs de prechargement avance (ServerSettings.tsx)
+**Important** : vider le cache existant apres cette modification (les anciens noms de fichiers ne correspondront plus). Un message dans l'interface demandera a l'utilisateur de vider et regenerer le cache.
 
-Ajouter dans la carte "Previsualisation video" une nouvelle section avec :
+### 3. Re-generation automatique des miniatures manquantes
 
-| Curseur | Fonction | Plage |
-|---------|----------|-------|
-| **Medias precharges** | Nombre total de medias dont la miniature est chargee en avance | 0 a "Tous" (illimite) avec champ de saisie libre |
-| **Lignes pre-scroll** | Nombre de lignes preparees sous l'ecran visible | 0 a "Toutes" (illimite) avec champ de saisie libre |
-| **Tampon video (secondes)** | Duree de video prebufferisee en avance | 0s a "Illimite" avec graduations secondes/minutes/heures |
-
-Valeur `-1` = illimite pour chaque curseur. Les valeurs sont stockees dans localStorage via `VideoPreviewSettings`.
+Quand le diagnostic detecte des miniatures manquantes, afficher un bouton "Regenerer les manquantes" dans la carte Cache. Ce bouton appelle `/api/generate-thumbnails` qui ne regenerera que les fichiers sans miniature en cache (les existants sont ignores grace au `skipped`).
 
 ---
 
@@ -53,28 +52,39 @@ Valeur `-1` = illimite pour chaque curseur. Les valeurs sont stockees dans local
 
 | Fichier | Modifications |
 |---------|--------------|
-| `server.cjs` | `/api/generate-thumbnails` : scanner aussi les linkedFolders de data.json. `/api/cache-diagnostic` : compter aussi les medias des linkedFolders. |
-| `src/assets/serverTemplate.ts` | Memes corrections que server.cjs |
-| `src/components/settings/ServerSettings.tsx` | Ajouter `useEffect` auto-connexion. Ajouter 3 curseurs de prechargement dans la carte "Previsualisation video". Etendre `VideoPreviewSettings` avec `preloadMediaCount`, `preloadScrollRows`, `preloadBufferSeconds`. |
+| `src/components/settings/ServerSettings.tsx` | Ajouter section FFmpeg dans "Dependances serveur" avec detection auto, bouton d'installation, progression, et reinstallation. |
+| `server.cjs` | Remplacer le hash base64url tronque par MD5 dans `/api/thumbnail/`, `/api/generate-thumbnails`, et toute reference au hash de cache. |
+| `src/assets/serverTemplate.ts` | Memes corrections de hash que server.cjs. |
 
-### Correction du scan dans generate-thumbnails
+### Section FFmpeg dans l'interface
+
+La section apparaitra juste en dessous de Sharp dans la carte "Dependances serveur" :
 
 ```text
-POST /api/generate-thumbnails
-  1. Collecter fichiers de MEDIA_FOLDER (existant)
-  2. NOUVEAU: Lire data.json → linkedFolders
-  3. Pour chaque linkedFolder, scanner recursivement
-  4. Fusionner toutes les listes (dedupliquer par chemin absolu)
-  5. Generer les miniatures manquantes
-  6. Retourner { total, generated, skipped, errors, mediaFolder, linkedFoldersScanned }
+Dependances serveur
+├── sharp          ✅ Installe          [Reinstaller]
+└── ffmpeg         ❌ Non installe      [Installer FFmpeg]
+                   ↳ Barre de progression pendant le telechargement
+                   ↳ "FFmpeg installe ! Version: 7.x"
+```
+
+### Flux d'installation FFmpeg
+
+```text
+1. Clic sur "Installer FFmpeg"
+2. POST /api/install-ffmpeg (lance le telechargement en arriere-plan)
+3. Polling GET /api/install-ffmpeg-status toutes les 2s
+   → { step: 'downloading', progress: 45, message: 'Telechargement...' }
+   → { step: 'extracting', progress: 80, message: 'Extraction...' }
+   → { step: 'done', progress: 100, message: 'FFmpeg installe !' }
+4. Re-verification automatique via /api/check-ffmpeg
+5. Affichage "✅ Installe - Version X.Y"
 ```
 
 ### Chemin d'acces pour l'utilisateur
 
 Tout se trouve dans **Parametres → Serveur local** :
-- **Auto-connexion** : automatique au chargement de la page, plus besoin de cliquer
-- **Installer Sharp** : carte "Dependances serveur" → bouton visible des la connexion
-- **Pre-generer les miniatures** : carte "Cache des miniatures" → bouton "Pre-generer toutes les miniatures" (scannera maintenant TOUS vos dossiers)
-- **Diagnostiquer le cache** : carte "Cache des miniatures" → bouton "Diagnostiquer le cache"
-- **Curseurs de prechargement** : carte "Previsualisation video" → section "Prechargement avance" (3 curseurs + champs de saisie)
+- **Installer FFmpeg** : carte "Dependances serveur" → section "ffmpeg" → bouton "Installer FFmpeg"
+- **Verifier l'installation** : le statut s'affiche automatiquement a cote du nom "ffmpeg"
+- **Apres installation** : cliquer "Pre-generer toutes les miniatures" dans la carte Cache pour generer les miniatures videos manquantes
 
