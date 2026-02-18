@@ -59,6 +59,13 @@ export function ServerSettings() {
   const [sharpInstalling, setSharpInstalling] = useState(false);
   const [sharpInstallResult, setSharpInstallResult] = useState<{ success: boolean; message: string; output?: string } | null>(null);
 
+  // ── FFmpeg status ──
+  const [ffmpegInstalled, setFfmpegInstalled] = useState<boolean | null>(null);
+  const [ffmpegVersion, setFfmpegVersion] = useState<string | null>(null);
+  const [ffmpegChecking, setFfmpegChecking] = useState(false);
+  const [ffmpegInstalling, setFfmpegInstalling] = useState(false);
+  const [ffmpegProgress, setFfmpegProgress] = useState<{ step: string; progress: number; message: string } | null>(null);
+
   // ── Cache stats ──
   const [cacheStats, setCacheStats] = useState<{ files: number; sizeFormatted: string } | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
@@ -94,8 +101,56 @@ export function ServerSettings() {
   useEffect(() => {
     if (!isConnected) return;
     checkSharp();
+    checkFfmpeg();
     fetchCacheStats();
   }, [isConnected]);
+
+  const checkFfmpeg = async () => {
+    setFfmpegChecking(true);
+    try {
+      const r = await fetch(`${serverBase}/api/check-ffmpeg`);
+      const d = await r.json();
+      setFfmpegInstalled(d.installed);
+      if (d.version) setFfmpegVersion(d.version);
+    } catch {
+      setFfmpegInstalled(null);
+    } finally {
+      setFfmpegChecking(false);
+    }
+  };
+
+  const installFfmpeg = async () => {
+    setFfmpegInstalling(true);
+    setFfmpegProgress({ step: 'downloading', progress: 5, message: 'Démarrage...' });
+    try {
+      await fetch(`${serverBase}/api/install-ffmpeg`, { method: 'POST' });
+      // Poll status
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`${serverBase}/api/ffmpeg-install-status`);
+          const d = await r.json();
+          setFfmpegProgress({ step: d.step, progress: d.progress, message: d.message });
+          if (d.step === 'completed' || d.step === 'failed') {
+            clearInterval(poll);
+            setFfmpegInstalling(false);
+            if (d.step === 'completed') {
+              toast.success('FFmpeg installé avec succès !');
+              checkFfmpeg();
+            } else {
+              toast.error(d.message || 'Échec de l\'installation FFmpeg');
+            }
+          }
+        } catch {
+          clearInterval(poll);
+          setFfmpegInstalling(false);
+          toast.error('Erreur lors du suivi de l\'installation');
+        }
+      }, 2000);
+    } catch {
+      setFfmpegInstalling(false);
+      toast.error('Erreur réseau lors de l\'installation FFmpeg');
+    }
+  };
 
   const checkSharp = async () => {
     setSharpChecking(true);
@@ -410,6 +465,48 @@ export function ServerSettings() {
                 {sharpInstallResult.output && (
                   <pre className="mt-1 text-[10px] max-h-32 overflow-y-auto whitespace-pre-wrap font-mono opacity-70">{sharpInstallResult.output}</pre>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* ── FFmpeg ── */}
+          <div className="p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">ffmpeg</p>
+                <p className="text-xs text-muted-foreground">
+                  Requis pour extraire les miniatures des vidéos (MP4, WebM, MOV…). Sans FFmpeg, seules les images auront des miniatures.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                {ffmpegChecking ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : ffmpegInstalled === true ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
+                      <CheckCircle className="w-4 h-4" /> {ffmpegVersion || 'Installé'}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={installFfmpeg} disabled={ffmpegInstalling} className="gap-1 h-7 px-2">
+                      <RotateCcw className="w-3 h-3" />
+                      <span className="text-xs">Réinstaller</span>
+                    </Button>
+                  </div>
+                ) : ffmpegInstalled === false ? (
+                  <Button size="sm" onClick={installFfmpeg} disabled={ffmpegInstalling} className="gap-1">
+                    {ffmpegInstalling && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {ffmpegInstalling ? 'Installation...' : 'Installer FFmpeg'}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {isMixedContent ? 'Ouvre l\'app en local' : 'Serveur non connecté'}
+                  </span>
+                )}
+              </div>
+            </div>
+            {ffmpegInstalling && ffmpegProgress && (
+              <div className="space-y-2">
+                <Progress value={ffmpegProgress.progress} className="h-1.5" />
+                <p className="text-xs text-muted-foreground">{ffmpegProgress.message}</p>
               </div>
             )}
           </div>
