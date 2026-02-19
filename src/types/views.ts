@@ -9,4 +9,5 @@ export type ViewType =
   | 'timeline' 
   | 'calendar' 
   | 'albums'
-  | 'explorer';
+  | 'explorer'
+  | 'upscaler';

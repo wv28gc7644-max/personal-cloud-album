@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
-import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link, Info } from 'lucide-react';
+import { Heart, Share, Download, MoreHorizontal, Play, Eye, Trash2, Calendar, HardDrive, Link, Info, Sparkles } from 'lucide-react';
+import { UpscaleModal } from './UpscaleModal';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -37,7 +38,10 @@ export const MediaCardTwitter = ({
   const [isHovered, setIsHovered] = useState(false);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [upscaleOpen, setUpscaleOpen] = useState(false);
+  const [videoPreloadReady, setVideoPreloadReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { settings: basicSettings } = useCardSettings();
@@ -63,6 +67,22 @@ export const MediaCardTwitter = ({
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     };
   }, []);
+
+  // IntersectionObserver: switch from preload="none" → "metadata" when card enters viewport
+  useEffect(() => {
+    if (item.type !== 'video' || !cardRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && videoRef.current && videoRef.current.preload === 'none') {
+          videoRef.current.preload = 'metadata';
+          setVideoPreloadReady(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [item.type]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -296,6 +316,9 @@ export const MediaCardTwitter = ({
         <Button variant="ghost" className="flex-1 gap-2 text-muted-foreground hover:text-green-500 hover:bg-green-500/10" style={{ height: advancedSettings.actionButtonSize }} onClick={(e) => { e.stopPropagation(); onDownload(); }}>
           <Download style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
         </Button>
+        <Button variant="ghost" className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10" style={{ height: advancedSettings.actionButtonSize }} onClick={(e) => { e.stopPropagation(); setUpscaleOpen(true); }} title="Upscaler">
+          <Sparkles style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
+        </Button>
         <Button variant="ghost" className="flex-1 gap-2 text-muted-foreground hover:text-primary hover:bg-primary/10" style={{ height: advancedSettings.actionButtonSize }}>
           <Share style={{ width: advancedSettings.actionIconSize, height: advancedSettings.actionIconSize }} />
         </Button>
@@ -305,6 +328,7 @@ export const MediaCardTwitter = ({
 
   return (
     <article 
+      ref={cardRef}
       className="group bg-card border border-border/50 overflow-hidden transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
       style={{ borderRadius: advancedSettings.cardBorderRadius, padding: advancedSettings.cardPadding }}
       onMouseEnter={handleMouseEnter}
@@ -327,6 +351,7 @@ export const MediaCardTwitter = ({
       )}
 
       <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
+      <UpscaleModal item={item} open={upscaleOpen} onOpenChange={setUpscaleOpen} />
     </article>
   );
 };

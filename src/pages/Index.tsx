@@ -209,6 +209,23 @@ const Index = () => {
             />
             <FolderExplorer />
           </>
+        ) : currentView === 'upscaler' ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                <span>✨</span> Médias upscalés
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Images et vidéos améliorées par IA. Survol d'une carte → bouton ✨ pour upscaler.
+              </p>
+            </div>
+            <div className="flex items-center justify-center h-64 rounded-xl border border-dashed border-border/50 text-muted-foreground">
+              <div className="text-center space-y-2">
+                <p className="text-lg">Aucun fichier upscalé pour l'instant</p>
+                <p className="text-sm">Survolez une carte média dans la galerie et cliquez sur ✨ pour upscaler.</p>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             <MediaHeader 

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink, Stethoscope, Play, RotateCcw } from 'lucide-react';
+import { Server, CheckCircle, XCircle, Loader2, RefreshCw, FolderOpen, Package, Trash2, Clock, Film, AlertTriangle, ExternalLink, Stethoscope, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -66,6 +66,10 @@ export function ServerSettings() {
   const [ffmpegInstalling, setFfmpegInstalling] = useState(false);
   const [ffmpegProgress, setFfmpegProgress] = useState<{ step: string; progress: number; message: string } | null>(null);
 
+  // ── ESRGAN status ──
+  const [esrganAvailable, setEsrganAvailable] = useState<boolean | null>(null);
+  const [esrganChecking, setEsrganChecking] = useState(false);
+
   // ── Cache stats ──
   const [cacheStats, setCacheStats] = useState<{ files: number; sizeFormatted: string } | null>(null);
   const [cacheLoading, setCacheLoading] = useState(false);
@@ -102,8 +106,23 @@ export function ServerSettings() {
     if (!isConnected) return;
     checkSharp();
     checkFfmpeg();
+    checkEsrgan();
     fetchCacheStats();
   }, [isConnected]);
+
+  const checkEsrgan = async () => {
+    setEsrganChecking(true);
+    try {
+      const r = await fetch('http://localhost:9004/health', { signal: AbortSignal.timeout(3000) });
+      setEsrganAvailable(r.ok);
+    } catch {
+      setEsrganAvailable(false);
+    } finally {
+      setEsrganChecking(false);
+    }
+  };
+
+
 
   const checkFfmpeg = async () => {
     setFfmpegChecking(true);
@@ -509,6 +528,51 @@ export function ServerSettings() {
                 <p className="text-xs text-muted-foreground">{ffmpegProgress.message}</p>
               </div>
             )}
+          </div>
+
+          {/* ── ESRGAN ── */}
+          <div className="p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  ESRGAN (Upscaling IA)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Service d'upscaling par intelligence artificielle (port 9004). Permet d'agrandir photos et vidéos ×2, ×4, ×8 sans perte de qualité visible.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Installation : <code className="bg-muted px-1 rounded">docker run -p 9004:9004 mediavault/esrgan</code> ou via le script Python dans <code className="bg-muted px-1 rounded">docker/esrgan/</code>
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-4">
+                {esrganChecking ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : esrganAvailable === true ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
+                      <CheckCircle className="w-4 h-4" /> Disponible
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={checkEsrgan} className="gap-1 h-7 px-2">
+                      <RefreshCw className="w-3 h-3" />
+                      <span className="text-xs">Vérifier</span>
+                    </Button>
+                  </div>
+                ) : esrganAvailable === false ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <XCircle className="w-4 h-4 text-destructive" /> Non disponible
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={checkEsrgan} className="gap-1 h-7 px-2">
+                      <RefreshCw className="w-3 h-3" />
+                      <span className="text-xs">Réessayer</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Serveur non connecté</span>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
