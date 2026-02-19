@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Heart, Download, Share, Eye, MoreHorizontal, Link, Info } from 'lucide-react';
+import { Play, Heart, Download, Link, Info, Sparkles } from 'lucide-react';
 import { MediaItem } from '@/types/media';
 import { TagBadge } from './TagBadge';
 import { Button } from '@/components/ui/button';
 import { MediaInfoDialog } from './MediaInfoDialog';
+import { UpscaleModal } from './UpscaleModal';
 import { getVideoPreviewSettings } from '@/components/settings/ServerSettings';
 import { useCardSettings } from '@/hooks/useCardSettings';
 import { cn } from '@/lib/utils';
@@ -28,7 +29,9 @@ export function MediaCardAdaptive({
   const [naturalRatio, setNaturalRatio] = useState<number | null>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [upscaleOpen, setUpscaleOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { settings: basicSettings } = useCardSettings();
@@ -56,6 +59,21 @@ export function MediaCardAdaptive({
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     };
   }, []);
+
+  // IntersectionObserver: preload="metadata" when card enters viewport
+  useEffect(() => {
+    if (item.type !== 'video' || !cardRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && videoRef.current && videoRef.current.preload === 'none') {
+          videoRef.current.preload = 'metadata';
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, [item.type]);
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return null;
@@ -124,6 +142,7 @@ export function MediaCardAdaptive({
 
   return (
     <motion.div
+      ref={cardRef}
       className="group relative bg-card rounded-lg overflow-hidden border border-border/30 hover:border-border/60 transition-all duration-200"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -213,6 +232,15 @@ export function MediaCardAdaptive({
               >
                 <Download className="w-4 h-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 bg-black/40 hover:bg-black/60 text-white"
+                onClick={(e) => { e.stopPropagation(); setUpscaleOpen(true); }}
+                title="Upscaler l'image"
+              >
+                <Sparkles className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -244,6 +272,7 @@ export function MediaCardAdaptive({
       </div>
 
       <MediaInfoDialog item={item} open={infoOpen} onOpenChange={setInfoOpen} />
+      <UpscaleModal item={item} open={upscaleOpen} onOpenChange={setUpscaleOpen} />
     </motion.div>
   );
 }

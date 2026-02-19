@@ -84,6 +84,7 @@ const DEFAULT_CONFIG: SidebarConfig = {
         { id: 'timeline', icon: 'Clock', label: 'Timeline', type: 'nav', view: 'timeline' },
         { id: 'calendar', icon: 'Calendar', label: 'Calendrier', type: 'nav', view: 'calendar' },
         { id: 'stats', icon: 'BarChart3', label: 'Statistiques', type: 'nav', view: 'stats' },
+        { id: 'upscaler', icon: 'Sparkles', label: 'Upscalés', type: 'nav', view: 'upscaler' },
         { id: 'smart-home', icon: 'Home', label: 'MediaVault Home', type: 'nav', view: 'smart-home' },
       ]
     },
@@ -106,7 +107,7 @@ const DEFAULT_CONFIG: SidebarConfig = {
 
 const STORAGE_KEY = 'mediavault-sidebar-config';
 
-// Migration: remove AI section and AI items from saved config
+// Migration: remove AI section and AI items from saved config, add missing items
 function migrateConfig(saved: SidebarConfig): SidebarConfig {
   // Remove entire AI section
   let sections = saved.sections.filter(s => s.id !== AI_SECTION_ID);
@@ -116,6 +117,17 @@ function migrateConfig(saved: SidebarConfig): SidebarConfig {
     ...section,
     items: section.items.filter(item => !AI_VIEWS_TO_REMOVE.includes(item.view || ''))
   }));
+
+  // Add 'upscaler' to navigation if missing
+  const navSection = sections.find(s => s.id === 'navigation');
+  if (navSection && !navSection.items.some(i => i.id === 'upscaler')) {
+    // Insert before smart-home
+    const smartHomeIdx = navSection.items.findIndex(i => i.id === 'smart-home');
+    const insertAt = smartHomeIdx >= 0 ? smartHomeIdx : navSection.items.length;
+    navSection.items.splice(insertAt, 0, {
+      id: 'upscaler', icon: 'Sparkles', label: 'Upscalés', type: 'nav', view: 'upscaler'
+    });
+  }
   
   return { ...saved, sections };
 }

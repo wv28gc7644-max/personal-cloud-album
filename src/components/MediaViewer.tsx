@@ -212,44 +212,45 @@ export function MediaViewer({ item, items, onClose, onNavigate, onDownload }: Me
         </Button>
       )}
 
-      {/* Media content - clickable backdrop - FILL TO EDGE */}
+      {/* Media content - clickable backdrop */}
       <div 
-        className="absolute inset-0 flex items-center justify-center p-4 cursor-pointer"
+        className="absolute inset-0 flex items-center justify-center cursor-pointer"
         onClick={handleBackdropClick}
       >
-        <div 
-          ref={mediaContainerRef}
-          className="flex flex-col items-center w-full h-full max-w-[98vw] sm:max-w-[95vw] max-h-[calc(100vh-60px)] sm:max-h-[calc(100vh-100px)] cursor-default"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {item.type === 'image' ? (
-            <img
-              src={item.url}
-              alt={item.name}
-              className={cn(
-                "w-full h-full object-contain rounded-lg shadow-2xl transition-all duration-500",
-                isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-              )}
-            />
-          ) : (
-            <div className={cn(
-              "w-full h-full flex items-center justify-center transition-all duration-500",
+        {item.type === 'image' ? (
+          <img
+            ref={mediaContainerRef as React.RefObject<HTMLImageElement>}
+            src={item.url}
+            alt={item.name}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "max-w-[98vw] sm:max-w-[95vw] max-h-[calc(100vh-80px)] sm:max-h-[calc(100vh-110px)] object-contain rounded-lg shadow-2xl transition-all duration-500 cursor-default",
               isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
-            )}>
-              <CustomVideoPlayer
-                ref={videoRef}
-                src={item.url}
-                duration={item.duration}
-                stats={stats}
-                autoPlay
-                onTimeUpdate={handleTimeUpdate}
-                onSeeked={handleSeeked}
-                onDownload={() => onDownload(item)}
-                className="w-full max-h-full rounded-lg shadow-2xl"
-              />
-            </div>
-          )}
-        </div>
+            )}
+          />
+        ) : (
+          <div
+            ref={mediaContainerRef}
+            className={cn(
+              "flex items-center justify-center transition-all duration-500 cursor-default max-w-[98vw] sm:max-w-[95vw] max-h-[calc(100vh-80px)] sm:max-h-[calc(100vh-110px)]",
+              isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"
+            )}
+            style={{ width: 'min(98vw, calc((100vh - 110px) * 16 / 9))' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CustomVideoPlayer
+              ref={videoRef}
+              src={item.url}
+              duration={item.duration}
+              stats={stats}
+              autoPlay
+              onTimeUpdate={handleTimeUpdate}
+              onSeeked={handleSeeked}
+              onDownload={() => onDownload(item)}
+              className="w-full rounded-lg shadow-2xl"
+            />
+          </div>
+        )}
       </div>
 
       {/* Counter */}

@@ -2199,7 +2199,97 @@ const server = http.createServer(async (req, res) => {
       }));
     }
 
-    if (pathname === '/api/ffmpeg-install-status' && req.method === 'GET') {
+    // ═══════════════════════════════════════════════════════════════
+    // Upscaling IA (ESRGAN)
+    // ═══════════════════════════════════════════════════════════════
+    if (pathname === '/api/upscale-media' && req.method === 'POST') {
+      let body = '';
+      req.on('data', d => body += d);
+      req.on('end', async () => {
+        try {
+          const { mediaPath, scale = 4 } = JSON.parse(body);
+          if (!mediaPath) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'mediaPath requis' }));
+          }
+
+          // Resolve the absolute path
+          let absPath = mediaPath;
+          if (mediaPath.startsWith('/media/')) {
+            // URL path → local file
+            const relative = decodeURIComponent(mediaPath.slice('/media/'.length));
+            absPath = path.join(MEDIA_FOLDER, relative);
+          }
+
+          if (!fs.existsSync(absPath)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'Fichier introuvable: ' + absPath }));
+          }
+
+          // Prepare output path
+          const dir = path.dirname(absPath);
+          const ext = path.extname(absPath);
+          const base = path.basename(absPath, ext);
+          const upscaledDir = path.join(dir, 'upscaled');
+          if (!fs.existsSync(upscaledDir)) fs.mkdirSync(upscaledDir, { recursive: true });
+          const outName = `${base}_upscaled_${scale}x${ext}`;
+          const outPath = path.join(upscaledDir, outName);
+
+          // Call ESRGAN service on port 9004
+          const fileBuffer = fs.readFileSync(absPath);
+          const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
+          const mime = ext.toLowerCase().match(/\.(jpg|jpeg)/) ? 'image/jpeg' : ext.toLowerCase() === '.png' ? 'image/png' : 'application/octet-stream';
+
+          const head = Buffer.from(
+            `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${path.basename(absPath)}"\r\nContent-Type: ${mime}\r\n\r\n`
+          );
+          const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+          const formData = Buffer.concat([head, fileBuffer, tail]);
+
+          const esrganResp = await new Promise((resolve, reject) => {
+            const opt = {
+              hostname: 'localhost',
+              port: 9004,
+              path: `/upscale?scale=${scale}`,
+              method: 'POST',
+              headers: {
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                'Content-Length': formData.length,
+              },
+            };
+            const http = require('http');
+            const chunks = [];
+            const req2 = http.request(opt, r2 => {
+              r2.on('data', c => chunks.push(c));
+              r2.on('end', () => resolve({ status: r2.statusCode, body: Buffer.concat(chunks) }));
+            });
+            req2.on('error', reject);
+            req2.write(formData);
+            req2.end();
+          });
+
+          if (esrganResp.status !== 200) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'ESRGAN error: ' + esrganResp.body.toString().slice(0, 200) }));
+          }
+
+          fs.writeFileSync(outPath, esrganResp.body);
+
+          // Build the URL to serve the file
+          const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
+          const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ savedPath: outPath, url }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: err.message || 'Erreur interne' }));
+        }
+      });
+      return;
+    }
+
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(global.ffmpegInstallStatus || { step: 'idle', progress: 0, message: '' }));
     }
