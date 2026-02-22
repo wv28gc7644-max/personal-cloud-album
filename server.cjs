@@ -2289,7 +2289,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-
+    if (pathname === '/api/install-ffmpeg-status' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(global.ffmpegInstallStatus || { step: 'idle', progress: 0, message: '' }));
     }
