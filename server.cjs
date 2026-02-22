@@ -2200,8 +2200,128 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // Upscaling IA (ESRGAN)
+    // ESRGAN - Installation, vérification, upscaling
     // ═══════════════════════════════════════════════════════════════
+
+    const ESRGAN_DIR = path.join(process.env.USERPROFILE || '', 'MediaVault-AI', 'esrgan');
+    const ESRGAN_EXE = path.join(ESRGAN_DIR, 'realesrgan-ncnn-vulkan.exe');
+
+    // ── Check ESRGAN ──
+    if (pathname === '/api/check-esrgan' && req.method === 'GET') {
+      const installed = fs.existsSync(ESRGAN_EXE);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ installed, path: installed ? ESRGAN_DIR : null }));
+    }
+
+    // ── Install ESRGAN Status ──
+    if (pathname === '/api/install-esrgan-status' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(global.esrganInstallStatus || { step: 'idle', progress: 0, message: '' }));
+    }
+
+    // ── Install ESRGAN ──
+    if (pathname === '/api/install-esrgan' && req.method === 'POST') {
+      const ESRGAN_URL = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip';
+      const TEMP_ZIP = path.join(process.env.TEMP || '/tmp', 'realesrgan.zip');
+
+      global.esrganInstallStatus = { step: 'downloading', progress: 5, message: 'Préparation du téléchargement...' };
+
+      const installEsrgan = async () => {
+        try {
+          global.esrganInstallStatus = { step: 'downloading', progress: 10, message: 'Création du dossier d\'installation...' };
+          if (!fs.existsSync(ESRGAN_DIR)) {
+            fs.mkdirSync(ESRGAN_DIR, { recursive: true });
+          }
+
+          global.esrganInstallStatus = { step: 'downloading', progress: 15, message: 'Téléchargement de Real-ESRGAN portable (~25 Mo)...' };
+
+          await new Promise((resolve, reject) => {
+            const downloadCmd = `powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '${ESRGAN_URL}' -OutFile '${TEMP_ZIP}'"`;
+            exec(downloadCmd, { timeout: 300000 }, (error) => {
+              if (error) reject(new Error('Échec du téléchargement: ' + error.message));
+              else resolve();
+            });
+
+            let dlProgress = 15;
+            const progressInterval = setInterval(() => {
+              if (dlProgress < 55) {
+                dlProgress += 5;
+                global.esrganInstallStatus = { step: 'downloading', progress: dlProgress, message: `Téléchargement en cours (${dlProgress}%)...` };
+              }
+            }, 3000);
+            setTimeout(() => clearInterval(progressInterval), 120000);
+          });
+
+          if (!fs.existsSync(TEMP_ZIP)) {
+            throw new Error('Le fichier téléchargé est introuvable');
+          }
+
+          global.esrganInstallStatus = { step: 'extracting', progress: 60, message: 'Extraction des fichiers...' };
+
+          await new Promise((resolve, reject) => {
+            const extractCmd = `powershell -Command "Expand-Archive -Path '${TEMP_ZIP}' -DestinationPath '${ESRGAN_DIR}' -Force"`;
+            exec(extractCmd, { timeout: 120000 }, (error) => {
+              if (error) reject(new Error('Échec de l\'extraction: ' + error.message));
+              else resolve();
+            });
+          });
+
+          global.esrganInstallStatus = { step: 'configuring', progress: 80, message: 'Vérification du binaire...' };
+
+          // The zip may contain a subfolder - find the exe
+          let exePath = ESRGAN_EXE;
+          if (!fs.existsSync(exePath)) {
+            // Search in subdirectories
+            const dirs = fs.readdirSync(ESRGAN_DIR).filter(d => {
+              try { return fs.statSync(path.join(ESRGAN_DIR, d)).isDirectory(); } catch { return false; }
+            });
+            for (const d of dirs) {
+              const candidate = path.join(ESRGAN_DIR, d, 'realesrgan-ncnn-vulkan.exe');
+              if (fs.existsSync(candidate)) {
+                // Move contents up
+                const subDir = path.join(ESRGAN_DIR, d);
+                const files = fs.readdirSync(subDir);
+                for (const f of files) {
+                  const src = path.join(subDir, f);
+                  const dest = path.join(ESRGAN_DIR, f);
+                  try { fs.renameSync(src, dest); } catch { 
+                    // If rename fails (cross-device), copy
+                    try {
+                      if (fs.statSync(src).isFile()) {
+                        fs.copyFileSync(src, dest);
+                        fs.unlinkSync(src);
+                      }
+                    } catch {}
+                  }
+                }
+                try { fs.rmdirSync(subDir); } catch {}
+                break;
+              }
+            }
+          }
+
+          // Cleanup zip
+          try { fs.unlinkSync(TEMP_ZIP); } catch {}
+
+          if (!fs.existsSync(ESRGAN_EXE)) {
+            throw new Error('realesrgan-ncnn-vulkan.exe introuvable après extraction');
+          }
+
+          global.esrganInstallStatus = { step: 'done', progress: 100, message: 'ESRGAN installé avec succès ! (realesrgan-ncnn-vulkan)' };
+          addLog('info', 'esrgan', 'Installation automatique réussie: ' + ESRGAN_DIR);
+
+        } catch (error) {
+          global.esrganInstallStatus = { step: 'failed', progress: 0, message: error.message || 'Erreur inconnue' };
+          addLog('error', 'esrgan', 'Échec installation: ' + error.message);
+        }
+      };
+
+      installEsrgan();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, message: 'Installation ESRGAN démarrée' }));
+    }
+
+    // ── Upscale Media (utilise le binaire portable ou fallback Docker port 9004) ──
     if (pathname === '/api/upscale-media' && req.method === 'POST') {
       let body = '';
       req.on('data', d => body += d);
@@ -2213,10 +2333,8 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: 'mediaPath requis' }));
           }
 
-          // Resolve the absolute path
           let absPath = mediaPath;
           if (mediaPath.startsWith('/media/')) {
-            // URL path → local file
             const relative = decodeURIComponent(mediaPath.slice('/media/'.length));
             absPath = path.join(MEDIA_FOLDER, relative);
           }
@@ -2226,7 +2344,6 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: 'Fichier introuvable: ' + absPath }));
           }
 
-          // Prepare output path
           const dir = path.dirname(absPath);
           const ext = path.extname(absPath);
           const base = path.basename(absPath, ext);
@@ -2235,31 +2352,55 @@ const server = http.createServer(async (req, res) => {
           const outName = `${base}_upscaled_${scale}x${ext}`;
           const outPath = path.join(upscaledDir, outName);
 
-          // Call ESRGAN service on port 9004
+          // ── Méthode 1 : Binaire portable Real-ESRGAN ──
+          if (fs.existsSync(ESRGAN_EXE)) {
+            addLog('info', 'esrgan', `Upscaling local x${scale}: ${path.basename(absPath)}`);
+            
+            // ESRGAN only supports scale 4 natively; for x2 use -s 2, for x8 we run x4 twice
+            const doUpscale = (inputPath, outputPath, s) => {
+              return new Promise((resolve, reject) => {
+                const args = ['-i', inputPath, '-o', outputPath, '-s', String(s), '-n', 'realesrgan-x4plus'];
+                const { execFile } = require('child_process');
+                execFile(ESRGAN_EXE, args, { timeout: 600000 }, (error, stdout, stderr) => {
+                  if (error) reject(new Error('ESRGAN error: ' + (stderr || error.message)));
+                  else resolve();
+                });
+              });
+            };
+
+            if (scale === 8) {
+              // x4 then x4 = x16... Actually realesrgan supports -s 2,3,4 only
+              // For x8: upscale x4, then upscale x2 on the result
+              const tempPath = outPath + '.temp' + ext;
+              await doUpscale(absPath, tempPath, 4);
+              await doUpscale(tempPath, outPath, 2);
+              try { fs.unlinkSync(tempPath); } catch {}
+            } else {
+              await doUpscale(absPath, outPath, Math.min(scale, 4));
+            }
+
+            const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
+            const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ savedPath: outPath, url }));
+          }
+
+          // ── Méthode 2 : Fallback Docker service port 9004 ──
           const fileBuffer = fs.readFileSync(absPath);
           const boundary = '----FormBoundary' + Math.random().toString(36).slice(2);
           const mime = ext.toLowerCase().match(/\.(jpg|jpeg)/) ? 'image/jpeg' : ext.toLowerCase() === '.png' ? 'image/png' : 'application/octet-stream';
-
-          const head = Buffer.from(
-            `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${path.basename(absPath)}"\r\nContent-Type: ${mime}\r\n\r\n`
-          );
+          const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${path.basename(absPath)}"\r\nContent-Type: ${mime}\r\n\r\n`);
           const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
           const formData = Buffer.concat([head, fileBuffer, tail]);
 
           const esrganResp = await new Promise((resolve, reject) => {
             const opt = {
-              hostname: 'localhost',
-              port: 9004,
-              path: `/upscale?scale=${scale}`,
-              method: 'POST',
-              headers: {
-                'Content-Type': `multipart/form-data; boundary=${boundary}`,
-                'Content-Length': formData.length,
-              },
+              hostname: 'localhost', port: 9004, path: `/upscale?scale=${scale}`, method: 'POST',
+              headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': formData.length },
             };
-            const http = require('http');
+            const http2 = require('http');
             const chunks = [];
-            const req2 = http.request(opt, r2 => {
+            const req2 = http2.request(opt, r2 => {
               r2.on('data', c => chunks.push(c));
               r2.on('end', () => resolve({ status: r2.statusCode, body: Buffer.concat(chunks) }));
             });
@@ -2274,11 +2415,8 @@ const server = http.createServer(async (req, res) => {
           }
 
           fs.writeFileSync(outPath, esrganResp.body);
-
-          // Build the URL to serve the file
           const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
           const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
-
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ savedPath: outPath, url }));
         } catch (err) {
