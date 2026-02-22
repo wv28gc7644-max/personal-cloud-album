@@ -67,8 +67,11 @@ export function ServerSettings() {
   const [ffmpegProgress, setFfmpegProgress] = useState<{ step: string; progress: number; message: string } | null>(null);
 
   // ── ESRGAN status ──
-  const [esrganAvailable, setEsrganAvailable] = useState<boolean | null>(null);
+  const [esrganInstalled, setEsrganInstalled] = useState<boolean | null>(null);
   const [esrganChecking, setEsrganChecking] = useState(false);
+  const [esrganInstalling, setEsrganInstalling] = useState(false);
+  const [esrganProgress, setEsrganProgress] = useState<{ step: string; progress: number; message: string } | null>(null);
+  const [esrganError, setEsrganError] = useState<string | null>(null);
 
   // ── Cache stats ──
   const [cacheStats, setCacheStats] = useState<{ files: number; sizeFormatted: string } | null>(null);
@@ -113,12 +116,55 @@ export function ServerSettings() {
   const checkEsrgan = async () => {
     setEsrganChecking(true);
     try {
-      const r = await fetch('http://localhost:9004/health', { signal: AbortSignal.timeout(3000) });
-      setEsrganAvailable(r.ok);
+      const r = await fetch(`${serverBase}/api/check-esrgan`, { signal: AbortSignal.timeout(5000) });
+      const d = await r.json();
+      setEsrganInstalled(d.installed);
     } catch {
-      setEsrganAvailable(false);
+      // Fallback: check Docker port 9004
+      try {
+        const r = await fetch('http://localhost:9004/health', { signal: AbortSignal.timeout(3000) });
+        setEsrganInstalled(r.ok);
+      } catch {
+        setEsrganInstalled(false);
+      }
     } finally {
       setEsrganChecking(false);
+    }
+  };
+
+  const installEsrgan = async () => {
+    setEsrganInstalling(true);
+    setEsrganError(null);
+    setEsrganProgress({ step: 'downloading', progress: 5, message: 'Démarrage...' });
+    try {
+      await fetch(`${serverBase}/api/install-esrgan`, { method: 'POST' });
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`${serverBase}/api/install-esrgan-status`);
+          const d = await r.json();
+          setEsrganProgress({ step: d.step, progress: d.progress, message: d.message });
+          if (d.step === 'done' || d.step === 'failed') {
+            clearInterval(poll);
+            setEsrganInstalling(false);
+            if (d.step === 'done') {
+              toast.success('ESRGAN installé avec succès !');
+              checkEsrgan();
+            } else {
+              setEsrganError(d.message || 'Échec de l\'installation');
+              toast.error(d.message || 'Échec de l\'installation ESRGAN');
+            }
+          }
+        } catch {
+          clearInterval(poll);
+          setEsrganInstalling(false);
+          setEsrganError('Erreur lors du suivi de l\'installation');
+          toast.error('Erreur lors du suivi de l\'installation');
+        }
+      }, 2000);
+    } catch {
+      setEsrganInstalling(false);
+      setEsrganError('Erreur réseau lors de l\'installation');
+      toast.error('Erreur réseau lors de l\'installation ESRGAN');
     }
   };
 
@@ -530,7 +576,7 @@ export function ServerSettings() {
             )}
           </div>
 
-          {/* ── ESRGAN ── */}
+          {/* ── ESRGAN (Upscaling IA) ── */}
           <div className="p-3 bg-muted/30 rounded-lg border border-border/50 space-y-3">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -539,40 +585,45 @@ export function ServerSettings() {
                   ESRGAN (Upscaling IA)
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Service d'upscaling par intelligence artificielle (port 9004). Permet d'agrandir photos et vidéos ×2, ×4, ×8 sans perte de qualité visible.
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Installation : <code className="bg-muted px-1 rounded">docker run -p 9004:9004 mediavault/esrgan</code> ou via le script Python dans <code className="bg-muted px-1 rounded">docker/esrgan/</code>
+                  Upscaling IA portable (Real-ESRGAN). Agrandit photos ×2, ×4, ×8 sans perte de qualité. Aucun prérequis (pas de Python, Docker ou CUDA).
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-4">
                 {esrganChecking ? (
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                ) : esrganAvailable === true ? (
+                ) : esrganInstalled === true ? (
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
-                      <CheckCircle className="w-4 h-4" /> Disponible
+                      <CheckCircle className="w-4 h-4" /> Installé
                     </span>
-                    <Button size="sm" variant="ghost" onClick={checkEsrgan} className="gap-1 h-7 px-2">
-                      <RefreshCw className="w-3 h-3" />
-                      <span className="text-xs">Vérifier</span>
+                    <Button size="sm" variant="ghost" onClick={installEsrgan} disabled={esrganInstalling} className="gap-1 h-7 px-2">
+                      <RotateCcw className="w-3 h-3" />
+                      <span className="text-xs">Réinstaller</span>
                     </Button>
                   </div>
-                ) : esrganAvailable === false ? (
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <XCircle className="w-4 h-4 text-destructive" /> Non disponible
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={checkEsrgan} className="gap-1 h-7 px-2">
-                      <RefreshCw className="w-3 h-3" />
-                      <span className="text-xs">Réessayer</span>
-                    </Button>
-                  </div>
+                ) : esrganInstalled === false ? (
+                  <Button size="sm" onClick={installEsrgan} disabled={esrganInstalling} className="gap-1">
+                    {esrganInstalling && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {esrganInstalling ? 'Installation...' : 'Installer ESRGAN'}
+                  </Button>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Serveur non connecté</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isMixedContent ? 'Ouvre l\'app en local' : 'Serveur non connecté'}
+                  </span>
                 )}
               </div>
             </div>
+            {esrganInstalling && esrganProgress && (
+              <div className="space-y-2">
+                <Progress value={esrganProgress.progress} className="h-1.5" />
+                <p className="text-xs text-muted-foreground">{esrganProgress.message}</p>
+              </div>
+            )}
+            {esrganError && (
+              <div className="p-2 rounded text-xs border bg-destructive/10 border-destructive/30">
+                <p className="font-medium text-destructive">{esrganError}</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
