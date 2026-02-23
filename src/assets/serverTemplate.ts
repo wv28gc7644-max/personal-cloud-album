@@ -2094,7 +2094,16 @@ const server = http.createServer(async (req, res) => {
           const { mediaPath, scale = 4 } = JSON.parse(body);
           if (!mediaPath) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'mediaPath requis' })); }
           let absPath = mediaPath;
-          if (mediaPath.startsWith('/media/')) { absPath = path.join(MEDIA_FOLDER, decodeURIComponent(mediaPath.slice('/media/'.length))); }
+          // Supprimer le préfixe http://host:port si présent
+          if (absPath.match(/^https?:\\/\\//)) {
+            try { absPath = new URL(absPath).pathname; } catch { /* garder tel quel */ }
+          }
+          if (absPath.startsWith('/media/')) {
+            absPath = path.join(MEDIA_FOLDER, decodeURIComponent(absPath.slice('/media/'.length)));
+          } else if (absPath.startsWith('/linked-media/')) {
+            const encoded = absPath.slice('/linked-media/'.length);
+            absPath = Buffer.from(encoded, 'base64url').toString('utf8');
+          }
           if (!fs.existsSync(absPath)) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Fichier introuvable' })); }
           const dir = path.dirname(absPath);
           const ext = path.extname(absPath);
@@ -2120,8 +2129,8 @@ const server = http.createServer(async (req, res) => {
             } else {
               await doUpscale(absPath, outPath, Math.min(scale, 4));
             }
-            const normalizedOut = path.normalize(outPath);
-            const normalizedMedia = path.normalize(MEDIA_FOLDER);
+            const normalizedOut = path.normalize(outPath).toLowerCase();
+            const normalizedMedia = path.normalize(MEDIA_FOLDER).toLowerCase();
             let url;
             if (normalizedOut.startsWith(normalizedMedia)) {
               const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
@@ -2151,8 +2160,8 @@ const server = http.createServer(async (req, res) => {
           });
           if (esrganResp.status !== 200) { res.writeHead(502, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'ESRGAN error: ' + esrganResp.body.toString().slice(0, 200) })); }
           fs.writeFileSync(outPath, esrganResp.body);
-          const normalizedOut2 = path.normalize(outPath);
-          const normalizedMedia2 = path.normalize(MEDIA_FOLDER);
+          const normalizedOut2 = path.normalize(outPath).toLowerCase();
+          const normalizedMedia2 = path.normalize(MEDIA_FOLDER).toLowerCase();
           let url;
           if (normalizedOut2.startsWith(normalizedMedia2)) {
             const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
