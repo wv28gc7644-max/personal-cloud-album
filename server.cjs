@@ -2334,9 +2334,16 @@ const server = http.createServer(async (req, res) => {
           }
 
           let absPath = mediaPath;
-          if (mediaPath.startsWith('/media/')) {
-            const relative = decodeURIComponent(mediaPath.slice('/media/'.length));
+          // Supprimer le préfixe http://host:port si présent
+          if (absPath.match(/^https?:\/\//)) {
+            try { absPath = new URL(absPath).pathname; } catch { /* garder tel quel */ }
+          }
+          if (absPath.startsWith('/media/')) {
+            const relative = decodeURIComponent(absPath.slice('/media/'.length));
             absPath = path.join(MEDIA_FOLDER, relative);
+          } else if (absPath.startsWith('/linked-media/')) {
+            const encoded = absPath.slice('/linked-media/'.length);
+            absPath = Buffer.from(encoded, 'base64url').toString('utf8');
           }
 
           if (!fs.existsSync(absPath)) {
@@ -2380,8 +2387,8 @@ const server = http.createServer(async (req, res) => {
             }
 
             // Construire l'URL correcte selon l'emplacement du fichier
-            const normalizedOut = path.normalize(outPath);
-            const normalizedMedia = path.normalize(MEDIA_FOLDER);
+            const normalizedOut = path.normalize(outPath).toLowerCase();
+            const normalizedMedia = path.normalize(MEDIA_FOLDER).toLowerCase();
             let url;
             if (normalizedOut.startsWith(normalizedMedia)) {
               const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
@@ -2389,6 +2396,7 @@ const server = http.createServer(async (req, res) => {
             } else {
               url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
             }
+            addLog('info', 'esrgan', `Upscale terminé: ${outPath} → URL: ${url}`);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ savedPath: outPath, url }));
           }
@@ -2424,8 +2432,8 @@ const server = http.createServer(async (req, res) => {
 
           fs.writeFileSync(outPath, esrganResp.body);
           // Construire l'URL correcte selon l'emplacement du fichier
-          const normalizedOut2 = path.normalize(outPath);
-          const normalizedMedia2 = path.normalize(MEDIA_FOLDER);
+          const normalizedOut2 = path.normalize(outPath).toLowerCase();
+          const normalizedMedia2 = path.normalize(MEDIA_FOLDER).toLowerCase();
           let url;
           if (normalizedOut2.startsWith(normalizedMedia2)) {
             const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
@@ -2433,6 +2441,7 @@ const server = http.createServer(async (req, res) => {
           } else {
             url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
           }
+          addLog('info', 'esrgan', `Upscale Docker terminé: ${outPath} → URL: ${url}`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ savedPath: outPath, url }));
         } catch (err) {
