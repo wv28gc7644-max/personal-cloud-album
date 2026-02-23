@@ -2120,8 +2120,15 @@ const server = http.createServer(async (req, res) => {
             } else {
               await doUpscale(absPath, outPath, Math.min(scale, 4));
             }
-            const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
-            const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+            const normalizedOut = path.normalize(outPath);
+            const normalizedMedia = path.normalize(MEDIA_FOLDER);
+            let url;
+            if (normalizedOut.startsWith(normalizedMedia)) {
+              const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
+              url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+            } else {
+              url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
+            }
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ savedPath: outPath, url }));
           }
@@ -2144,8 +2151,15 @@ const server = http.createServer(async (req, res) => {
           });
           if (esrganResp.status !== 200) { res.writeHead(502, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'ESRGAN error: ' + esrganResp.body.toString().slice(0, 200) })); }
           fs.writeFileSync(outPath, esrganResp.body);
-          const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
-          const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+          const normalizedOut2 = path.normalize(outPath);
+          const normalizedMedia2 = path.normalize(MEDIA_FOLDER);
+          let url;
+          if (normalizedOut2.startsWith(normalizedMedia2)) {
+            const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
+            url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+          } else {
+            url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ savedPath: outPath, url }));
         } catch (err: any) {
