@@ -1,131 +1,86 @@
 
-# Installation automatique du service ESRGAN (Upscaling IA)
 
-## Situation actuelle
+# Correction de l'upscaling : image non affichee apres traitement
 
-- Le bouton "Upscaler" existe deja sur chaque carte media et ouvre un modal fonctionnel
-- Le serveur a l'endpoint `/api/upscale-media` qui appelle ESRGAN sur le port 9004
-- Dans les parametres, la section ESRGAN affiche seulement "Disponible" ou "Non disponible" avec un bouton "Verifier"
-- **Aucun moyen d'installer ESRGAN** depuis l'interface --- juste une ligne de commande Docker en texte
+## Probleme identifie
 
-## Solution : installation 1-clic de Real-ESRGAN portable
+Le processus d'upscaling fonctionne (le binaire ESRGAN s'execute et cree le fichier), mais **l'image upscalee ne s'affiche pas** dans le modal car l'URL renvoyee par le serveur est incorrecte pour les fichiers provenant de dossiers lies.
 
-ESRGAN necessite Python + PyTorch + le modele RealESRGAN. Pour simplifier au maximum, l'installation se fera en **3 etapes automatiques** via un seul bouton :
+### Cause racine
 
-1. Telechargement de l'executable portable Real-ESRGAN (pas besoin de Python ni Docker)
-2. Telechargement du modele pre-entraine (~67 Mo)
-3. Lancement d'un micro-serveur Flask local sur le port 9004
+Le serveur construit l'URL du resultat avec :
+```text
+path.relative(MEDIA_FOLDER, outPath)  -->  "/media/../../LinkedFolder/upscaled/file.jpg"
+```
 
-### Pourquoi l'executable portable ?
+Pour un fichier dans un dossier lie (ex: `D:\Photos\`), le chemin upscale (`D:\Photos\upscaled\file_upscaled_4x.jpg`) est **en dehors** de MEDIA_FOLDER. Le `path.relative()` produit un chemin avec `../..` qui :
+1. N'est pas une URL valide pour la route `/media/`
+2. Est bloque par le controle de securite `filePath.startsWith(MEDIA_FOLDER)` (ligne 3186)
 
-Le projet `xinntao/Real-ESRGAN` fournit des **binaires Windows portables** (pas besoin de Python) :
-- `realesrgan-ncnn-vulkan.exe` : fonctionne avec GPU Vulkan (NVIDIA, AMD, Intel)
-- Taille totale : ~50 Mo + modeles (~67 Mo)
-- Pas de CUDA requis, pas de Python, pas de Docker
+Meme pour les fichiers dans MEDIA_FOLDER, l'URL utilise `encodeURIComponent` sur le chemin complet puis remplace `%2F` par `/`, ce qui peut causer des problemes avec les espaces et caracteres speciaux dans les noms de dossiers.
 
-Comme ce binaire ne fournit pas de serveur HTTP, le serveur local (`server.cjs`) fera office de proxy : au lieu d'appeler le port 9004, il executera directement le binaire avec `child_process.execFile()` pour traiter chaque image.
-
----
-
-## Modifications prevues
+## Solution
 
 ### 1. Serveur (`server.cjs` + `serverTemplate.ts`)
 
-**Nouveau endpoint `POST /api/install-esrgan`** :
-- Telecharge `realesrgan-ncnn-vulkan` depuis GitHub Releases
-- Extrait dans `%USERPROFILE%\MediaVault-AI\esrgan\`
-- Telecharge le modele `realesrgan-x4plus` automatiquement
-- Suivi de progression via `global.esrganInstallStatus`
+Modifier le endpoint `POST /api/upscale-media` pour construire l'URL correcte selon l'origine du fichier :
 
-**Nouveau endpoint `GET /api/install-esrgan-status`** :
-- Retourne `{ step, progress, message }` comme pour FFmpeg
-
-**Nouveau endpoint `GET /api/check-esrgan`** :
-- Verifie si `realesrgan-ncnn-vulkan.exe` existe dans le dossier d'installation
-- Retourne `{ installed: true/false, path: '...' }`
-
-**Modifier `POST /api/upscale-media`** :
-- Au lieu d'appeler le port 9004 via HTTP, executer directement le binaire :
-  ```text
-  realesrgan-ncnn-vulkan.exe -i input.jpg -o output.jpg -s 4 -n realesrgan-x4plus
-  ```
-- Cela supprime la dependance au serveur Python Flask
-- Fallback : si le port 9004 repond, utiliser le serveur Docker (pour ceux qui l'ont deja)
-
-### 2. Interface (`ServerSettings.tsx`)
-
-Remplacer la section ESRGAN actuelle par une interface complete (identique a Sharp/FFmpeg) :
-- Detection automatique au montage via `/api/check-esrgan`
-- Bouton "Installer ESRGAN" avec barre de progression
-- Polling `/api/install-esrgan-status` toutes les 2 secondes
-- Affichage "Installe" avec bouton "Reinstaller"
-- Message d'erreur en cas d'echec
+- **Fichier dans MEDIA_FOLDER** : continuer a utiliser `/media/chemin/relatif`
+- **Fichier dans un dossier lie** : utiliser `/linked-media/` + encodage base64url du chemin absolu du fichier upscale
 
 ```text
-Dependances serveur
-+-- sharp          Installe          [Reinstaller]
-+-- ffmpeg         Installe          [Reinstaller]
-+-- ESRGAN         Non installe      [Installer ESRGAN]
-                   -> Barre de progression
-                   -> "ESRGAN installe ! (realesrgan-ncnn-vulkan)"
+// Apres l'upscaling, determiner la bonne URL :
+if (outPath est dans MEDIA_FOLDER) {
+  url = '/media/' + chemin_relatif_encode
+} else {
+  url = '/linked-media/' + Buffer.from(outPath).toString('base64url')
+}
 ```
 
-### 3. Verification du bouton Upscale sur les cartes
+### 2. Modal (`UpscaleModal.tsx`)
 
-Les boutons existent deja dans `MediaCardTwitter.tsx` et `MediaCardAdaptive.tsx`. Verification :
-- Le bouton Sparkles ouvre bien `UpscaleModal`
-- Le modal appelle `/api/upscale-media` qui sera mis a jour pour utiliser le binaire local
-- Le resultat est sauvegarde dans `upscaled/` et affiche en comparaison avant/apres
+Corriger l'affichage de l'image "Apres" : actuellement le code prefixe toujours `serverBase` devant `resultUrl`. Mais si l'URL est deja correcte (commence par `/media/` ou `/linked-media/`), il suffit de prefixer `serverBase` — ce qui est deja fait. Donc le modal n'a pas besoin de changement si le serveur renvoie la bonne URL.
 
-Aucune modification necessaire sur les cartes --- tout est deja cable.
+Cependant, ajouter une gestion d'erreur sur l'image "Apres" (`onError`) pour afficher un message utile si l'image ne charge pas.
 
----
+### 3. Verification de l'encodage URL
 
-## Details techniques
+Remplacer la construction d'URL actuelle :
+```text
+// AVANT (bugge pour les espaces et caracteres speciaux) :
+'/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/')
 
-### Flux d'installation
+// APRES (encode correctement chaque segment) :
+'/media/' + relToMedia.split('/').map(s => encodeURIComponent(s)).join('/')
+```
+
+## Fichiers modifies
+
+| Fichier | Modification |
+|---------|-------------|
+| `server.cjs` | Corriger la construction d'URL dans `/api/upscale-media` (methode 1 binaire + methode 2 Docker) |
+| `src/assets/serverTemplate.ts` | Meme correction (miroir) |
+| `src/components/UpscaleModal.tsx` | Ajouter `onError` sur les images resultat pour feedback visuel en cas d'echec de chargement |
+
+## Detail technique de la correction serveur
+
+Dans le endpoint `/api/upscale-media`, apres la creation du fichier upscale :
 
 ```text
-1. Clic "Installer ESRGAN"
-2. POST /api/install-esrgan
-3. Le serveur :
-   a. Cree %USERPROFILE%\MediaVault-AI\esrgan\
-   b. Telecharge realesrgan-ncnn-vulkan-windows.zip (~25 Mo)
-   c. Extrait le zip (PowerShell Expand-Archive)
-   d. Verifie que l'exe existe
-4. Polling GET /api/install-esrgan-status toutes les 2s
-   -> { step: 'downloading', progress: 30, message: 'Telechargement...' }
-   -> { step: 'extracting', progress: 70, message: 'Extraction...' }
-   -> { step: 'done', progress: 100, message: 'ESRGAN installe !' }
-5. Re-verification via /api/check-esrgan
-6. Affichage "Installe"
+// Determiner si le fichier est dans MEDIA_FOLDER ou dans un dossier lie
+const normalizedOut = path.normalize(outPath);
+const normalizedMedia = path.normalize(MEDIA_FOLDER);
+
+let url;
+if (normalizedOut.startsWith(normalizedMedia)) {
+  // Fichier dans MEDIA_FOLDER : URL classique /media/
+  const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
+  url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+} else {
+  // Fichier dans un dossier lie : URL /linked-media/ avec base64url
+  url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
+}
 ```
 
-### Flux d'upscaling (modifie)
+Cette correction s'applique aux deux endroits ou l'URL est construite : apres l'upscaling par binaire portable (ligne 2382) et apres l'upscaling par Docker (ligne 2418).
 
-```text
-1. Utilisateur clique Sparkles sur une carte -> UpscaleModal s'ouvre
-2. Choisit l'echelle (x2, x4, x8) -> clique "Upscaler"
-3. POST /api/upscale-media { mediaPath, scale }
-4. Le serveur :
-   a. Verifie que le binaire ESRGAN existe
-   b. Copie le fichier source dans un temp
-   c. Execute : realesrgan-ncnn-vulkan.exe -i temp/input -o temp/output -s 4
-   d. Copie le resultat dans upscaled/[nom]_upscaled_4x.[ext]
-   e. Retourne { url: '/media/.../upscaled/...' }
-5. Le modal affiche le resultat avec comparaison avant/apres
-```
-
-### Prerequis pour l'utilisateur
-
-- **Aucun** : le binaire portable inclut tout (pas de Python, pas de CUDA, pas de Docker)
-- GPU Vulkan recommande (NVIDIA/AMD/Intel recent) mais fonctionne aussi en CPU
-- Espace disque : ~100 Mo au total
-
-### Fichiers modifies
-
-| Fichier | Modifications |
-|---------|--------------|
-| `server.cjs` | Endpoints `/api/install-esrgan`, `/api/install-esrgan-status`, `/api/check-esrgan` + modifier `/api/upscale-media` pour utiliser le binaire |
-| `src/assets/serverTemplate.ts` | Memes modifications (miroir) |
-| `src/components/settings/ServerSettings.tsx` | Section ESRGAN complete avec bouton d'installation, progression, detection |
