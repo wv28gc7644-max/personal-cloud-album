@@ -192,7 +192,22 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
               <div className="rounded-lg overflow-hidden border border-border/50 aspect-video bg-muted flex items-center justify-center relative">
                 {resultUrl ? (
                   <>
-                    <img src={`${serverBase}${resultUrl}`} alt="Après" className="max-w-full max-h-full object-contain" />
+                    <img 
+                      src={`${serverBase}${resultUrl}`} 
+                      alt="Après" 
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          const msg = document.createElement('div');
+                          msg.className = 'flex flex-col items-center gap-1 text-destructive text-xs';
+                          msg.innerHTML = '<span>⚠️ Image introuvable</span><span class="opacity-70">URL: ' + resultUrl + '</span>';
+                          parent.appendChild(msg);
+                        }
+                      }}
+                    />
                     <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />
                       ×{scale}
@@ -225,6 +240,7 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
                   src={`${serverBase}${resultUrl}`}
                   alt="Après"
                   className="absolute inset-0 w-full h-full object-contain"
+                  onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}
                 />
                 {/* Before (clipped) */}
                 <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>

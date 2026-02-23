@@ -2379,8 +2379,16 @@ const server = http.createServer(async (req, res) => {
               await doUpscale(absPath, outPath, Math.min(scale, 4));
             }
 
-            const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
-            const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+            // Construire l'URL correcte selon l'emplacement du fichier
+            const normalizedOut = path.normalize(outPath);
+            const normalizedMedia = path.normalize(MEDIA_FOLDER);
+            let url;
+            if (normalizedOut.startsWith(normalizedMedia)) {
+              const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
+              url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+            } else {
+              url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
+            }
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ savedPath: outPath, url }));
           }
@@ -2415,8 +2423,16 @@ const server = http.createServer(async (req, res) => {
           }
 
           fs.writeFileSync(outPath, esrganResp.body);
-          const relToMedia = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
-          const url = '/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/');
+          // Construire l'URL correcte selon l'emplacement du fichier
+          const normalizedOut2 = path.normalize(outPath);
+          const normalizedMedia2 = path.normalize(MEDIA_FOLDER);
+          let url;
+          if (normalizedOut2.startsWith(normalizedMedia2)) {
+            const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
+            url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+          } else {
+            url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
+          }
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ savedPath: outPath, url }));
         } catch (err) {
