@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { MediaItem } from '@/types/media';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Sparkles, Download, Loader2, AlertTriangle, CheckCircle, ZoomIn } from 'lucide-react';
@@ -28,6 +28,8 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [fileSize, setFileSize] = useState<number | null>(null);
+  const [cacheBuster, setCacheBuster] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // Comparison slider
   const [sliderPos, setSliderPos] = useState(50);
@@ -38,6 +40,8 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
 
   const reset = () => {
     setResultUrl(null);
+    setFileSize(null);
+    setCacheBuster(0);
     setError(null);
     setProgress(0);
     setProgressMsg('');
@@ -92,7 +96,9 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
       setProgress(100);
       setProgressMsg('Upscaling terminé !');
       setResultUrl(data.url);
-      toast.success(`Image upscalée ×${scale} sauvegardée !`);
+      setFileSize(data.fileSize || null);
+      setCacheBuster(Date.now());
+      toast.success(`Image upscalée ×${scale}${data.fileSize ? ` (${(data.fileSize/1024/1024).toFixed(1)} Mo)` : ''} sauvegardée !`);
     } catch (err: any) {
       console.error('[Upscale] Erreur:', err);
       setError(err.message || 'Erreur inconnue');
@@ -132,6 +138,7 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
             <Sparkles className="w-5 h-5 text-primary" />
             Upscaling IA — {item.name}
           </DialogTitle>
+          <DialogDescription>Comparez l'image originale et upscalée</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -210,10 +217,13 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
                 {resultUrl ? (
                   <>
                     <img 
-                      src={`${serverBase}${resultUrl}`} 
+                      src={`${serverBase}${resultUrl}?t=${cacheBuster}`} 
                       alt="Après" 
                       className="max-w-full max-h-full object-contain"
-                      onLoad={() => console.log('[Upscale] Image "Après" chargée OK:', `${serverBase}${resultUrl}`)}
+                      onLoad={(e) => {
+                        const img = e.currentTarget;
+                        console.log('[Upscale] Image "Après" chargée OK:', img.naturalWidth, 'x', img.naturalHeight, `${serverBase}${resultUrl}`);
+                      }}
                       onError={(e) => {
                         console.error('[Upscale] Échec chargement image "Après":', `${serverBase}${resultUrl}`);
                         const target = e.currentTarget;
@@ -239,7 +249,7 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
                   </div>
                 )}
               </div>
-              <p>{resultUrl ? `Upscalé ×${scale}` : '—'}</p>
+              <p>{resultUrl ? `Upscalé ×${scale}${fileSize ? ` — ${(fileSize/1024/1024).toFixed(1)} Mo` : ''}` : '—'}</p>
             </div>
           </div>
 
@@ -256,7 +266,7 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
               >
                 {/* After (base) */}
                 <img
-                  src={`${serverBase}${resultUrl}`}
+                  src={`${serverBase}${resultUrl}?t=${cacheBuster}`}
                   alt="Après"
                   className="absolute inset-0 w-full h-full object-contain"
                   onError={(e) => { e.currentTarget.style.opacity = '0.3'; }}

@@ -2396,9 +2396,16 @@ const server = http.createServer(async (req, res) => {
             } else {
               url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
             }
-            addLog('info', 'esrgan', `Upscale terminé: ${outPath} → URL: ${url}`);
+            // Vérifier que le fichier de sortie existe et n'est pas vide
+            if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
+              addLog('error', 'esrgan', `Fichier de sortie invalide ou inexistant: ${outPath}`);
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ error: 'ESRGAN n\'a pas produit de fichier de sortie valide', inputPath: absPath, expectedOutput: outPath }));
+            }
+            const fileSize = fs.statSync(outPath).size;
+            addLog('info', 'esrgan', `Upscale terminé: ${outPath} (${(fileSize/1024/1024).toFixed(2)} Mo) → URL: ${url}`);
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ savedPath: outPath, url }));
+            return res.end(JSON.stringify({ savedPath: outPath, url, fileSize }));
           }
 
           // ── Méthode 2 : Fallback Docker service port 9004 ──
@@ -2441,9 +2448,16 @@ const server = http.createServer(async (req, res) => {
           } else {
             url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
           }
-          addLog('info', 'esrgan', `Upscale Docker terminé: ${outPath} → URL: ${url}`);
+          // Vérifier que le fichier de sortie existe et n'est pas vide
+          if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
+            addLog('error', 'esrgan', `Fichier de sortie Docker invalide: ${outPath}`);
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'ESRGAN n\'a pas produit de fichier de sortie valide', inputPath: absPath, expectedOutput: outPath }));
+          }
+          const fileSize2 = fs.statSync(outPath).size;
+          addLog('info', 'esrgan', `Upscale Docker terminé: ${outPath} (${(fileSize2/1024/1024).toFixed(2)} Mo) → URL: ${url}`);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ savedPath: outPath, url }));
+          return res.end(JSON.stringify({ savedPath: outPath, url, fileSize: fileSize2 }));
         } catch (err) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: err.message || 'Erreur interne' }));
