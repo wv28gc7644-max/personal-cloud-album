@@ -1,86 +1,81 @@
 
 
-# Correction de l'upscaling : image non affichee apres traitement
+# Diagnostic et correction de l'affichage de l'image upscalee
 
-## Probleme identifie
+## Analyse des logs
 
-Le processus d'upscaling fonctionne (le binaire ESRGAN s'execute et cree le fichier), mais **l'image upscalee ne s'affiche pas** dans le modal car l'URL renvoyee par le serveur est incorrecte pour les fichiers provenant de dossiers lies.
+Les logs console montrent une situation contradictoire :
+- Le serveur retourne HTTP 200 avec une URL valide
+- `onLoad` se declenche : "Image Apres chargee OK"
+- Mais l'utilisateur ne voit rien dans le panneau "Apres"
 
-### Cause racine
+## Causes probables identifiees
 
-Le serveur construit l'URL du resultat avec :
-```text
-path.relative(MEDIA_FOLDER, outPath)  -->  "/media/../../LinkedFolder/upscaled/file.jpg"
-```
+### 1. Le serveur ne verifie pas que le fichier de sortie existe reellement
 
-Pour un fichier dans un dossier lie (ex: `D:\Photos\`), le chemin upscale (`D:\Photos\upscaled\file_upscaled_4x.jpg`) est **en dehors** de MEDIA_FOLDER. Le `path.relative()` produit un chemin avec `../..` qui :
-1. N'est pas une URL valide pour la route `/media/`
-2. Est bloque par le controle de securite `filePath.startsWith(MEDIA_FOLDER)` (ligne 3186)
+Apres l'execution du binaire ESRGAN, le serveur retourne immediatement une URL **sans verifier** que le fichier upscale a ete cree avec succes. Si ESRGAN echoue silencieusement (exit code 0 mais pas de fichier cree), le serveur renvoie quand meme un succes.
 
-Meme pour les fichiers dans MEDIA_FOLDER, l'URL utilise `encodeURIComponent` sur le chemin complet puis remplace `%2F` par `/`, ce qui peut causer des problemes avec les espaces et caracteres speciaux dans les noms de dossiers.
+### 2. Fichier cree mais vide ou corrompu
+
+ESRGAN pourrait creer un fichier de 0 octets (erreur GPU, format non supporte, etc.). Le serveur le sert quand meme, le navigateur fait `onLoad` sur une image vide, et rien ne s'affiche visuellement.
+
+### 3. Warning DialogContent manque `Description`
+
+Le warning `Missing Description or aria-describedby` indique que le Dialog peut avoir un comportement instable.
 
 ## Solution
 
-### 1. Serveur (`server.cjs` + `serverTemplate.ts`)
+### Fichier 1 : `server.cjs` (+ `serverTemplate.ts`)
 
-Modifier le endpoint `POST /api/upscale-media` pour construire l'URL correcte selon l'origine du fichier :
-
-- **Fichier dans MEDIA_FOLDER** : continuer a utiliser `/media/chemin/relatif`
-- **Fichier dans un dossier lie** : utiliser `/linked-media/` + encodage base64url du chemin absolu du fichier upscale
+Ajouter une **verification post-traitement** apres l'execution d'ESRGAN :
 
 ```text
-// Apres l'upscaling, determiner la bonne URL :
-if (outPath est dans MEDIA_FOLDER) {
-  url = '/media/' + chemin_relatif_encode
-} else {
-  url = '/linked-media/' + Buffer.from(outPath).toString('base64url')
+// Apres doUpscale()...
+if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
+  res.writeHead(500, { ... });
+  return res.end(JSON.stringify({ 
+    error: 'ESRGAN n\'a pas produit de fichier de sortie valide',
+    inputPath: absPath, 
+    expectedOutput: outPath 
+  }));
 }
+const fileSize = fs.statSync(outPath).size;
+// Retourner aussi la taille dans la reponse :
+res.end(JSON.stringify({ savedPath: outPath, url, fileSize }));
 ```
 
-### 2. Modal (`UpscaleModal.tsx`)
+Appliquer la meme verification pour la methode Docker (fallback port 9004).
 
-Corriger l'affichage de l'image "Apres" : actuellement le code prefixe toujours `serverBase` devant `resultUrl`. Mais si l'URL est deja correcte (commence par `/media/` ou `/linked-media/`), il suffit de prefixer `serverBase` — ce qui est deja fait. Donc le modal n'a pas besoin de changement si le serveur renvoie la bonne URL.
+### Fichier 2 : `src/components/UpscaleModal.tsx`
 
-Cependant, ajouter une gestion d'erreur sur l'image "Apres" (`onError`) pour afficher un message utile si l'image ne charge pas.
+1. **Ajouter `DialogDescription`** pour corriger le warning :
+   ```text
+   <DialogDescription>Comparez l'image originale et upscalee</DialogDescription>
+   ```
 
-### 3. Verification de l'encodage URL
+2. **Afficher la taille du fichier** dans le resultat pour confirmer visuellement que le fichier est valide :
+   ```text
+   Upscale x4 - 2.3 Mo
+   ```
 
-Remplacer la construction d'URL actuelle :
-```text
-// AVANT (bugge pour les espaces et caracteres speciaux) :
-'/media/' + encodeURIComponent(relToMedia).replace(/%2F/g, '/')
+3. **Ajouter un cache-buster** sur l'URL de l'image pour eviter le cache navigateur d'un ancien fichier vide :
+   ```text
+   src={`${serverBase}${resultUrl}?t=${Date.now()}`}
+   ```
 
-// APRES (encode correctement chaque segment) :
-'/media/' + relToMedia.split('/').map(s => encodeURIComponent(s)).join('/')
-```
+4. **Logger les dimensions** de l'image chargee via `onLoad` pour confirmer qu'elle a une taille reelle :
+   ```text
+   onLoad={(e) => {
+     const img = e.currentTarget;
+     console.log('[Upscale] Dimensions:', img.naturalWidth, 'x', img.naturalHeight);
+   }}
+   ```
 
 ## Fichiers modifies
 
 | Fichier | Modification |
 |---------|-------------|
-| `server.cjs` | Corriger la construction d'URL dans `/api/upscale-media` (methode 1 binaire + methode 2 Docker) |
-| `src/assets/serverTemplate.ts` | Meme correction (miroir) |
-| `src/components/UpscaleModal.tsx` | Ajouter `onError` sur les images resultat pour feedback visuel en cas d'echec de chargement |
-
-## Detail technique de la correction serveur
-
-Dans le endpoint `/api/upscale-media`, apres la creation du fichier upscale :
-
-```text
-// Determiner si le fichier est dans MEDIA_FOLDER ou dans un dossier lie
-const normalizedOut = path.normalize(outPath);
-const normalizedMedia = path.normalize(MEDIA_FOLDER);
-
-let url;
-if (normalizedOut.startsWith(normalizedMedia)) {
-  // Fichier dans MEDIA_FOLDER : URL classique /media/
-  const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\/g, '/');
-  url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
-} else {
-  // Fichier dans un dossier lie : URL /linked-media/ avec base64url
-  url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
-}
-```
-
-Cette correction s'applique aux deux endroits ou l'URL est construite : apres l'upscaling par binaire portable (ligne 2382) et apres l'upscaling par Docker (ligne 2418).
+| `server.cjs` | Verification fichier sortie existe + taille > 0 apres ESRGAN (binaire + Docker) |
+| `src/assets/serverTemplate.ts` | Meme verification (miroir) |
+| `src/components/UpscaleModal.tsx` | DialogDescription, cache-buster URL, affichage taille fichier, log dimensions |
 
