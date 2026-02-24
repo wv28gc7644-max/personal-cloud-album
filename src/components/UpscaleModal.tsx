@@ -57,15 +57,25 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
     setProgress(5);
     setProgressMsg('Envoi au service d\'upscaling…');
 
+    const sentPath = item.sourcePath || item.url;
+    console.log('[Upscale] Envoi mediaPath:', sentPath);
+    console.log('[Upscale] item.sourcePath:', item.sourcePath);
+    console.log('[Upscale] item.url:', item.url);
+    console.log('[Upscale] item.isLinked:', item.isLinked);
+    console.log('[Upscale] serverBase:', serverBase);
+
     try {
       const r = await fetch(`${serverBase}/api/upscale-media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaPath: item.sourcePath || item.url, scale }),
+        body: JSON.stringify({ mediaPath: sentPath, scale }),
       });
+
+      console.log('[Upscale] Réponse HTTP status:', r.status);
 
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
+        console.error('[Upscale] Erreur serveur:', d);
         throw new Error(d.error || `Erreur ${r.status}`);
       }
 
@@ -73,11 +83,18 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
       setProgressMsg('Traitement en cours…');
 
       const data = await r.json();
+      console.log('[Upscale] Réponse complète:', JSON.stringify(data));
+      console.log('[Upscale] URL reçue:', data.url);
+      
+      const fullUrl = `${serverBase}${data.url}`;
+      console.log('[Upscale] URL complète image:', fullUrl);
+      
       setProgress(100);
       setProgressMsg('Upscaling terminé !');
       setResultUrl(data.url);
       toast.success(`Image upscalée ×${scale} sauvegardée !`);
     } catch (err: any) {
+      console.error('[Upscale] Erreur:', err);
       setError(err.message || 'Erreur inconnue');
       toast.error('Upscaling échoué : ' + (err.message || 'Erreur inconnue'));
     } finally {
@@ -196,19 +213,21 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
                       src={`${serverBase}${resultUrl}`} 
                       alt="Après" 
                       className="max-w-full max-h-full object-contain"
+                      onLoad={() => console.log('[Upscale] Image "Après" chargée OK:', `${serverBase}${resultUrl}`)}
                       onError={(e) => {
+                        console.error('[Upscale] Échec chargement image "Après":', `${serverBase}${resultUrl}`);
                         const target = e.currentTarget;
                         target.style.display = 'none';
                         const parent = target.parentElement;
                         if (parent) {
                           const msg = document.createElement('div');
-                          msg.className = 'flex flex-col items-center gap-1 text-destructive text-xs';
-                          msg.innerHTML = '<span>⚠️ Image introuvable</span><span class="opacity-70">URL: ' + resultUrl + '</span>';
+                          msg.className = 'flex flex-col items-center gap-1 text-xs p-2';
+                          msg.innerHTML = `<span class="text-destructive font-medium">⚠️ Image introuvable</span><span class="opacity-70 break-all text-[10px]">${serverBase}${resultUrl}</span>`;
                           parent.appendChild(msg);
                         }
                       }}
                     />
-                    <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <div className="absolute top-2 right-2 bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" />
                       ×{scale}
                     </div>
