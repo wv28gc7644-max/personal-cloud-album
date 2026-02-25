@@ -22,6 +22,14 @@ const SCALE_OPTIONS: { value: Scale; label: string }[] = [
   { value: 8, label: '×8' },
 ];
 
+interface GpuInfo {
+  id: number;
+  name: string;
+  type: string;
+  vram: number;
+  priority: number;
+}
+
 export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
   const [scale, setScale] = useState<Scale>(4);
   const [isUpscaling, setIsUpscaling] = useState(false);
@@ -31,12 +39,31 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
   const [fileSize, setFileSize] = useState<number | null>(null);
   const [cacheBuster, setCacheBuster] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [gpus, setGpus] = useState<GpuInfo[]>([]);
+  const [selectedGpu, setSelectedGpu] = useState<number | null>(null);
   // Comparison slider
   const [sliderPos, setSliderPos] = useState(50);
   const sliderRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
   const serverBase = getLocalServerUrl();
+
+  // Detect GPUs on open
+  const gpuDetected = useRef(false);
+  const detectGpus = useCallback(async () => {
+    if (gpuDetected.current) return;
+    gpuDetected.current = true;
+    try {
+      const r = await fetch(`${serverBase}/api/detect-gpus`);
+      if (r.ok) {
+        const data = await r.json();
+        setGpus(data.gpus || []);
+        if (data.recommended) setSelectedGpu(data.recommended.id);
+      }
+    } catch {}
+  }, [serverBase]);
+
+  if (open && !gpuDetected.current) detectGpus();
 
   const reset = () => {
     setResultUrl(null);
@@ -72,7 +99,7 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
       const r = await fetch(`${serverBase}/api/upscale-media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mediaPath: sentPath, scale }),
+        body: JSON.stringify({ mediaPath: sentPath, scale, gpuId: selectedGpu }),
       });
 
       console.log('[Upscale] Réponse HTTP status:', r.status);
@@ -160,6 +187,28 @@ export function UpscaleModal({ item, open, onOpenChange }: UpscaleModalProps) {
                 ))}
               </div>
             </div>
+
+            {/* GPU Selection */}
+            {gpus.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">GPU</p>
+                <div className="flex gap-2 flex-wrap">
+                  {gpus.map(gpu => (
+                    <Button
+                      key={gpu.id}
+                      size="sm"
+                      variant={selectedGpu === gpu.id ? 'default' : 'outline'}
+                      onClick={() => setSelectedGpu(gpu.id)}
+                      disabled={isUpscaling}
+                      className="text-xs"
+                    >
+                      {gpu.name.length > 20 ? gpu.name.slice(0, 20) + '…' : gpu.name}
+                      {gpu.vram > 0 && ` (${gpu.vram > 1024 ? (gpu.vram/1024).toFixed(0) + 'G' : gpu.vram + 'M'})`}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="ml-auto">
               {!resultUrl ? (

@@ -2321,22 +2321,54 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ success: true, message: 'Installation ESRGAN démarrée' }));
     }
 
+    // ── Detect GPUs for ESRGAN ──
+    if (pathname === '/api/detect-gpus' && req.method === 'GET') {
+      try {
+        const { execSync } = require('child_process');
+        const gpus = [];
+        try {
+          const nvidiaOut = execSync('nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader,nounits', { timeout: 5000 }).toString().trim();
+          nvidiaOut.split('\n').forEach(line => {
+            const [index, name, mem] = line.split(',').map(s => s.trim());
+            gpus.push({ id: parseInt(index), name, type: 'nvidia', vram: parseInt(mem), priority: 100 });
+          });
+        } catch {}
+        try {
+          const wmicOut = execSync('wmic path win32_VideoController get Name,AdapterRAM /format:csv', { timeout: 5000 }).toString().trim();
+          wmicOut.split('\n').forEach((line, i) => {
+            if (i === 0 || !line.trim()) return;
+            const parts = line.split(',');
+            const name = parts[parts.length - 1]?.trim();
+            const ram = parseInt(parts[parts.length - 2]) || 0;
+            if (name && /intel/i.test(name) && !gpus.find(g => g.name === name)) {
+              gpus.push({ id: gpus.length, name, type: 'intel', vram: Math.round(ram / 1024 / 1024), priority: name.toLowerCase().includes('arc') ? 80 : 30 });
+            }
+          });
+        } catch {}
+        gpus.sort((a, b) => b.priority - a.priority);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ gpus, recommended: gpus[0] || null }));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ gpus: [], recommended: null, error: err.message }));
+      }
+    }
+
     // ── Upscale Media (utilise le binaire portable ou fallback Docker port 9004) ──
     if (pathname === '/api/upscale-media' && req.method === 'POST') {
       let body = '';
       req.on('data', d => body += d);
       req.on('end', async () => {
         try {
-          const { mediaPath, scale = 4 } = JSON.parse(body);
+          const { mediaPath, scale = 4, gpuId } = JSON.parse(body);
           if (!mediaPath) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: 'mediaPath requis' }));
           }
 
           let absPath = mediaPath;
-          // Supprimer le préfixe http://host:port si présent
           if (absPath.match(/^https?:\/\//)) {
-            try { absPath = new URL(absPath).pathname; } catch { /* garder tel quel */ }
+            try { absPath = new URL(absPath).pathname; } catch {}
           }
           if (absPath.startsWith('/media/')) {
             const relative = decodeURIComponent(absPath.slice('/media/'.length));
@@ -2351,9 +2383,20 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: 'Fichier introuvable: ' + absPath }));
           }
 
+          const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.gif'];
+          const VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
           const dir = path.dirname(absPath);
-          const ext = path.extname(absPath);
-          const base = path.basename(absPath, ext);
+          let ext = path.extname(absPath).toLowerCase();
+          const base = path.basename(absPath, path.extname(absPath));
+
+          if (VIDEO_EXTS.includes(ext)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'L\'upscaling vidéo n\'est pas supporté par ESRGAN. Utilisez un outil dédié de super-résolution vidéo.' }));
+          }
+          if (!IMAGE_EXTS.includes(ext)) {
+            ext = '.png';
+          }
+
           const upscaledDir = path.join(dir, 'upscaled');
           if (!fs.existsSync(upscaledDir)) fs.mkdirSync(upscaledDir, { recursive: true });
           const outName = `${base}_upscaled_${scale}x${ext}`;
@@ -2361,12 +2404,17 @@ const server = http.createServer(async (req, res) => {
 
           // ── Méthode 1 : Binaire portable Real-ESRGAN ──
           if (fs.existsSync(ESRGAN_EXE)) {
-            addLog('info', 'esrgan', `Upscaling local x${scale}: ${path.basename(absPath)}`);
+            addLog('info', 'esrgan', `Upscaling local x${scale}: ${path.basename(absPath)} (GPU: ${gpuId !== undefined ? gpuId : 'auto'})`);
             
-            // ESRGAN only supports scale 4 natively; for x2 use -s 2, for x8 we run x4 twice
-            const doUpscale = (inputPath, outputPath, s) => {
+            // realesrgan-x4plus model ONLY works correctly with -s 4
+            // For other scales: always upscale x4 then resize with Sharp
+            const doUpscale = (inputPath, outputPath) => {
               return new Promise((resolve, reject) => {
-                const args = ['-i', inputPath, '-o', outputPath, '-s', String(s), '-n', 'realesrgan-x4plus'];
+                const args = ['-i', inputPath, '-o', outputPath, '-s', '4', '-n', 'realesrgan-x4plus'];
+                if (gpuId !== undefined && gpuId !== null) {
+                  args.push('-g', String(gpuId));
+                }
+                addLog('info', 'esrgan', `Commande: realesrgan-ncnn-vulkan ${args.join(' ')}`);
                 const { execFile } = require('child_process');
                 execFile(ESRGAN_EXE, args, { timeout: 600000 }, (error, stdout, stderr) => {
                   if (error) reject(new Error('ESRGAN error: ' + (stderr || error.message)));
@@ -2375,18 +2423,36 @@ const server = http.createServer(async (req, res) => {
               });
             };
 
+            const resizeToScale = async (filePath, targetScale) => {
+              try {
+                const sharp = require('sharp');
+                const metadata = await sharp(filePath).metadata();
+                const ratio = targetScale === 2 ? 0.5 : (targetScale === 8 ? 0.5 : 1);
+                if (ratio !== 1 && metadata.width && metadata.height) {
+                  const newW = Math.round(metadata.width * ratio);
+                  const newH = Math.round(metadata.height * ratio);
+                  const buffer = await sharp(filePath).resize(newW, newH, { fit: 'fill' }).png().toBuffer();
+                  fs.writeFileSync(filePath, buffer);
+                  addLog('info', 'esrgan', `Redimensionné ${metadata.width}x${metadata.height} → ${newW}x${newH} pour x${targetScale}`);
+                }
+              } catch (sharpErr) {
+                addLog('warn', 'esrgan', `Sharp non disponible pour redimensionnement, fichier restera en x4 natif: ${sharpErr.message}`);
+              }
+            };
+
             if (scale === 8) {
-              // x4 then x4 = x16... Actually realesrgan supports -s 2,3,4 only
-              // For x8: upscale x4, then upscale x2 on the result
-              const tempPath = outPath + '.temp' + ext;
-              await doUpscale(absPath, tempPath, 4);
-              await doUpscale(tempPath, outPath, 2);
+              const tempPath = path.join(upscaledDir, `${base}_temp_x4${ext}`);
+              await doUpscale(absPath, tempPath);
+              await doUpscale(tempPath, outPath);
               try { fs.unlinkSync(tempPath); } catch {}
+              await resizeToScale(outPath, 8);
+            } else if (scale === 2) {
+              await doUpscale(absPath, outPath);
+              await resizeToScale(outPath, 2);
             } else {
-              await doUpscale(absPath, outPath, Math.min(scale, 4));
+              await doUpscale(absPath, outPath);
             }
 
-            // Construire l'URL correcte selon l'emplacement du fichier
             const normalizedOut = path.normalize(outPath).toLowerCase();
             const normalizedMedia = path.normalize(MEDIA_FOLDER).toLowerCase();
             let url;
@@ -2396,7 +2462,6 @@ const server = http.createServer(async (req, res) => {
             } else {
               url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
             }
-            // Vérifier que le fichier de sortie existe et n'est pas vide
             if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
               addLog('error', 'esrgan', `Fichier de sortie invalide ou inexistant: ${outPath}`);
               res.writeHead(500, { 'Content-Type': 'application/json' });
