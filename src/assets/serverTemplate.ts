@@ -2091,57 +2091,79 @@ const server = http.createServer(async (req, res) => {
       req.on('data', (d: any) => body += d);
       req.on('end', async () => {
         try {
-          const { mediaPath, scale = 4 } = JSON.parse(body);
+          const { mediaPath, scale = 4, gpuId } = JSON.parse(body);
           if (!mediaPath) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'mediaPath requis' })); }
           let absPath = mediaPath;
-          // Supprimer le préfixe http://host:port si présent
           if (absPath.match(/^https?:\\/\\//)) {
-            try { absPath = new URL(absPath).pathname; } catch { /* garder tel quel */ }
+            try { absPath = new URL(absPath).pathname; } catch {}
           }
           if (absPath.startsWith('/media/')) {
             absPath = path.join(MEDIA_FOLDER, decodeURIComponent(absPath.slice('/media/'.length)));
           } else if (absPath.startsWith('/linked-media/')) {
-            const encoded = absPath.slice('/linked-media/'.length);
-            absPath = Buffer.from(encoded, 'base64url').toString('utf8');
+            absPath = Buffer.from(absPath.slice('/linked-media/'.length), 'base64url').toString('utf8');
           }
           if (!fs.existsSync(absPath)) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Fichier introuvable' })); }
+
+          const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.gif'];
+          const VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
           const dir = path.dirname(absPath);
-          const ext = path.extname(absPath);
-          const base = path.basename(absPath, ext);
+          let ext = path.extname(absPath).toLowerCase();
+          const base = path.basename(absPath, path.extname(absPath));
+
+          if (VIDEO_EXTS.includes(ext)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'L\\'upscaling vidéo n\\'est pas supporté par ESRGAN.' }));
+          }
+          if (!IMAGE_EXTS.includes(ext)) ext = '.png';
+
           const upscaledDir = path.join(dir, 'upscaled');
           if (!fs.existsSync(upscaledDir)) fs.mkdirSync(upscaledDir, { recursive: true });
-          const outName = \`\${base}_upscaled_\${scale}x\${ext}\`;
-          const outPath = path.join(upscaledDir, outName);
+          const outPath = path.join(upscaledDir, \`\${base}_upscaled_\${scale}x\${ext}\`);
 
-          // Méthode 1 : Binaire portable
           if (fs.existsSync(ESRGAN_EXE)) {
-            const doUpscale = (inp: string, out: string, s: number) => new Promise<void>((resolve, reject) => {
+            const doUpscale = (inp: string, out: string) => new Promise<void>((resolve, reject) => {
               const { execFile } = require('child_process');
-              execFile(ESRGAN_EXE, ['-i', inp, '-o', out, '-s', String(s), '-n', 'realesrgan-x4plus'], { timeout: 600000 }, (error: any, _: any, stderr: string) => {
+              const args = ['-i', inp, '-o', out, '-s', '4', '-n', 'realesrgan-x4plus'];
+              if (gpuId !== undefined && gpuId !== null) args.push('-g', String(gpuId));
+              execFile(ESRGAN_EXE, args, { timeout: 600000 }, (error: any, _: any, stderr: string) => {
                 if (error) reject(new Error('ESRGAN: ' + (stderr || error.message))); else resolve();
               });
             });
+            const resizeToScale = async (filePath: string, targetScale: number) => {
+              try {
+                const sharp = require('sharp');
+                const meta = await sharp(filePath).metadata();
+                const ratio = targetScale === 2 ? 0.5 : (targetScale === 8 ? 0.5 : 1);
+                if (ratio !== 1 && meta.width && meta.height) {
+                  const buf = await sharp(filePath).resize(Math.round(meta.width * ratio), Math.round(meta.height * ratio), { fit: 'fill' }).png().toBuffer();
+                  fs.writeFileSync(filePath, buf);
+                }
+              } catch {}
+            };
             if (scale === 8) {
-              const tempPath = outPath + '.temp' + ext;
-              await doUpscale(absPath, tempPath, 4);
-              await doUpscale(tempPath, outPath, 2);
+              const tempPath = path.join(upscaledDir, \`\${base}_temp_x4\${ext}\`);
+              await doUpscale(absPath, tempPath);
+              await doUpscale(tempPath, outPath);
               try { fs.unlinkSync(tempPath); } catch {}
+              await resizeToScale(outPath, 8);
+            } else if (scale === 2) {
+              await doUpscale(absPath, outPath);
+              await resizeToScale(outPath, 2);
             } else {
-              await doUpscale(absPath, outPath, Math.min(scale, 4));
+              await doUpscale(absPath, outPath);
             }
             const normalizedOut = path.normalize(outPath).toLowerCase();
             const normalizedMedia = path.normalize(MEDIA_FOLDER).toLowerCase();
             let url;
             if (normalizedOut.startsWith(normalizedMedia)) {
               const rel = path.relative(MEDIA_FOLDER, outPath).replace(/\\\\/g, '/');
-              url = '/media/' + rel.split('/').map(s => encodeURIComponent(s)).join('/');
+              url = '/media/' + rel.split('/').map((s: string) => encodeURIComponent(s)).join('/');
             } else {
               url = '/linked-media/' + Buffer.from(outPath).toString('base64url');
             }
-            // Vérifier que le fichier de sortie existe et n'est pas vide
             if (!fs.existsSync(outPath) || fs.statSync(outPath).size === 0) {
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({ error: 'ESRGAN n\\'a pas produit de fichier de sortie valide', inputPath: absPath, expectedOutput: outPath }));
+              return res.end(JSON.stringify({ error: 'ESRGAN n\\'a pas produit de fichier valide' }));
             }
             const fileSize = fs.statSync(outPath).size;
             res.writeHead(200, { 'Content-Type': 'application/json' });
