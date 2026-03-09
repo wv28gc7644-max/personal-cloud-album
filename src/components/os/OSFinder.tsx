@@ -454,14 +454,33 @@ export const OSFinder = memo(() => {
     setSelectedItem(item);
   }, []);
 
+  const { openFileInApp } = useOS();
+
   const handleItemDoubleClick = useCallback(async (item: FileItem) => {
     if (item.type === 'folder' || item.isDrive) {
       await navigateTo(item.path);
     } else if (item.url) {
-      // Open media file in MediaVault or browser
-      window.open(item.url, '_blank');
+      // Determine file type
+      const ext = item.extension?.toLowerCase() || '';
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'svg'].includes(ext);
+      const isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext);
+      const isAudio = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext);
+      
+      if (isImage || isVideo || isAudio) {
+        // Open in MediaViewer
+        openFileInApp('media-viewer', {
+          filePath: item.path,
+          fileUrl: item.url,
+          fileName: item.name,
+          fileType: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+          thumbnailUrl: item.thumbnailUrl
+        });
+      } else {
+        // Open other files in browser/external app
+        window.open(item.url, '_blank');
+      }
     }
-  }, [navigateTo]);
+  }, [navigateTo, openFileInApp]);
 
   const goUp = useCallback(async () => {
     if (currentPath === '/' || currentPath === '') return;
