@@ -247,6 +247,153 @@ const GeneralSection = memo(() => {
 });
 GeneralSection.displayName = 'GeneralSection';
 
+// Local Installation Section
+const InstallSection = memo(() => {
+  const handleDownloadInstaller = () => {
+    // Generate a combined installer script
+    const installerContent = `@echo off
+title CloudOS - Installation locale
+echo ==========================================
+echo   CloudOS - Installation locale
+echo ==========================================
+echo.
+
+:: Create directories
+if not exist "%USERPROFILE%\\CloudOS" mkdir "%USERPROFILE%\\CloudOS"
+if not exist "%USERPROFILE%\\CloudOS\\data" mkdir "%USERPROFILE%\\CloudOS\\data"
+if not exist "%USERPROFILE%\\CloudOS\\media" mkdir "%USERPROFILE%\\CloudOS\\media"
+
+:: Check Node.js
+where node >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+  echo [!] Node.js non detecte. Installation...
+  winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+  if %ERRORLEVEL% NEQ 0 (
+    echo [ERREUR] Impossible d'installer Node.js automatiquement.
+    echo Telechargez-le manuellement : https://nodejs.org
+    pause
+    exit /b 1
+  )
+)
+
+:: Download server
+echo [*] Telechargement du serveur...
+cd /d "%USERPROFILE%\\CloudOS"
+
+:: Create package.json
+echo {"name":"cloudos-server","version":"1.0.0","private":true,"scripts":{"start":"node server.cjs"}} > package.json
+
+:: Copy server.cjs (user must place it here)
+if not exist "server.cjs" (
+  echo [!] Veuillez placer le fichier server.cjs dans %USERPROFILE%\\CloudOS\\
+  echo     Vous pouvez le telecharger depuis l'interface CloudOS.
+)
+
+:: Install dependencies
+echo [*] Installation des dependances...
+call npm install express cors sharp
+
+:: Create startup script
+echo @echo off > "Lancer CloudOS.bat"
+echo title CloudOS Server >> "Lancer CloudOS.bat"
+echo cd /d "%USERPROFILE%\\CloudOS" >> "Lancer CloudOS.bat"
+echo echo Demarrage du serveur CloudOS... >> "Lancer CloudOS.bat"
+echo node server.cjs >> "Lancer CloudOS.bat"
+echo pause >> "Lancer CloudOS.bat"
+
+echo.
+echo ==========================================
+echo   Installation terminee !
+echo ==========================================
+echo.
+echo Pour demarrer : Double-cliquez sur "Lancer CloudOS.bat"
+echo Dossier : %USERPROFILE%\\CloudOS
+echo.
+pause
+`;
+
+    const blob = new Blob([installerContent], { type: 'application/bat' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'installer-cloudos.bat';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadServer = () => {
+    // Download server.cjs
+    const a = document.createElement('a');
+    a.href = '/server.cjs';
+    a.download = 'server.cjs';
+    a.click();
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">Installation locale</h2>
+      <p className="text-sm text-muted-foreground">
+        Créez une installation locale de CloudOS pour l'exécuter sur n'importe quel serveur Windows.
+      </p>
+
+      <div className="space-y-4">
+        {/* Installer */}
+        <div className="p-4 rounded-xl border border-border bg-card space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Package className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-medium">Script d'installation</h3>
+              <p className="text-xs text-muted-foreground">Installe Node.js, crée les dossiers et configure le serveur</p>
+            </div>
+          </div>
+          <button
+            onClick={handleDownloadInstaller}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Télécharger installer-cloudos.bat
+          </button>
+        </div>
+
+        {/* Server file */}
+        <div className="p-4 rounded-xl border border-border bg-card space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-accent/50 flex items-center justify-center">
+              <Server className="w-5 h-5 text-foreground" />
+            </div>
+            <div>
+              <h3 className="font-medium">Fichier serveur</h3>
+              <p className="text-xs text-muted-foreground">Le serveur Node.js à placer dans le dossier d'installation</p>
+            </div>
+          </div>
+          <button
+            onClick={handleDownloadServer}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Télécharger server.cjs
+          </button>
+        </div>
+
+        {/* Instructions */}
+        <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">
+          <h3 className="font-medium text-sm">Instructions</h3>
+          <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+            <li>Téléchargez les deux fichiers ci-dessus</li>
+            <li>Exécutez <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">installer-cloudos.bat</code> en tant qu'administrateur</li>
+            <li>Placez <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">server.cjs</code> dans <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">%USERPROFILE%\CloudOS\</code></li>
+            <li>Lancez le serveur avec <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">Lancer CloudOS.bat</code></li>
+            <li>Accédez à l'interface via le navigateur</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  );
+});
+InstallSection.displayName = 'InstallSection';
+
 export const SystemPreferences = memo(() => {
   const [activeSection, setActiveSection] = useState<PrefSection>('general');
 
@@ -257,6 +404,7 @@ export const SystemPreferences = memo(() => {
       case 'dock': return <DockSection />;
       case 'display': return <DisplaySection />;
       case 'account': return <AccountSection />;
+      case 'install': return <InstallSection />;
       default: return (
         <div className="flex items-center justify-center h-full text-muted-foreground">
           Section en cours de développement
