@@ -977,32 +977,34 @@ export const OSFinder = memo(() => {
                   </button>
                 </div>
                 <div className="p-1">
-                  {currentItems.map(item => (
-                    <ListViewRow
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedItems.some(s => s.id === item.id)}
-                      selectedCount={selectedItems.length}
-                      allSelectedItems={selectedItems}
-                      onClick={(e) => handleItemClick(e, item)}
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                    />
+                  {currentItems.map(item => renderWithContextMenu(item,
+                    <div key={item.id}>
+                      <ListViewRow
+                        item={item}
+                        isSelected={selectedItems.some(s => s.id === item.id)}
+                        selectedCount={selectedItems.length}
+                        allSelectedItems={selectedItems}
+                        onClick={(e) => handleItemClick(e, item)}
+                        onDoubleClick={() => handleItemDoubleClick(item)}
+                      />
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
             ) : (
               <ScrollArea className="h-full">
                 <div className="p-3 flex flex-wrap gap-1 content-start">
-                  {currentItems.map(item => (
-                    <IconViewItem
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedItems.some(s => s.id === item.id)}
-                      selectedCount={selectedItems.length}
-                      allSelectedItems={selectedItems}
-                      onClick={(e) => handleItemClick(e, item)}
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                    />
+                  {currentItems.map(item => renderWithContextMenu(item,
+                    <div key={item.id}>
+                      <IconViewItem
+                        item={item}
+                        isSelected={selectedItems.some(s => s.id === item.id)}
+                        selectedCount={selectedItems.length}
+                        allSelectedItems={selectedItems}
+                        onClick={(e) => handleItemClick(e, item)}
+                        onDoubleClick={() => handleItemDoubleClick(item)}
+                      />
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
