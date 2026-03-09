@@ -197,12 +197,14 @@ const ColumnView = memo(({
   columnPaths,
   onNavigate,
   onSelect,
+  onDoubleClick,
   selectedItem
 }: { 
   columns: FileItem[][];
   columnPaths: string[];
   onNavigate: (path: string, depth: number) => void;
   onSelect: (item: FileItem) => void;
+  onDoubleClick: (item: FileItem) => void;
   selectedItem: FileItem | null;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
