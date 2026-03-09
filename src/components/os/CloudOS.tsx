@@ -26,7 +26,6 @@ export const CloudOS = memo(() => {
   // Add SF Pro-like font
   useEffect(() => {
     document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
-    document.body.style.fontSmoothing = 'antialiased';
     (document.body.style as any).WebkitFontSmoothing = 'antialiased';
     (document.body.style as any).MozOsxFontSmoothing = 'grayscale';
   }, []);
