@@ -2,11 +2,13 @@ import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useOS } from '@/hooks/useOS';
 import { defaultWallpapers } from '@/data/osApps';
+import { MacOSIcon } from './MacOSIcon';
 import { 
   Monitor, Palette, Image, User, Lock, Bell, 
   Accessibility, Keyboard, Mouse, Volume2, 
   Wifi, Bluetooth, Shield, HardDrive, Clock,
-  Languages, Share2, Download, Package, Server
+  Languages, Share2, Download, Package, Server,
+  ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
@@ -17,6 +19,9 @@ import wallpaperOcean from '@/assets/wallpapers/default-ocean.jpg';
 import wallpaperSunset from '@/assets/wallpapers/sunset-silk.jpg';
 import wallpaperAurora from '@/assets/wallpapers/aurora-dark.jpg';
 
+// Settings icons with macOS-style colored backgrounds
+import settingsIcon from '@/assets/icons/settings.png';
+
 const wallpaperMap: Record<string, string> = {
   ocean: wallpaperOcean,
   sunset: wallpaperSunset,
@@ -25,24 +30,52 @@ const wallpaperMap: Record<string, string> = {
 
 type PrefSection = 'general' | 'wallpaper' | 'dock' | 'account' | 'security' | 'notifications' | 'display' | 'install';
 
-const prefCategories = [
-  { id: 'general' as PrefSection, name: 'Général', icon: Monitor },
-  { id: 'wallpaper' as PrefSection, name: 'Fond d\'écran', icon: Image },
-  { id: 'dock' as PrefSection, name: 'Dock', icon: HardDrive },
-  { id: 'display' as PrefSection, name: 'Apparence', icon: Palette },
-  { id: 'account' as PrefSection, name: 'Comptes', icon: User },
-  { id: 'security' as PrefSection, name: 'Sécurité', icon: Shield },
-  { id: 'notifications' as PrefSection, name: 'Notifications', icon: Bell },
-  { id: 'install' as PrefSection, name: 'Installation locale', icon: Package },
+// macOS-style settings categories with colored icons
+const prefCategories: {
+  id: PrefSection;
+  name: string;
+  icon: any;
+  iconBg: string;
+  iconColor: string;
+}[] = [
+  { id: 'general', name: 'Général', icon: Monitor, iconBg: 'bg-[#8E8E93]', iconColor: 'text-white' },
+  { id: 'wallpaper', name: 'Fond d\'écran', icon: Image, iconBg: 'bg-[#30B0C7]', iconColor: 'text-white' },
+  { id: 'dock', name: 'Bureau et Dock', icon: HardDrive, iconBg: 'bg-[#1C1C1E]', iconColor: 'text-white' },
+  { id: 'display', name: 'Apparence', icon: Palette, iconBg: 'bg-[#BF5AF2]', iconColor: 'text-white' },
+  { id: 'account', name: 'Utilisateurs', icon: User, iconBg: 'bg-[#007AFF]', iconColor: 'text-white' },
+  { id: 'security', name: 'Confidentialité et sécurité', icon: Shield, iconBg: 'bg-[#007AFF]', iconColor: 'text-white' },
+  { id: 'notifications', name: 'Notifications', icon: Bell, iconBg: 'bg-[#FF3B30]', iconColor: 'text-white' },
+  { id: 'install', name: 'Installation locale', icon: Package, iconBg: 'bg-[#34C759]', iconColor: 'text-white' },
 ];
+
+const SettingsRow = memo(({ label, children, description }: { label: string; children: React.ReactNode; description?: string }) => (
+  <div className="flex items-center justify-between py-2 min-h-[36px]">
+    <div className="flex-1">
+      <span className="text-[13px]">{label}</span>
+      {description && <p className="text-[11px] text-muted-foreground">{description}</p>}
+    </div>
+    {children}
+  </div>
+));
+SettingsRow.displayName = 'SettingsRow';
+
+const SettingsGroup = memo(({ children, title }: { children: React.ReactNode; title?: string }) => (
+  <div className="mb-4">
+    {title && <h3 className="text-[11px] uppercase text-muted-foreground font-medium mb-1.5 px-3">{title}</h3>}
+    <div className="rounded-[10px] bg-card/60 border border-border/40 divide-y divide-border/40 px-3">
+      {children}
+    </div>
+  </div>
+));
+SettingsGroup.displayName = 'SettingsGroup';
 
 const WallpaperSection = memo(() => {
   const { settings, updateSettings } = useOS();
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Fond d'écran</h2>
-      <div className="grid grid-cols-3 gap-4">
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Fond d'écran</h2>
+      <div className="grid grid-cols-3 gap-3">
         {defaultWallpapers.map(wp => {
           const src = wallpaperMap[wp.id] || wp.src;
           return (
@@ -51,8 +84,8 @@ const WallpaperSection = memo(() => {
               className={cn(
                 'relative rounded-xl overflow-hidden aspect-video border-2 transition-all',
                 settings.wallpaper === src
-                  ? 'border-primary ring-2 ring-primary/30'
-                  : 'border-transparent hover:border-white/30'
+                  ? 'border-primary ring-2 ring-primary/30 scale-[1.02]'
+                  : 'border-transparent hover:border-white/20'
               )}
               onClick={() => updateSettings({ wallpaper: src, wallpaperName: wp.name })}
             >
@@ -73,13 +106,13 @@ const DockSection = memo(() => {
   const { settings, updateSettings } = useOS();
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Dock</h2>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm">Taille</span>
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Bureau et Dock</h2>
+      
+      <SettingsGroup>
+        <SettingsRow label="Taille du Dock">
           <select
-            className="bg-muted rounded-lg px-3 py-1.5 text-sm"
+            className="bg-muted/50 rounded-md px-2 py-1 text-[13px] border border-border/50"
             value={settings.dockSize}
             onChange={(e) => updateSettings({ dockSize: e.target.value as any })}
           >
@@ -87,28 +120,16 @@ const DockSection = memo(() => {
             <option value="medium">Moyen</option>
             <option value="large">Grand</option>
           </select>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm">Grossissement</span>
+        </SettingsRow>
+        <SettingsRow label="Grossissement">
           <Switch
             checked={settings.dockMagnification}
             onCheckedChange={(v) => updateSettings({ dockMagnification: v })}
           />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm">Masquer automatiquement</span>
-          <Switch
-            checked={settings.autoHideDock}
-            onCheckedChange={(v) => updateSettings({ autoHideDock: v })}
-          />
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm">Position</span>
+        </SettingsRow>
+        <SettingsRow label="Position sur l'écran">
           <select
-            className="bg-muted rounded-lg px-3 py-1.5 text-sm"
+            className="bg-muted/50 rounded-md px-2 py-1 text-[13px] border border-border/50"
             value={settings.dockPosition}
             onChange={(e) => updateSettings({ dockPosition: e.target.value as any })}
           >
@@ -116,8 +137,23 @@ const DockSection = memo(() => {
             <option value="left">À gauche</option>
             <option value="right">À droite</option>
           </select>
-        </div>
-      </div>
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <SettingsRow label="Masquer/afficher automatiquement le Dock">
+          <Switch
+            checked={settings.autoHideDock}
+            onCheckedChange={(v) => updateSettings({ autoHideDock: v })}
+          />
+        </SettingsRow>
+        <SettingsRow label="Afficher les icônes sur le Bureau">
+          <Switch
+            checked={settings.showDesktopIcons}
+            onCheckedChange={(v) => updateSettings({ showDesktopIcons: v })}
+          />
+        </SettingsRow>
+      </SettingsGroup>
     </div>
   );
 });
@@ -127,66 +163,65 @@ const DisplaySection = memo(() => {
   const { settings, updateSettings } = useOS();
 
   const accentColors = [
-    { id: 'blue', color: 'bg-blue-500' },
-    { id: 'purple', color: 'bg-purple-500' },
-    { id: 'pink', color: 'bg-pink-500' },
-    { id: 'red', color: 'bg-red-500' },
-    { id: 'orange', color: 'bg-orange-500' },
-    { id: 'yellow', color: 'bg-yellow-500' },
-    { id: 'green', color: 'bg-green-500' },
-    { id: 'gray', color: 'bg-gray-500' },
+    { id: 'blue', color: '#007AFF' },
+    { id: 'purple', color: '#BF5AF2' },
+    { id: 'pink', color: '#FF2D55' },
+    { id: 'red', color: '#FF3B30' },
+    { id: 'orange', color: '#FF9500' },
+    { id: 'yellow', color: '#FFCC00' },
+    { id: 'green', color: '#34C759' },
+    { id: 'graphite', color: '#8E8E93' },
   ];
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Apparence</h2>
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Apparence</h2>
       
-      <div className="space-y-4">
-        <div>
-          <span className="text-sm font-medium">Apparence</span>
-          <div className="flex gap-3 mt-2">
+      <SettingsGroup>
+        <div className="py-3">
+          <span className="text-[13px] font-medium">Apparence</span>
+          <div className="flex gap-3 mt-3">
             {(['light', 'dark', 'auto'] as const).map(mode => (
               <button
                 key={mode}
                 className={cn(
-                  'px-4 py-2 rounded-lg text-sm transition-all',
+                  'flex flex-col items-center gap-2 p-2 rounded-xl transition-all w-24',
                   settings.appearance === mode
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'
+                    ? 'ring-2 ring-primary'
+                    : 'hover:bg-muted/50'
                 )}
                 onClick={() => updateSettings({ appearance: mode })}
               >
-                {mode === 'light' ? 'Clair' : mode === 'dark' ? 'Sombre' : 'Automatique'}
+                <div className={cn(
+                  'w-16 h-10 rounded-md border border-border/50',
+                  mode === 'light' ? 'bg-white' : mode === 'dark' ? 'bg-[#1C1C1E]' : 'bg-gradient-to-r from-white to-[#1C1C1E]'
+                )} />
+                <span className="text-[12px]">
+                  {mode === 'light' ? 'Clair' : mode === 'dark' ? 'Sombre' : 'Auto'}
+                </span>
               </button>
             ))}
           </div>
         </div>
+      </SettingsGroup>
 
-        <div>
-          <span className="text-sm font-medium">Couleur d'accent</span>
-          <div className="flex gap-2 mt-2">
+      <SettingsGroup title="Couleur d'accentuation">
+        <div className="py-3">
+          <div className="flex gap-[10px]">
             {accentColors.map(ac => (
               <button
                 key={ac.id}
                 className={cn(
-                  'w-8 h-8 rounded-full transition-transform',
-                  ac.color,
-                  settings.accentColor === ac.id && 'ring-2 ring-white ring-offset-2 ring-offset-background scale-110'
+                  'w-[22px] h-[22px] rounded-full transition-transform',
+                  settings.accentColor === ac.id && 'ring-[2px] ring-white ring-offset-2 ring-offset-background scale-110'
                 )}
+                style={{ backgroundColor: ac.color }}
                 onClick={() => updateSettings({ accentColor: ac.id })}
               />
             ))}
           </div>
         </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-sm">Afficher les icônes du bureau</span>
-          <Switch
-            checked={settings.showDesktopIcons}
-            onCheckedChange={(v) => updateSettings({ showDesktopIcons: v })}
-          />
-        </div>
-      </div>
+      </SettingsGroup>
     </div>
   );
 });
@@ -196,29 +231,35 @@ const AccountSection = memo(() => {
   const { settings, updateSettings } = useOS();
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Comptes</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="text-sm font-medium">Nom d'utilisateur</label>
-          <Input
-            className="mt-1"
-            value={settings.userName || ''}
-            onChange={(e) => updateSettings({ userName: e.target.value })}
-            placeholder="Utilisateur"
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium">Exiger un mot de passe</span>
-            <p className="text-xs text-muted-foreground">Au réveil ou à l'écran de verrouillage</p>
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Utilisateurs et groupes</h2>
+      
+      {/* User card */}
+      <SettingsGroup>
+        <div className="py-3 flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xl font-semibold">
+            {(settings.userName || 'U').charAt(0).toUpperCase()}
           </div>
+          <div className="flex-1">
+            <Input
+              className="text-[15px] bg-transparent border-none p-0 h-auto font-medium"
+              value={settings.userName || ''}
+              onChange={(e) => updateSettings({ userName: e.target.value })}
+              placeholder="Utilisateur"
+            />
+            <p className="text-[11px] text-muted-foreground">Administrateur</p>
+          </div>
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup title="Sécurité">
+        <SettingsRow label="Exiger un mot de passe" description="Au réveil ou à l'écran de verrouillage">
           <Switch
             checked={settings.requirePassword || false}
             onCheckedChange={(v) => updateSettings({ requirePassword: v })}
           />
-        </div>
-      </div>
+        </SettingsRow>
+      </SettingsGroup>
     </div>
   );
 });
@@ -226,92 +267,61 @@ AccountSection.displayName = 'AccountSection';
 
 const GeneralSection = memo(() => {
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Général</h2>
-      <div className="space-y-4">
-        <div className="bg-muted rounded-xl p-4 space-y-2">
-          <div className="flex items-center gap-3">
-            <Monitor className="w-10 h-10 text-primary" />
-            <div>
-              <h3 className="font-medium">CloudOS</h3>
-              <p className="text-xs text-muted-foreground">Version 1.0.0</p>
-            </div>
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Général</h2>
+      
+      <SettingsGroup>
+        <div className="py-3 flex items-center gap-3">
+          <img src={settingsIcon} alt="CloudOS" className="w-16 h-16" />
+          <div>
+            <h3 className="font-semibold text-[15px]">CloudOS</h3>
+            <p className="text-[13px] text-muted-foreground">Version 2.0.0</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Système d'exploitation web personnel</p>
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Système d'exploitation web personnel. Gérez vos applications, fichiers et préférences depuis une interface unifiée.
-        </p>
-      </div>
+      </SettingsGroup>
+
+      <SettingsGroup title="À propos">
+        <SettingsRow label="Processeur">
+          <span className="text-[13px] text-muted-foreground">Web Runtime</span>
+        </SettingsRow>
+        <SettingsRow label="Mémoire">
+          <span className="text-[13px] text-muted-foreground">{navigator.hardwareConcurrency || 4} cœurs</span>
+        </SettingsRow>
+        <SettingsRow label="Navigateur">
+          <span className="text-[13px] text-muted-foreground">{navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Safari'}</span>
+        </SettingsRow>
+      </SettingsGroup>
     </div>
   );
 });
 GeneralSection.displayName = 'GeneralSection';
 
-// Local Installation Section
 const InstallSection = memo(() => {
   const handleDownloadInstaller = () => {
-    // Generate a combined installer script
     const installerContent = `@echo off
 title CloudOS - Installation locale
 echo ==========================================
 echo   CloudOS - Installation locale
 echo ==========================================
 echo.
-
-:: Create directories
 if not exist "%USERPROFILE%\\CloudOS" mkdir "%USERPROFILE%\\CloudOS"
 if not exist "%USERPROFILE%\\CloudOS\\data" mkdir "%USERPROFILE%\\CloudOS\\data"
 if not exist "%USERPROFILE%\\CloudOS\\media" mkdir "%USERPROFILE%\\CloudOS\\media"
-
-:: Check Node.js
 where node >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
   echo [!] Node.js non detecte. Installation...
   winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
-  if %ERRORLEVEL% NEQ 0 (
-    echo [ERREUR] Impossible d'installer Node.js automatiquement.
-    echo Telechargez-le manuellement : https://nodejs.org
-    pause
-    exit /b 1
-  )
 )
-
-:: Download server
-echo [*] Telechargement du serveur...
 cd /d "%USERPROFILE%\\CloudOS"
-
-:: Create package.json
 echo {"name":"cloudos-server","version":"1.0.0","private":true,"scripts":{"start":"node server.cjs"}} > package.json
-
-:: Copy server.cjs (user must place it here)
-if not exist "server.cjs" (
-  echo [!] Veuillez placer le fichier server.cjs dans %USERPROFILE%\\CloudOS\\
-  echo     Vous pouvez le telecharger depuis l'interface CloudOS.
-)
-
-:: Install dependencies
-echo [*] Installation des dependances...
 call npm install express cors sharp
-
-:: Create startup script
 echo @echo off > "Lancer CloudOS.bat"
-echo title CloudOS Server >> "Lancer CloudOS.bat"
 echo cd /d "%USERPROFILE%\\CloudOS" >> "Lancer CloudOS.bat"
-echo echo Demarrage du serveur CloudOS... >> "Lancer CloudOS.bat"
 echo node server.cjs >> "Lancer CloudOS.bat"
-echo pause >> "Lancer CloudOS.bat"
-
-echo.
-echo ==========================================
-echo   Installation terminee !
-echo ==========================================
-echo.
-echo Pour demarrer : Double-cliquez sur "Lancer CloudOS.bat"
-echo Dossier : %USERPROFILE%\\CloudOS
-echo.
+echo Installation terminee !
 pause
 `;
-
     const blob = new Blob([installerContent], { type: 'application/bat' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -321,74 +331,44 @@ pause
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadServer = () => {
-    // Download server.cjs
-    const a = document.createElement('a');
-    a.href = '/server.cjs';
-    a.download = 'server.cjs';
-    a.click();
-  };
-
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Installation locale</h2>
-      <p className="text-sm text-muted-foreground">
-        Créez une installation locale de CloudOS pour l'exécuter sur n'importe quel serveur Windows.
-      </p>
-
-      <div className="space-y-4">
-        {/* Installer */}
-        <div className="p-4 rounded-xl border border-border bg-card space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Package className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium">Script d'installation</h3>
-              <p className="text-xs text-muted-foreground">Installe Node.js, crée les dossiers et configure le serveur</p>
-            </div>
+    <div className="space-y-4">
+      <h2 className="text-[22px] font-semibold px-1">Installation locale</h2>
+      
+      <SettingsGroup>
+        <div className="py-3">
+          <p className="text-[13px] text-muted-foreground mb-3">
+            Déployez CloudOS sur votre machine locale.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={handleDownloadInstaller}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-[13px] font-medium"
+            >
+              <Download className="w-4 h-4" />
+              Télécharger l'installateur
+            </button>
+            <button
+              onClick={() => { const a = document.createElement('a'); a.href = '/server.cjs'; a.download = 'server.cjs'; a.click(); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-[13px] font-medium"
+            >
+              <Server className="w-4 h-4" />
+              Télécharger server.cjs
+            </button>
           </div>
-          <button
-            onClick={handleDownloadInstaller}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
-          >
-            <Download className="w-4 h-4" />
-            Télécharger installer-cloudos.bat
-          </button>
         </div>
+      </SettingsGroup>
 
-        {/* Server file */}
-        <div className="p-4 rounded-xl border border-border bg-card space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-accent/50 flex items-center justify-center">
-              <Server className="w-5 h-5 text-foreground" />
-            </div>
-            <div>
-              <h3 className="font-medium">Fichier serveur</h3>
-              <p className="text-xs text-muted-foreground">Le serveur Node.js à placer dans le dossier d'installation</p>
-            </div>
-          </div>
-          <button
-            onClick={handleDownloadServer}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors text-sm font-medium"
-          >
-            <Download className="w-4 h-4" />
-            Télécharger server.cjs
-          </button>
-        </div>
-
-        {/* Instructions */}
-        <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-2">
-          <h3 className="font-medium text-sm">Instructions</h3>
-          <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>Téléchargez les deux fichiers ci-dessus</li>
-            <li>Exécutez <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">installer-cloudos.bat</code> en tant qu'administrateur</li>
-            <li>Placez <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">server.cjs</code> dans <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">%USERPROFILE%\CloudOS\</code></li>
-            <li>Lancez le serveur avec <code className="px-1 py-0.5 rounded bg-muted text-foreground text-xs">Lancer CloudOS.bat</code></li>
-            <li>Accédez à l'interface via le navigateur</li>
+      <SettingsGroup title="Instructions">
+        <div className="py-3">
+          <ol className="text-[13px] text-muted-foreground space-y-1.5 list-decimal list-inside">
+            <li>Téléchargez les fichiers ci-dessus</li>
+            <li>Exécutez le script d'installation</li>
+            <li>Placez <code className="px-1 py-0.5 rounded bg-muted text-foreground text-[11px]">server.cjs</code> dans le dossier CloudOS</li>
+            <li>Lancez avec <code className="px-1 py-0.5 rounded bg-muted text-foreground text-[11px]">Lancer CloudOS.bat</code></li>
           </ol>
         </div>
-      </div>
+      </SettingsGroup>
     </div>
   );
 });
@@ -406,7 +386,7 @@ export const SystemPreferences = memo(() => {
       case 'account': return <AccountSection />;
       case 'install': return <InstallSection />;
       default: return (
-        <div className="flex items-center justify-center h-full text-muted-foreground">
+        <div className="flex items-center justify-center h-full text-muted-foreground text-[13px]">
           Section en cours de développement
         </div>
       );
@@ -415,30 +395,54 @@ export const SystemPreferences = memo(() => {
 
   return (
     <div className="flex h-full bg-background">
-      {/* Sidebar */}
-      <div className="w-56 bg-muted/50 border-r border-border p-2 space-y-0.5 overflow-y-auto">
-        {prefCategories.map(cat => {
-          const Icon = cat.icon;
-          return (
-            <button
-              key={cat.id}
-              className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
-                activeSection === cat.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted text-foreground'
-              )}
-              onClick={() => setActiveSection(cat.id)}
-            >
-              <Icon className="w-4 h-4" />
-              {cat.name}
-            </button>
-          );
-        })}
+      {/* macOS-style sidebar */}
+      <div 
+        className="w-[220px] shrink-0 overflow-y-auto py-2 px-2"
+        style={{
+          background: 'rgba(30,30,35,0.15)',
+          borderRight: '0.5px solid rgba(128,128,128,0.2)',
+        }}
+      >
+        {/* Search (placeholder) */}
+        <div className="mb-2 px-1">
+          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-muted-foreground text-[12px]">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8" strokeWidth="2"/>
+              <path d="m21 21-4.3-4.3" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Rechercher
+          </div>
+        </div>
+
+        <div className="space-y-[1px]">
+          {prefCategories.map(cat => {
+            const Icon = cat.icon;
+            return (
+              <button
+                key={cat.id}
+                className={cn(
+                  'w-full flex items-center gap-[8px] px-2 py-[6px] rounded-[6px] text-[13px] transition-colors',
+                  activeSection === cat.id
+                    ? 'bg-primary/15 text-foreground'
+                    : 'hover:bg-muted/50 text-foreground/80'
+                )}
+                onClick={() => setActiveSection(cat.id)}
+              >
+                <div className={cn(
+                  'w-[22px] h-[22px] rounded-[5px] flex items-center justify-center shrink-0',
+                  cat.iconBg
+                )}>
+                  <Icon className={cn('w-[13px] h-[13px]', cat.iconColor)} />
+                </div>
+                <span className="truncate">{cat.name}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-5 overflow-y-auto">
         {renderSection()}
       </div>
     </div>
