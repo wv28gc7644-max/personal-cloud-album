@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { MediaHeader } from '@/components/MediaHeader';
 import { MediaGrid } from '@/components/MediaGrid';
@@ -25,6 +25,9 @@ import { ViewType } from '@/types/views';
 import { MediaItem } from '@/types/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useFinderDrop, FinderDropData, dispatchFinderDrop } from '@/hooks/useFinderDrop';
+import { toast } from 'sonner';
+import { Upload } from 'lucide-react';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
