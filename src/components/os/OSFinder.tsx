@@ -122,7 +122,7 @@ const IconViewItem = memo(({
   const isMedia = item.thumbnailUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.extension?.toLowerCase() || '');
   const isDraggable = item.type === 'file' && item.url;
 
-  const handleDragStart = (e: React.DragEvent) => {
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
     const dragData: FinderDropData = {
@@ -141,18 +141,17 @@ const IconViewItem = memo(({
   };
   
   return (
-    <motion.button
+    <button
       className={cn(
-        'flex flex-col items-center gap-1 p-3 rounded-lg transition-colors w-24',
+        'flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-24',
         isSelected ? 'bg-primary/15' : 'hover:bg-muted',
-        isDraggable && 'cursor-grab active:cursor-grabbing'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
+        'hover:scale-[1.02] active:scale-[0.98]'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       draggable={isDraggable}
       onDragStart={handleDragStart}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
     >
       <div className={cn(
         'w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden pointer-events-none',
@@ -181,7 +180,7 @@ const IconViewItem = memo(({
       )}>
         {item.name}
       </span>
-    </motion.button>
+    </button>
   );
 });
 IconViewItem.displayName = 'IconViewItem';
@@ -200,17 +199,37 @@ const ListViewRow = memo(({
 }) => {
   const Icon = getFileIcon(item);
   const isFolder = item.type === 'folder' || item.isDrive;
+  const isDraggable = item.type === 'file' && item.url;
+
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
+    if (!isDraggable) return;
+    
+    const dragData: FinderDropData = {
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      url: item.url!,
+      thumbnailUrl: item.thumbnailUrl,
+      type: getFileTypeForDrag(item.extension),
+      size: item.size,
+      extension: item.extension
+    };
+    
+    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify([dragData]));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
   
   return (
-    <motion.button
+    <button
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left',
-        isSelected ? 'bg-primary/15' : 'hover:bg-muted'
+        isSelected ? 'bg-primary/15' : 'hover:bg-muted',
+        isDraggable && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      draggable={isDraggable}
+      onDragStart={handleDragStart}
     >
       <Icon className={cn('w-5 h-5 shrink-0', isFolder ? 'text-blue-500' : 'text-muted-foreground')} />
       <span className={cn('flex-1 text-sm truncate', isSelected && 'text-primary font-medium')}>
@@ -218,7 +237,7 @@ const ListViewRow = memo(({
       </span>
       <span className="text-xs text-muted-foreground w-20 text-right">{formatSize(item.size)}</span>
       <span className="text-xs text-muted-foreground w-28 text-right">{formatDate(item.modifiedAt)}</span>
-    </motion.button>
+    </button>
   );
 });
 ListViewRow.displayName = 'ListViewRow';
