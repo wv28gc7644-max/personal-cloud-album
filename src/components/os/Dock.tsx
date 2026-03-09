@@ -101,8 +101,7 @@ const DockIcon = memo(({
           animate={{ scale }}
           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
           style={{ originY: 1 }}
-          draggable
-          onDragStart={handleDragStart}
+          onDragStart={(e: any) => handleDragStart(e)}
         >
           {/* App icon */}
           {renderIcon()}
