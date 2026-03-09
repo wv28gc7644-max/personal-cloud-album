@@ -327,8 +327,8 @@ const ColumnView = memo(({
                       'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                       isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                     )}
-                    onClick={() => {
-                      onSelect(item);
+                    onClick={(e) => {
+                      onSelect(e, item);
                       if (isFolder) onNavigate(item.path, colIndex);
                     }}
                     onDoubleClick={() => {
