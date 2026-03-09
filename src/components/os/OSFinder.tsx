@@ -4,7 +4,7 @@ import {
   Folder, File, Image, Film, Music, FileText, Archive,
   ChevronRight, Home, List, LayoutGrid, Columns,
   ArrowUp, ArrowDown, Search, FolderOpen, HardDrive, Clock, Star, Download,
-  Loader2, RefreshCw, AlertCircle
+  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,30 @@ import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
 import { useOS } from '@/hooks/useOS';
 import { dispatchFinderDrop, FinderDropData } from '@/hooks/useFinderDrop';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type ViewMode = 'icons' | 'list' | 'columns';
 type SortBy = 'name' | 'date' | 'size' | 'type';
@@ -377,6 +401,13 @@ export const OSFinder = memo(() => {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnData, setColumnData] = useState<Map<string, FileItem[]>>(new Map());
   const [columnPaths, setColumnPaths] = useState<string[]>(['/']);
+  
+  // Context menu state
+  const [clipboard, setClipboard] = useState<{ items: FileItem[]; operation: 'copy' | 'cut' } | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToRename, setItemToRename] = useState<FileItem | null>(null);
+  const [newName, setNewName] = useState('');
 
   const serverUrl = getLocalServerUrl();
 
@@ -635,6 +666,115 @@ export const OSFinder = memo(() => {
     setColumnPaths([special]);
   }, [loadDirectory]);
 
+  // Context menu actions
+  const handleCopy = useCallback(() => {
+    if (selectedItems.length === 0) return;
+    setClipboard({ items: selectedItems, operation: 'copy' });
+    toast.success(`${selectedItems.length} élément(s) copié(s)`);
+  }, [selectedItems]);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboard) return;
+    
+    try {
+      for (const item of clipboard.items) {
+        await fetch(`${serverUrl}/api/fs/copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath: item.path,
+            destinationPath: currentPath
+          })
+        });
+      }
+      toast.success('Collé avec succès');
+      await loadDirectory(currentPath);
+      if (clipboard.operation === 'cut') {
+        setClipboard(null);
+      }
+    } catch (err) {
+      toast.error('Erreur lors du collage');
+    }
+  }, [clipboard, currentPath, serverUrl, loadDirectory]);
+
+  const handleRenameStart = useCallback((item: FileItem) => {
+    setItemToRename(item);
+    setNewName(item.name);
+    setRenameDialogOpen(true);
+  }, []);
+
+  const handleRenameConfirm = useCallback(async () => {
+    if (!itemToRename || !newName.trim()) return;
+    
+    try {
+      await fetch(`${serverUrl}/api/fs/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPath: itemToRename.path,
+          newName: newName.trim()
+        })
+      });
+      toast.success('Renommé avec succès');
+      setRenameDialogOpen(false);
+      await loadDirectory(currentPath);
+    } catch (err) {
+      toast.error('Erreur lors du renommage');
+    }
+  }, [itemToRename, newName, serverUrl, currentPath, loadDirectory]);
+
+  const handleDeleteStart = useCallback(() => {
+    if (selectedItems.length === 0) return;
+    setDeleteDialogOpen(true);
+  }, [selectedItems]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    try {
+      for (const item of selectedItems) {
+        await fetch(`${serverUrl}/api/fs/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: item.path })
+        });
+      }
+      toast.success(`${selectedItems.length} élément(s) supprimé(s)`);
+      setDeleteDialogOpen(false);
+      setSelectedItems([]);
+      await loadDirectory(currentPath);
+    } catch (err) {
+      toast.error('Erreur lors de la suppression');
+    }
+  }, [selectedItems, serverUrl, currentPath, loadDirectory]);
+
+  // Render item with context menu wrapper
+  const renderWithContextMenu = useCallback((item: FileItem, children: React.ReactNode) => (
+    <ContextMenu key={item.id}>
+      <ContextMenuTrigger asChild>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={handleCopy} className="gap-2">
+          <Copy className="w-4 h-4" />
+          Copier
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handlePaste} disabled={!clipboard} className="gap-2">
+          <ClipboardPaste className="w-4 h-4" />
+          Coller
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => handleRenameStart(item)} className="gap-2">
+          <Pencil className="w-4 h-4" />
+          Renommer
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={handleDeleteStart} className="gap-2 text-destructive focus:text-destructive">
+          <Trash2 className="w-4 h-4" />
+          Supprimer
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  ), [handleCopy, handlePaste, clipboard, handleRenameStart, handleDeleteStart]);
+
   return (
     <div className="flex h-full bg-background">
       {/* Sidebar */}
@@ -837,32 +977,34 @@ export const OSFinder = memo(() => {
                   </button>
                 </div>
                 <div className="p-1">
-                  {currentItems.map(item => (
-                    <ListViewRow
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedItems.some(s => s.id === item.id)}
-                      selectedCount={selectedItems.length}
-                      allSelectedItems={selectedItems}
-                      onClick={(e) => handleItemClick(e, item)}
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                    />
+                  {currentItems.map(item => renderWithContextMenu(item,
+                    <div key={item.id}>
+                      <ListViewRow
+                        item={item}
+                        isSelected={selectedItems.some(s => s.id === item.id)}
+                        selectedCount={selectedItems.length}
+                        allSelectedItems={selectedItems}
+                        onClick={(e) => handleItemClick(e, item)}
+                        onDoubleClick={() => handleItemDoubleClick(item)}
+                      />
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
             ) : (
               <ScrollArea className="h-full">
                 <div className="p-3 flex flex-wrap gap-1 content-start">
-                  {currentItems.map(item => (
-                    <IconViewItem
-                      key={item.id}
-                      item={item}
-                      isSelected={selectedItems.some(s => s.id === item.id)}
-                      selectedCount={selectedItems.length}
-                      allSelectedItems={selectedItems}
-                      onClick={(e) => handleItemClick(e, item)}
-                      onDoubleClick={() => handleItemDoubleClick(item)}
-                    />
+                  {currentItems.map(item => renderWithContextMenu(item,
+                    <div key={item.id}>
+                      <IconViewItem
+                        item={item}
+                        isSelected={selectedItems.some(s => s.id === item.id)}
+                        selectedCount={selectedItems.length}
+                        allSelectedItems={selectedItems}
+                        onClick={(e) => handleItemClick(e, item)}
+                        onDoubleClick={() => handleItemDoubleClick(item)}
+                      />
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
@@ -909,6 +1051,47 @@ export const OSFinder = memo(() => {
           <span className="truncate max-w-[300px] text-right">{currentPath}</span>
         </div>
       </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Renommer</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nouveau nom"
+            onKeyDown={(e) => e.key === 'Enter' && handleRenameConfirm()}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleRenameConfirm}>
+              Renommer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {selectedItems.length} élément(s) ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Les fichiers seront définitivement supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
