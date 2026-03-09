@@ -129,14 +129,34 @@ const getFileTypeForDrag = (ext?: string): 'image' | 'video' | 'audio' | 'file' 
   return 'file';
 };
 
-// Icon view item
+// MIME type for internal move operations
+const FINDER_INTERNAL_MOVE_MIME = 'application/x-finder-internal-move';
+
+// Helper to check if an item can be dropped onto a target folder
+const canDropOnFolder = (draggedItems: FileItem[], targetFolder: FileItem): boolean => {
+  // Can't drop on non-folders
+  if (targetFolder.type !== 'folder' && !targetFolder.isDrive) return false;
+  
+  // Check each dragged item
+  for (const item of draggedItems) {
+    // Can't drop on self
+    if (item.id === targetFolder.id) return false;
+    // Can't drop a folder into itself or its children
+    if (item.type === 'folder' && targetFolder.path.startsWith(item.path + '/')) return false;
+    if (item.type === 'folder' && targetFolder.path.startsWith(item.path + '\\')) return false;
+  }
+  return true;
+};
+
+// Icon view item with drag & drop support
 const IconViewItem = memo(({ 
   item, 
   isSelected, 
   selectedCount,
   allSelectedItems,
   onClick, 
-  onDoubleClick 
+  onDoubleClick,
+  onMoveToFolder
 }: { 
   item: FileItem; 
   isSelected: boolean; 
@@ -144,43 +164,86 @@ const IconViewItem = memo(({
   allSelectedItems?: FileItem[];
   onClick: (e: React.MouseEvent) => void; 
   onDoubleClick: () => void;
+  onMoveToFolder?: (items: FileItem[], targetPath: string) => void;
 }) => {
+  const [isDragOver, setIsDragOver] = useState(false);
   const Icon = getFileIcon(item);
   const isFolder = item.type === 'folder' || item.isDrive;
   const isMedia = item.thumbnailUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.extension?.toLowerCase() || '');
-  const isDraggable = item.type === 'file' && item.url;
+  const isDraggable = !item.isDrive; // Can drag anything except drives
 
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
     // If this item is part of a multi-selection, drag all selected items
     const itemsToDrag = (allSelectedItems && allSelectedItems.length > 1 && isSelected) 
-      ? allSelectedItems.filter(i => i.type === 'file' && i.url)
+      ? allSelectedItems.filter(i => !i.isDrive)
       : [item];
     
-    const dragData: FinderDropData[] = itemsToDrag.map(i => ({
-      id: i.id,
-      name: i.name,
-      path: i.path,
-      url: i.url!,
-      thumbnailUrl: i.thumbnailUrl,
-      type: getFileTypeForDrag(i.extension),
-      size: i.size,
-      extension: i.extension
-    }));
+    // Set internal move data
+    e.dataTransfer.setData(FINDER_INTERNAL_MOVE_MIME, JSON.stringify(itemsToDrag));
     
-    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
-    e.dataTransfer.effectAllowed = 'copy';
+    // Also set external drag data for files with URLs (for MediaVault import)
+    const filesWithUrls = itemsToDrag.filter(i => i.type === 'file' && i.url);
+    if (filesWithUrls.length > 0) {
+      const dragData: FinderDropData[] = filesWithUrls.map(i => ({
+        id: i.id,
+        name: i.name,
+        path: i.path,
+        url: i.url!,
+        thumbnailUrl: i.thumbnailUrl,
+        type: getFileTypeForDrag(i.extension),
+        size: i.size,
+        extension: i.extension
+      }));
+      e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
+    }
+    
+    e.dataTransfer.effectAllowed = 'move';
     
     // Show count badge for multi-drag
     if (itemsToDrag.length > 1) {
       const badge = document.createElement('div');
       badge.className = 'fixed bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium shadow-lg';
-      badge.textContent = `${itemsToDrag.length} fichiers`;
+      badge.textContent = `${itemsToDrag.length} éléments`;
       badge.style.cssText = 'position: absolute; top: -9999px; left: -9999px;';
       document.body.appendChild(badge);
       e.dataTransfer.setDragImage(badge, 30, 15);
       setTimeout(() => badge.remove(), 0);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isFolder) return;
+    
+    // Check if this is an internal move
+    if (e.dataTransfer.types.includes(FINDER_INTERNAL_MOVE_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    if (!isFolder || !onMoveToFolder) return;
+    
+    const internalData = e.dataTransfer.getData(FINDER_INTERNAL_MOVE_MIME);
+    if (internalData) {
+      try {
+        const draggedItems: FileItem[] = JSON.parse(internalData);
+        if (canDropOnFolder(draggedItems, item)) {
+          onMoveToFolder(draggedItems, item.path);
+        }
+      } catch (err) {
+        console.error('Error parsing drag data:', err);
+      }
     }
   };
   
@@ -190,12 +253,16 @@ const IconViewItem = memo(({
         'flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-24',
         isSelected ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-muted',
         isDraggable && 'cursor-grab active:cursor-grabbing',
-        'hover:scale-[1.02] active:scale-[0.98]'
+        'hover:scale-[1.02] active:scale-[0.98]',
+        isDragOver && isFolder && 'bg-primary/25 ring-2 ring-primary scale-105'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       draggable={isDraggable ? true : undefined}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div className={cn(
         'w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden pointer-events-none',
@@ -229,14 +296,15 @@ const IconViewItem = memo(({
 });
 IconViewItem.displayName = 'IconViewItem';
 
-// List view row
+// List view row with drag & drop support
 const ListViewRow = memo(({ 
   item, 
   isSelected,
   selectedCount,
   allSelectedItems,
   onClick, 
-  onDoubleClick 
+  onDoubleClick,
+  onMoveToFolder
 }: { 
   item: FileItem; 
   isSelected: boolean;
@@ -244,42 +312,79 @@ const ListViewRow = memo(({
   allSelectedItems?: FileItem[];
   onClick: (e: React.MouseEvent) => void; 
   onDoubleClick: () => void;
+  onMoveToFolder?: (items: FileItem[], targetPath: string) => void;
 }) => {
+  const [isDragOver, setIsDragOver] = useState(false);
   const Icon = getFileIcon(item);
   const isFolder = item.type === 'folder' || item.isDrive;
-  const isDraggable = item.type === 'file' && item.url;
+  const isDraggable = !item.isDrive;
 
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
-    // If this item is part of a multi-selection, drag all selected items
     const itemsToDrag = (allSelectedItems && allSelectedItems.length > 1 && isSelected) 
-      ? allSelectedItems.filter(i => i.type === 'file' && i.url)
+      ? allSelectedItems.filter(i => !i.isDrive)
       : [item];
     
-    const dragData: FinderDropData[] = itemsToDrag.map(i => ({
-      id: i.id,
-      name: i.name,
-      path: i.path,
-      url: i.url!,
-      thumbnailUrl: i.thumbnailUrl,
-      type: getFileTypeForDrag(i.extension),
-      size: i.size,
-      extension: i.extension
-    }));
+    e.dataTransfer.setData(FINDER_INTERNAL_MOVE_MIME, JSON.stringify(itemsToDrag));
     
-    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
-    e.dataTransfer.effectAllowed = 'copy';
+    const filesWithUrls = itemsToDrag.filter(i => i.type === 'file' && i.url);
+    if (filesWithUrls.length > 0) {
+      const dragData: FinderDropData[] = filesWithUrls.map(i => ({
+        id: i.id,
+        name: i.name,
+        path: i.path,
+        url: i.url!,
+        thumbnailUrl: i.thumbnailUrl,
+        type: getFileTypeForDrag(i.extension),
+        size: i.size,
+        extension: i.extension
+      }));
+      e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
+    }
     
-    // Show count badge for multi-drag
+    e.dataTransfer.effectAllowed = 'move';
+    
     if (itemsToDrag.length > 1) {
       const badge = document.createElement('div');
       badge.className = 'fixed bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium shadow-lg';
-      badge.textContent = `${itemsToDrag.length} fichiers`;
+      badge.textContent = `${itemsToDrag.length} éléments`;
       badge.style.cssText = 'position: absolute; top: -9999px; left: -9999px;';
       document.body.appendChild(badge);
       e.dataTransfer.setDragImage(badge, 30, 15);
       setTimeout(() => badge.remove(), 0);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isFolder) return;
+    if (e.dataTransfer.types.includes(FINDER_INTERNAL_MOVE_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    if (!isFolder || !onMoveToFolder) return;
+    
+    const internalData = e.dataTransfer.getData(FINDER_INTERNAL_MOVE_MIME);
+    if (internalData) {
+      try {
+        const draggedItems: FileItem[] = JSON.parse(internalData);
+        if (canDropOnFolder(draggedItems, item)) {
+          onMoveToFolder(draggedItems, item.path);
+        }
+      } catch (err) {
+        console.error('Error parsing drag data:', err);
+      }
     }
   };
   
@@ -288,12 +393,16 @@ const ListViewRow = memo(({
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left',
         isSelected ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-muted',
-        isDraggable && 'cursor-grab active:cursor-grabbing'
+        isDraggable && 'cursor-grab active:cursor-grabbing',
+        isDragOver && isFolder && 'bg-primary/25 ring-2 ring-primary'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       draggable={isDraggable ? true : undefined}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <Icon className={cn('w-5 h-5 shrink-0', isFolder ? 'text-blue-500' : 'text-muted-foreground')} />
       <span className={cn('flex-1 text-sm truncate', isSelected && 'text-primary font-medium')}>
@@ -746,7 +855,33 @@ export const OSFinder = memo(() => {
     }
   }, [selectedItems, serverUrl, currentPath, loadDirectory]);
 
-  // Render item with context menu wrapper
+  // Handle moving items to a folder via drag & drop
+  const handleMoveToFolder = useCallback(async (itemsToMove: FileItem[], targetPath: string) => {
+    try {
+      let moved = 0;
+      for (const item of itemsToMove) {
+        const response = await fetch(`${serverUrl}/api/fs/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath: item.path,
+            destinationPath: targetPath
+          })
+        });
+        if (response.ok) moved++;
+      }
+      
+      if (moved > 0) {
+        toast.success(`${moved} élément${moved > 1 ? 's' : ''} déplacé${moved > 1 ? 's' : ''}`);
+        setSelectedItems([]);
+        await loadDirectory(currentPath);
+        // Also refresh column data if in column view
+        setColumnData(new Map());
+      }
+    } catch (err) {
+      toast.error('Erreur lors du déplacement');
+    }
+  }, [serverUrl, currentPath, loadDirectory]);
   const renderWithContextMenu = useCallback((item: FileItem, children: React.ReactNode) => (
     <ContextMenu key={item.id}>
       <ContextMenuTrigger asChild>
@@ -986,6 +1121,7 @@ export const OSFinder = memo(() => {
                         allSelectedItems={selectedItems}
                         onClick={(e) => handleItemClick(e, item)}
                         onDoubleClick={() => handleItemDoubleClick(item)}
+                        onMoveToFolder={handleMoveToFolder}
                       />
                     </div>
                   ))}
@@ -1003,6 +1139,7 @@ export const OSFinder = memo(() => {
                         allSelectedItems={selectedItems}
                         onClick={(e) => handleItemClick(e, item)}
                         onDoubleClick={() => handleItemDoubleClick(item)}
+                        onMoveToFolder={handleMoveToFolder}
                       />
                     </div>
                   ))}
