@@ -4,7 +4,7 @@ import {
   Folder, File, Image, Film, Music, FileText, Archive,
   ChevronRight, Home, List, LayoutGrid, Columns,
   ArrowUp, ArrowDown, Search, FolderOpen, HardDrive, Clock, Star, Download,
-  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2
+  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2, ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
 import { useOS } from '@/hooks/useOS';
+import { useMediaStore } from '@/hooks/useMediaStore';
 import { dispatchFinderDrop, FinderDropData } from '@/hooks/useFinderDrop';
 import {
   ContextMenu,
