@@ -811,7 +811,7 @@ export const OSFinder = memo(() => {
                 onNavigate={handleColumnNavigate}
                 onSelect={handleItemClick}
                 onDoubleClick={handleItemDoubleClick}
-                selectedItem={selectedItem}
+                selectedItems={selectedItems}
               />
             ) : viewMode === 'list' ? (
               <ScrollArea className="h-full">
