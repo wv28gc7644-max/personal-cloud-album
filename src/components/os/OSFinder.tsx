@@ -4,7 +4,7 @@ import {
   Folder, File, Image, Film, Music, FileText, Archive,
   ChevronRight, Home, List, LayoutGrid, Columns,
   ArrowUp, ArrowDown, Search, FolderOpen, HardDrive, Clock, Star, Download,
-  Loader2, RefreshCw, AlertCircle
+  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,30 @@ import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
 import { useOS } from '@/hooks/useOS';
 import { dispatchFinderDrop, FinderDropData } from '@/hooks/useFinderDrop';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type ViewMode = 'icons' | 'list' | 'columns';
 type SortBy = 'name' | 'date' | 'size' | 'type';
