@@ -96,6 +96,15 @@ const SidebarItem = memo(({
 ));
 SidebarItem.displayName = 'SidebarItem';
 
+// Helper to get file type for drag data
+const getFileTypeForDrag = (ext?: string): 'image' | 'video' | 'audio' | 'file' => {
+  const e = ext?.toLowerCase() || '';
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'svg'].includes(e)) return 'image';
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(e)) return 'video';
+  if (['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(e)) return 'audio';
+  return 'file';
+};
+
 // Icon view item
 const IconViewItem = memo(({ 
   item, 
@@ -111,20 +120,42 @@ const IconViewItem = memo(({
   const Icon = getFileIcon(item);
   const isFolder = item.type === 'folder' || item.isDrive;
   const isMedia = item.thumbnailUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.extension?.toLowerCase() || '');
+  const isDraggable = item.type === 'file' && item.url;
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!isDraggable) return;
+    
+    const dragData: FinderDropData = {
+      id: item.id,
+      name: item.name,
+      path: item.path,
+      url: item.url!,
+      thumbnailUrl: item.thumbnailUrl,
+      type: getFileTypeForDrag(item.extension),
+      size: item.size,
+      extension: item.extension
+    };
+    
+    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify([dragData]));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
   
   return (
     <motion.button
       className={cn(
         'flex flex-col items-center gap-1 p-3 rounded-lg transition-colors w-24',
-        isSelected ? 'bg-primary/15' : 'hover:bg-muted'
+        isSelected ? 'bg-primary/15' : 'hover:bg-muted',
+        isDraggable && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      draggable={isDraggable}
+      onDragStart={handleDragStart}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
     >
       <div className={cn(
-        'w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden',
+        'w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden pointer-events-none',
         isFolder ? 'bg-blue-500/20' : 'bg-muted'
       )}>
         {isMedia ? (
@@ -145,7 +176,7 @@ const IconViewItem = memo(({
         )} />
       </div>
       <span className={cn(
-        'text-xs text-center line-clamp-2 w-full',
+        'text-xs text-center line-clamp-2 w-full pointer-events-none',
         isSelected && 'text-primary font-medium'
       )}>
         {item.name}
