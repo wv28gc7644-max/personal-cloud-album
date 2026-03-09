@@ -855,7 +855,33 @@ export const OSFinder = memo(() => {
     }
   }, [selectedItems, serverUrl, currentPath, loadDirectory]);
 
-  // Render item with context menu wrapper
+  // Handle moving items to a folder via drag & drop
+  const handleMoveToFolder = useCallback(async (itemsToMove: FileItem[], targetPath: string) => {
+    try {
+      let moved = 0;
+      for (const item of itemsToMove) {
+        const response = await fetch(`${serverUrl}/api/fs/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath: item.path,
+            destinationPath: targetPath
+          })
+        });
+        if (response.ok) moved++;
+      }
+      
+      if (moved > 0) {
+        toast.success(`${moved} élément${moved > 1 ? 's' : ''} déplacé${moved > 1 ? 's' : ''}`);
+        setSelectedItems([]);
+        await loadDirectory(currentPath);
+        // Also refresh column data if in column view
+        setColumnData(new Map());
+      }
+    } catch (err) {
+      toast.error('Erreur lors du déplacement');
+    }
+  }, [serverUrl, currentPath, loadDirectory]);
   const renderWithContextMenu = useCallback((item: FileItem, children: React.ReactNode) => (
     <ContextMenu key={item.id}>
       <ContextMenuTrigger asChild>
