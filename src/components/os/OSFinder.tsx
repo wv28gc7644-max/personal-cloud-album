@@ -241,8 +241,8 @@ const ColumnView = memo(({
                       if (isFolder) onNavigate(item.path, colIndex);
                     }}
                     onDoubleClick={() => {
-                      if (!isFolder && item.url) {
-                        window.open(item.url, '_blank');
+                      if (!isFolder) {
+                        onDoubleClick(item);
                       }
                     }}
                   >
