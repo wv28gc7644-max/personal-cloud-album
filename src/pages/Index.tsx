@@ -49,7 +49,40 @@ const Index = () => {
   // Use finder drop hook for cross-window communication
   useFinderDrop();
 
-  // Handle drag events for files from Finder
+  // Handle drag and drop from Finder
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    // Check if this is a Finder drop
+    if (e.dataTransfer.types.includes('application/x-mediavault-finder')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only set false when leaving the container, not when entering children
+    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const finderData = e.dataTransfer.getData('application/x-mediavault-finder');
+    if (finderData) {
+      try {
+        const items: FinderDropData[] = JSON.parse(finderData);
+        dispatchFinderDrop(items);
+      } catch (err) {
+        console.error('Failed to parse Finder drop data:', err);
+        toast.error('Erreur lors de l\'import');
+      }
+    }
+  }, []);
+
+  // Listen for navigation events
   useEffect(() => {
     const handleOpenAdminUpdates = () => {
       setCurrentView('admin');
