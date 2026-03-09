@@ -520,6 +520,40 @@ export const OSFinder = memo(() => {
   const [newName, setNewName] = useState('');
 
   const serverUrl = getLocalServerUrl();
+  const { media } = useMediaStore();
+
+  // Load MediaVault items as virtual file items
+  const loadMediaVaultItems = useCallback(() => {
+    const mediaItems: FileItem[] = media.map(m => ({
+      id: `mv-${m.id}`,
+      name: m.name + (m.type === 'video' ? '.mp4' : '.jpg'),
+      type: 'file' as const,
+      extension: m.type === 'video' ? 'mp4' : 'jpg',
+      size: m.size,
+      modifiedAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
+      path: `/__mediavault__/${m.id}`,
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl || m.url,
+    }));
+    
+    // Group by source folder
+    const folders = new Set<string>();
+    media.forEach(m => {
+      if (m.sourceFolder) folders.add(m.sourceFolder);
+    });
+    
+    const folderItems: FileItem[] = Array.from(folders).map(f => ({
+      id: `mv-folder-${f}`,
+      name: f.split(/[/\\]/).pop() || f,
+      type: 'folder' as const,
+      modifiedAt: new Date().toISOString(),
+      path: `/__mediavault__/${f}`,
+    }));
+    
+    setItems([...folderItems, ...mediaItems]);
+    setCurrentPath('/__mediavault__');
+    setError(null);
+  }, [media]);
 
   // Fetch directory contents from server
   const fetchDirectory = useCallback(async (dirPath: string): Promise<FileItem[]> => {
