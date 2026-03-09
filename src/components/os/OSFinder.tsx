@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
+import { useOS } from '@/hooks/useOS';
 
 type ViewMode = 'icons' | 'list' | 'columns';
 type SortBy = 'name' | 'date' | 'size' | 'type';
