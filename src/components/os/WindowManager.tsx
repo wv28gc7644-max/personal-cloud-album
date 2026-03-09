@@ -4,6 +4,8 @@ import { OSWindowFrame } from '@/components/os/OSWindowFrame';
 import { SystemPreferences } from '@/components/os/SystemPreferences';
 import { AppStore } from '@/components/os/AppStore';
 import { OSFinder } from '@/components/os/OSFinder';
+import { MediaViewer } from '@/components/os/MediaViewer';
+import { OSWindow } from '@/types/os';
 import Index from '@/pages/Index';
 
 // Wraps the main MediaVault app to make it look like an OS app
@@ -32,24 +34,22 @@ export const WindowManager = memo(() => {
   // Sort windows by zIndex to render them in the correct order
   const sortedWindows = [...windows].sort((a, b) => a.zIndex - b.zIndex);
 
-  const renderAppContent = (appId: string, componentName?: string) => {
-    switch (componentName || appId) {
-      case 'SystemPreferences':
+  const renderAppContent = (win: OSWindow) => {
+    const { appId, data } = win;
+    
+    switch (appId) {
       case 'settings':
         return <SystemPreferences />;
-      case 'AppStore':
       case 'appstore':
         return <AppStore />;
-      case 'Finder':
       case 'finder':
         return <OSFinder />;
-      case 'MediaVault':
       case 'mediavault':
         return <MediaVaultWrapper />;
+      case 'media-viewer':
+        return <MediaViewer data={data} />;
       default:
-        // Use the window title or app id for the placeholder
-        const win = windows.find(w => w.appId === appId);
-        return <PlaceholderApp name={win?.title || appId} />;
+        return <PlaceholderApp name={win.title || appId} />;
     }
   };
 
@@ -57,7 +57,7 @@ export const WindowManager = memo(() => {
     <>
       {sortedWindows.map(win => (
         <OSWindowFrame key={win.id} window={win}>
-          {renderAppContent(win.appId)}
+          {renderAppContent(win)}
         </OSWindowFrame>
       ))}
     </>

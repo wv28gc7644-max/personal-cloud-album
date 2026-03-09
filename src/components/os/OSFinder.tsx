@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
+import { useOS } from '@/hooks/useOS';
 
 type ViewMode = 'icons' | 'list' | 'columns';
 type SortBy = 'name' | 'date' | 'size' | 'type';
@@ -196,12 +197,14 @@ const ColumnView = memo(({
   columnPaths,
   onNavigate,
   onSelect,
+  onDoubleClick,
   selectedItem
 }: { 
   columns: FileItem[][];
   columnPaths: string[];
   onNavigate: (path: string, depth: number) => void;
   onSelect: (item: FileItem) => void;
+  onDoubleClick: (item: FileItem) => void;
   selectedItem: FileItem | null;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -238,8 +241,8 @@ const ColumnView = memo(({
                       if (isFolder) onNavigate(item.path, colIndex);
                     }}
                     onDoubleClick={() => {
-                      if (!isFolder && item.url) {
-                        window.open(item.url, '_blank');
+                      if (!isFolder) {
+                        onDoubleClick(item);
                       }
                     }}
                   >
@@ -453,14 +456,33 @@ export const OSFinder = memo(() => {
     setSelectedItem(item);
   }, []);
 
+  const { openFileInApp } = useOS();
+
   const handleItemDoubleClick = useCallback(async (item: FileItem) => {
     if (item.type === 'folder' || item.isDrive) {
       await navigateTo(item.path);
     } else if (item.url) {
-      // Open media file in MediaVault or browser
-      window.open(item.url, '_blank');
+      // Determine file type
+      const ext = item.extension?.toLowerCase() || '';
+      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'svg'].includes(ext);
+      const isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext);
+      const isAudio = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext);
+      
+      if (isImage || isVideo || isAudio) {
+        // Open in MediaViewer
+        openFileInApp('media-viewer', {
+          filePath: item.path,
+          fileUrl: item.url,
+          fileName: item.name,
+          fileType: isVideo ? 'video' : isAudio ? 'audio' : 'image',
+          thumbnailUrl: item.thumbnailUrl
+        });
+      } else {
+        // Open other files in browser/external app
+        window.open(item.url, '_blank');
+      }
     }
-  }, [navigateTo]);
+  }, [navigateTo, openFileInApp]);
 
   const goUp = useCallback(async () => {
     if (currentPath === '/' || currentPath === '') return;
@@ -671,6 +693,7 @@ export const OSFinder = memo(() => {
                 columnPaths={columnPaths}
                 onNavigate={handleColumnNavigate}
                 onSelect={handleItemClick}
+                onDoubleClick={handleItemDoubleClick}
                 selectedItem={selectedItem}
               />
             ) : viewMode === 'list' ? (

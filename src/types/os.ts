@@ -13,6 +13,15 @@ export interface OSApp {
   installScript?: string; // .bat file path for server apps
 }
 
+export interface OSWindowData {
+  // Data to pass to the app when opening
+  filePath?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: 'image' | 'video' | 'audio' | 'file';
+  thumbnailUrl?: string;
+}
+
 export interface OSWindow {
   id: string;
   appId: string;
@@ -27,6 +36,7 @@ export interface OSWindow {
   isMaximized: boolean;
   isActive: boolean;
   zIndex: number;
+  data?: OSWindowData; // Data passed to the app
 }
 
 export interface DesktopIcon {
