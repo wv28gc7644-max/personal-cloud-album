@@ -883,14 +883,24 @@ export const OSFinder = memo(() => {
         {/* Status bar */}
         <div className="h-6 border-t border-border flex items-center px-3 text-xs text-muted-foreground shrink-0">
           <span>{currentItems.length} élément{currentItems.length !== 1 ? 's' : ''}</span>
-          {selectedItem && (
+          {selectedItems.length > 0 && (
             <>
               <span className="mx-2">•</span>
-              <span className="truncate max-w-[200px]">Sélectionné : {selectedItem.name}</span>
-              {selectedItem.size && (
+              {selectedItems.length === 1 ? (
                 <>
+                  <span className="truncate max-w-[200px]">Sélectionné : {selectedItems[0].name}</span>
+                  {selectedItems[0].size && (
+                    <>
+                      <span className="mx-2">•</span>
+                      <span>{formatSize(selectedItems[0].size)}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span>{selectedItems.length} éléments sélectionnés</span>
                   <span className="mx-2">•</span>
-                  <span>{formatSize(selectedItem.size)}</span>
+                  <span>{formatSize(selectedItems.reduce((acc, i) => acc + (i.size || 0), 0))}</span>
                 </>
               )}
             </>
