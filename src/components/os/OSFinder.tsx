@@ -228,7 +228,7 @@ const ListViewRow = memo(({
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      draggable={isDraggable}
+      draggable={isDraggable ? true : undefined}
       onDragStart={handleDragStart}
     >
       <Icon className={cn('w-5 h-5 shrink-0', isFolder ? 'text-blue-500' : 'text-muted-foreground')} />
