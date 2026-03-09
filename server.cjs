@@ -1146,6 +1146,162 @@ const server = http.createServer(async (req, res) => {
       }));
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // API: Parcourir un répertoire (pour le Finder OS)
+    // ═══════════════════════════════════════════════════════════════
+
+    if (pathname === '/api/fs/list' && req.method === 'POST') {
+      const body = await parseBody(req);
+      let targetPath = body.path || '';
+      
+      // Résoudre les chemins spéciaux
+      const userProfile = process.env.USERPROFILE || process.env.HOME || '';
+      const specialPaths = {
+        '~': userProfile,
+        'home': userProfile,
+        'desktop': path.join(userProfile, 'Desktop'),
+        'documents': path.join(userProfile, 'Documents'),
+        'downloads': path.join(userProfile, 'Downloads'),
+        'pictures': path.join(userProfile, 'Pictures'),
+        'videos': path.join(userProfile, 'Videos'),
+        'music': path.join(userProfile, 'Music'),
+      };
+      
+      if (specialPaths[targetPath.toLowerCase()]) {
+        targetPath = specialPaths[targetPath.toLowerCase()];
+      } else if (targetPath === '' || targetPath === '/') {
+        // Racine: lister les lecteurs Windows ou /
+        if (process.platform === 'win32') {
+          // Lister les lecteurs disponibles
+          const drives = [];
+          for (let i = 65; i <= 90; i++) { // A-Z
+            const driveLetter = String.fromCharCode(i) + ':';
+            const drivePath = driveLetter + '\\';
+            try {
+              if (fs.existsSync(drivePath)) {
+                const stat = fs.statSync(drivePath);
+                drives.push({
+                  id: `drive-${driveLetter}`,
+                  name: driveLetter,
+                  type: 'folder',
+                  path: drivePath,
+                  modifiedAt: stat.mtime.toISOString(),
+                  isDrive: true
+                });
+              }
+            } catch {}
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ path: '/', items: drives, isRoot: true }));
+        } else {
+          targetPath = '/';
+        }
+      }
+      
+      const normalizedPath = path.normalize(targetPath);
+      
+      if (!fs.existsSync(normalizedPath)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: `Chemin introuvable: ${normalizedPath}` }));
+      }
+      
+      const stats = fs.statSync(normalizedPath);
+      if (!stats.isDirectory()) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Le chemin n\'est pas un dossier' }));
+      }
+      
+      // Dossiers système à ignorer
+      const SYSTEM_FOLDERS = [
+        'System Volume Information', '$Recycle.Bin', 'Recovery', 
+        '$WINDOWS.~BT', '$WINDOWS.~WS', '$SysReset', 'PerfLogs',
+        'Config.Msi', 'MSOCache', 'Windows.old'
+      ];
+      
+      const items = [];
+      try {
+        const entries = fs.readdirSync(normalizedPath, { withFileTypes: true });
+        for (const entry of entries) {
+          // Ignorer les dossiers système et cachés
+          if (entry.name.startsWith('$') || entry.name.startsWith('.') || SYSTEM_FOLDERS.includes(entry.name)) {
+            continue;
+          }
+          
+          const entryPath = path.join(normalizedPath, entry.name);
+          try {
+            const entryStat = fs.statSync(entryPath);
+            const ext = entry.isFile() ? path.extname(entry.name).toLowerCase().slice(1) : undefined;
+            
+            items.push({
+              id: Buffer.from(entryPath).toString('base64url'),
+              name: entry.name,
+              type: entry.isDirectory() ? 'folder' : 'file',
+              extension: ext,
+              size: entry.isFile() ? entryStat.size : undefined,
+              path: entryPath,
+              modifiedAt: entryStat.mtime.toISOString(),
+              // Pour les fichiers média, inclure les URLs
+              ...(entry.isFile() && ['jpg','jpeg','png','gif','webp','mp4','webm','mov','avi','mkv','mp3','wav','flac'].includes(ext) ? {
+                url: `http://localhost:${PORT}/linked-media/${Buffer.from(entryPath).toString('base64url')}`,
+                thumbnailUrl: `http://localhost:${PORT}/api/thumbnail/${Buffer.from(entryPath).toString('base64url')}`
+              } : {})
+            });
+          } catch {
+            // Ignorer les fichiers inaccessibles (permissions, etc.)
+          }
+        }
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: `Erreur de lecture: ${e.message}` }));
+      }
+      
+      // Trier: dossiers d'abord, puis fichiers, par nom
+      items.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        path: normalizedPath,
+        parent: path.dirname(normalizedPath) !== normalizedPath ? path.dirname(normalizedPath) : null,
+        items,
+        isRoot: false
+      }));
+    }
+
+    // API: Obtenir les informations sur un fichier
+    if (pathname === '/api/fs/info' && req.method === 'POST') {
+      const body = await parseBody(req);
+      const filePath = body.path;
+      
+      if (!filePath || !fs.existsSync(filePath)) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Fichier introuvable' }));
+      }
+      
+      try {
+        const stat = fs.statSync(filePath);
+        const ext = path.extname(filePath).toLowerCase().slice(1);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          name: path.basename(filePath),
+          path: filePath,
+          isDirectory: stat.isDirectory(),
+          isFile: stat.isFile(),
+          size: stat.size,
+          extension: ext,
+          createdAt: stat.birthtime.toISOString(),
+          modifiedAt: stat.mtime.toISOString(),
+          accessedAt: stat.atime.toISOString()
+        }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: e.message }));
+      }
+    }
+
     // API: Lister les dossiers liés sauvegardés
     if (pathname === '/api/linked-folders' && req.method === 'GET') {
       try {
