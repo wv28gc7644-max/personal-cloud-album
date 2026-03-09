@@ -150,7 +150,7 @@ const IconViewItem = memo(({
       )}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
-      draggable={isDraggable}
+      draggable={isDraggable ? true : undefined}
       onDragStart={handleDragStart}
     >
       <div className={cn(
