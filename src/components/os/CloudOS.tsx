@@ -10,47 +10,34 @@ export const CloudOS = memo(() => {
   const { settings } = useOS();
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
 
-  // Apply OS theme settings
   useEffect(() => {
     const root = window.document.documentElement;
-    
-    // Handle appearance (light/dark/auto)
     if (settings.appearance === 'dark') {
       root.classList.add('dark');
     } else if (settings.appearance === 'light') {
       root.classList.remove('dark');
     } else {
-      // Auto
       const isSystemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (isSystemDark) root.classList.add('dark');
       else root.classList.remove('dark');
     }
   }, [settings.appearance]);
 
-  const handleOpenLaunchpad = useCallback(() => {
-    setIsLaunchpadOpen(true);
-  }, []);
-
-  const handleCloseLaunchpad = useCallback(() => {
-    setIsLaunchpadOpen(false);
+  // Add SF Pro-like font
+  useEffect(() => {
+    document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif';
+    document.body.style.fontSmoothing = 'antialiased';
+    (document.body.style as any).WebkitFontSmoothing = 'antialiased';
+    (document.body.style as any).MozOsxFontSmoothing = 'grayscale';
   }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black text-foreground font-sans select-none">
-      {/* Background & Desktop Icons */}
+    <div className="fixed inset-0 overflow-hidden bg-black text-foreground select-none" style={{ cursor: 'default' }}>
       <Desktop />
-      
-      {/* Top Menu Bar */}
       <MenuBar />
-      
-      {/* Draggable Windows */}
       <WindowManager />
-      
-      {/* Bottom Dock */}
-      <Dock onOpenLaunchpad={handleOpenLaunchpad} />
-
-      {/* Launchpad overlay */}
-      <Launchpad isOpen={isLaunchpadOpen} onClose={handleCloseLaunchpad} />
+      <Dock onOpenLaunchpad={() => setIsLaunchpadOpen(true)} />
+      <Launchpad isOpen={isLaunchpadOpen} onClose={() => setIsLaunchpadOpen(false)} />
     </div>
   );
 });
