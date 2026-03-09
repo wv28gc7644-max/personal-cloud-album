@@ -66,34 +66,36 @@ export const useOS = create<OSStore>()(
       isLocked: false,
       nextZIndex: 100,
 
-      openWindow: (appId: string) => {
+      openWindow: (appId: string, data?: OSWindowData) => {
         const app = get().getApp(appId);
         if (!app) return;
 
-        // Check if window already exists
-        const existingWindow = get().windows.find(w => w.appId === appId);
-        if (existingWindow) {
-          if (existingWindow.isMinimized) {
-            get().restoreWindow(existingWindow.id);
-          } else {
-            get().focusWindow(existingWindow.id);
+        // Check if window already exists (only for apps without data)
+        if (!data) {
+          const existingWindow = get().windows.find(w => w.appId === appId && !w.data);
+          if (existingWindow) {
+            if (existingWindow.isMinimized) {
+              get().restoreWindow(existingWindow.id);
+            } else {
+              get().focusWindow(existingWindow.id);
+            }
+            return;
           }
-          return;
         }
 
         const windowId = `window-${appId}-${Date.now()}`;
         const nextZ = get().nextZIndex;
         
         // Center the window
-        const width = app.id === 'mediavault' ? 1200 : 800;
-        const height = app.id === 'mediavault' ? 800 : 600;
+        const width = app.id === 'mediavault' ? 1200 : (app.id === 'media-viewer' ? 900 : 800);
+        const height = app.id === 'mediavault' ? 800 : (app.id === 'media-viewer' ? 700 : 600);
         const x = Math.max(50, (window.innerWidth - width) / 2);
         const y = Math.max(50, (window.innerHeight - height) / 2 - 40);
 
         const newWindow: OSWindow = {
           id: windowId,
           appId,
-          title: app.name,
+          title: data?.fileName ? data.fileName : app.name,
           x,
           y,
           width,
@@ -104,6 +106,7 @@ export const useOS = create<OSStore>()(
           isMaximized: false,
           isActive: true,
           zIndex: nextZ,
+          data,
         };
 
         set(state => ({
@@ -111,6 +114,16 @@ export const useOS = create<OSStore>()(
           activeWindowId: windowId,
           nextZIndex: nextZ + 1,
         }));
+      },
+
+      openFileInApp: (appId: string, data: OSWindowData) => {
+        // Always open a new window for files
+        get().openWindow(appId, data);
+      },
+
+      getWindowData: (windowId: string) => {
+        const win = get().windows.find(w => w.id === windowId);
+        return win?.data;
       },
 
       closeWindow: (windowId: string) => {
