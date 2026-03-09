@@ -109,12 +109,16 @@ const getFileTypeForDrag = (ext?: string): 'image' | 'video' | 'audio' | 'file' 
 const IconViewItem = memo(({ 
   item, 
   isSelected, 
+  selectedCount,
+  allSelectedItems,
   onClick, 
   onDoubleClick 
 }: { 
   item: FileItem; 
   isSelected: boolean; 
-  onClick: () => void; 
+  selectedCount?: number;
+  allSelectedItems?: FileItem[];
+  onClick: (e: React.MouseEvent) => void; 
   onDoubleClick: () => void;
 }) => {
   const Icon = getFileIcon(item);
@@ -125,26 +129,42 @@ const IconViewItem = memo(({
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
-    const dragData: FinderDropData = {
-      id: item.id,
-      name: item.name,
-      path: item.path,
-      url: item.url!,
-      thumbnailUrl: item.thumbnailUrl,
-      type: getFileTypeForDrag(item.extension),
-      size: item.size,
-      extension: item.extension
-    };
+    // If this item is part of a multi-selection, drag all selected items
+    const itemsToDrag = (allSelectedItems && allSelectedItems.length > 1 && isSelected) 
+      ? allSelectedItems.filter(i => i.type === 'file' && i.url)
+      : [item];
     
-    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify([dragData]));
+    const dragData: FinderDropData[] = itemsToDrag.map(i => ({
+      id: i.id,
+      name: i.name,
+      path: i.path,
+      url: i.url!,
+      thumbnailUrl: i.thumbnailUrl,
+      type: getFileTypeForDrag(i.extension),
+      size: i.size,
+      extension: i.extension
+    }));
+    
+    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
     e.dataTransfer.effectAllowed = 'copy';
+    
+    // Show count badge for multi-drag
+    if (itemsToDrag.length > 1) {
+      const badge = document.createElement('div');
+      badge.className = 'fixed bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium shadow-lg';
+      badge.textContent = `${itemsToDrag.length} fichiers`;
+      badge.style.cssText = 'position: absolute; top: -9999px; left: -9999px;';
+      document.body.appendChild(badge);
+      e.dataTransfer.setDragImage(badge, 30, 15);
+      setTimeout(() => badge.remove(), 0);
+    }
   };
   
   return (
     <button
       className={cn(
         'flex flex-col items-center gap-1 p-3 rounded-lg transition-all w-24',
-        isSelected ? 'bg-primary/15' : 'hover:bg-muted',
+        isSelected ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-muted',
         isDraggable && 'cursor-grab active:cursor-grabbing',
         'hover:scale-[1.02] active:scale-[0.98]'
       )}
@@ -188,13 +208,17 @@ IconViewItem.displayName = 'IconViewItem';
 // List view row
 const ListViewRow = memo(({ 
   item, 
-  isSelected, 
+  isSelected,
+  selectedCount,
+  allSelectedItems,
   onClick, 
   onDoubleClick 
 }: { 
   item: FileItem; 
-  isSelected: boolean; 
-  onClick: () => void; 
+  isSelected: boolean;
+  selectedCount?: number;
+  allSelectedItems?: FileItem[];
+  onClick: (e: React.MouseEvent) => void; 
   onDoubleClick: () => void;
 }) => {
   const Icon = getFileIcon(item);
@@ -204,26 +228,42 @@ const ListViewRow = memo(({
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
-    const dragData: FinderDropData = {
-      id: item.id,
-      name: item.name,
-      path: item.path,
-      url: item.url!,
-      thumbnailUrl: item.thumbnailUrl,
-      type: getFileTypeForDrag(item.extension),
-      size: item.size,
-      extension: item.extension
-    };
+    // If this item is part of a multi-selection, drag all selected items
+    const itemsToDrag = (allSelectedItems && allSelectedItems.length > 1 && isSelected) 
+      ? allSelectedItems.filter(i => i.type === 'file' && i.url)
+      : [item];
     
-    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify([dragData]));
+    const dragData: FinderDropData[] = itemsToDrag.map(i => ({
+      id: i.id,
+      name: i.name,
+      path: i.path,
+      url: i.url!,
+      thumbnailUrl: i.thumbnailUrl,
+      type: getFileTypeForDrag(i.extension),
+      size: i.size,
+      extension: i.extension
+    }));
+    
+    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
     e.dataTransfer.effectAllowed = 'copy';
+    
+    // Show count badge for multi-drag
+    if (itemsToDrag.length > 1) {
+      const badge = document.createElement('div');
+      badge.className = 'fixed bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium shadow-lg';
+      badge.textContent = `${itemsToDrag.length} fichiers`;
+      badge.style.cssText = 'position: absolute; top: -9999px; left: -9999px;';
+      document.body.appendChild(badge);
+      e.dataTransfer.setDragImage(badge, 30, 15);
+      setTimeout(() => badge.remove(), 0);
+    }
   };
   
   return (
     <button
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left',
-        isSelected ? 'bg-primary/15' : 'hover:bg-muted',
+        isSelected ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-muted',
         isDraggable && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={onClick}
@@ -249,14 +289,14 @@ const ColumnView = memo(({
   onNavigate,
   onSelect,
   onDoubleClick,
-  selectedItem
+  selectedItems
 }: { 
   columns: FileItem[][];
   columnPaths: string[];
   onNavigate: (path: string, depth: number) => void;
-  onSelect: (item: FileItem) => void;
+  onSelect: (e: React.MouseEvent, item: FileItem) => void;
   onDoubleClick: (item: FileItem) => void;
-  selectedItem: FileItem | null;
+  selectedItems: FileItem[];
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -278,7 +318,7 @@ const ColumnView = memo(({
               {items.map(item => {
                 const Icon = getFileIcon(item);
                 const isFolder = item.type === 'folder' || item.isDrive;
-                const isSelected = columnPaths[colIndex + 1] === item.path || selectedItem?.id === item.id;
+                const isSelected = columnPaths[colIndex + 1] === item.path || selectedItems.some(s => s.id === item.id);
                 
                 return (
                   <button
@@ -287,8 +327,8 @@ const ColumnView = memo(({
                       'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                       isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
                     )}
-                    onClick={() => {
-                      onSelect(item);
+                    onClick={(e) => {
+                      onSelect(e, item);
                       if (isFolder) onNavigate(item.path, colIndex);
                     }}
                     onDoubleClick={() => {
@@ -329,7 +369,8 @@ export const OSFinder = memo(() => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<FileItem[]>([]);
+  const [lastSelectedItem, setLastSelectedItem] = useState<FileItem | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('columns');
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
@@ -471,7 +512,8 @@ export const OSFinder = memo(() => {
 
   const navigateTo = useCallback(async (path: string) => {
     await loadDirectory(path);
-    setSelectedItem(null);
+    setSelectedItems([]);
+    setLastSelectedItem(null);
     
     // Update column paths for column view
     if (path === '/') {
@@ -503,9 +545,33 @@ export const OSFinder = memo(() => {
     }
   }, [fetchDirectory]);
 
-  const handleItemClick = useCallback((item: FileItem) => {
-    setSelectedItem(item);
-  }, []);
+  const handleItemClick = useCallback((e: React.MouseEvent, item: FileItem) => {
+    if (e.shiftKey && lastSelectedItem) {
+      // Shift+click: range selection
+      const startIdx = currentItems.findIndex(i => i.id === lastSelectedItem.id);
+      const endIdx = currentItems.findIndex(i => i.id === item.id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const rangeItems = currentItems.slice(from, to + 1);
+        setSelectedItems(rangeItems);
+      }
+    } else if (e.metaKey || e.ctrlKey) {
+      // Cmd/Ctrl+click: toggle selection
+      setSelectedItems(prev => {
+        const exists = prev.some(i => i.id === item.id);
+        if (exists) {
+          return prev.filter(i => i.id !== item.id);
+        } else {
+          return [...prev, item];
+        }
+      });
+      setLastSelectedItem(item);
+    } else {
+      // Normal click: single selection
+      setSelectedItems([item]);
+      setLastSelectedItem(item);
+    }
+  }, [lastSelectedItem, currentItems]);
 
   const { openFileInApp } = useOS();
 
@@ -745,7 +811,7 @@ export const OSFinder = memo(() => {
                 onNavigate={handleColumnNavigate}
                 onSelect={handleItemClick}
                 onDoubleClick={handleItemDoubleClick}
-                selectedItem={selectedItem}
+                selectedItems={selectedItems}
               />
             ) : viewMode === 'list' ? (
               <ScrollArea className="h-full">
@@ -775,8 +841,10 @@ export const OSFinder = memo(() => {
                     <ListViewRow
                       key={item.id}
                       item={item}
-                      isSelected={selectedItem?.id === item.id}
-                      onClick={() => handleItemClick(item)}
+                      isSelected={selectedItems.some(s => s.id === item.id)}
+                      selectedCount={selectedItems.length}
+                      allSelectedItems={selectedItems}
+                      onClick={(e) => handleItemClick(e, item)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     />
                   ))}
@@ -789,8 +857,10 @@ export const OSFinder = memo(() => {
                     <IconViewItem
                       key={item.id}
                       item={item}
-                      isSelected={selectedItem?.id === item.id}
-                      onClick={() => handleItemClick(item)}
+                      isSelected={selectedItems.some(s => s.id === item.id)}
+                      selectedCount={selectedItems.length}
+                      allSelectedItems={selectedItems}
+                      onClick={(e) => handleItemClick(e, item)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     />
                   ))}
@@ -813,14 +883,24 @@ export const OSFinder = memo(() => {
         {/* Status bar */}
         <div className="h-6 border-t border-border flex items-center px-3 text-xs text-muted-foreground shrink-0">
           <span>{currentItems.length} élément{currentItems.length !== 1 ? 's' : ''}</span>
-          {selectedItem && (
+          {selectedItems.length > 0 && (
             <>
               <span className="mx-2">•</span>
-              <span className="truncate max-w-[200px]">Sélectionné : {selectedItem.name}</span>
-              {selectedItem.size && (
+              {selectedItems.length === 1 ? (
                 <>
+                  <span className="truncate max-w-[200px]">Sélectionné : {selectedItems[0].name}</span>
+                  {selectedItems[0].size && (
+                    <>
+                      <span className="mx-2">•</span>
+                      <span>{formatSize(selectedItems[0].size)}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span>{selectedItems.length} éléments sélectionnés</span>
                   <span className="mx-2">•</span>
-                  <span>{formatSize(selectedItem.size)}</span>
+                  <span>{formatSize(selectedItems.reduce((acc, i) => acc + (i.size || 0), 0))}</span>
                 </>
               )}
             </>
