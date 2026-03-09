@@ -401,6 +401,13 @@ export const OSFinder = memo(() => {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnData, setColumnData] = useState<Map<string, FileItem[]>>(new Map());
   const [columnPaths, setColumnPaths] = useState<string[]>(['/']);
+  
+  // Context menu state
+  const [clipboard, setClipboard] = useState<{ items: FileItem[]; operation: 'copy' | 'cut' } | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToRename, setItemToRename] = useState<FileItem | null>(null);
+  const [newName, setNewName] = useState('');
 
   const serverUrl = getLocalServerUrl();
 
