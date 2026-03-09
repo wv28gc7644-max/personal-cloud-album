@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { OSState, OSWindow, OSSettings, OSApp, DesktopIcon } from '@/types/os';
+import { OSState, OSWindow, OSSettings, OSApp, DesktopIcon, OSWindowData } from '@/types/os';
 import { systemApps, defaultDockApps, defaultDesktopIcons, webStoreApps, serverStoreApps } from '@/data/osApps';
 import defaultOceanWallpaper from '@/assets/wallpapers/default-ocean.jpg';
 
@@ -21,7 +21,9 @@ const defaultSettings: OSSettings = {
 
 interface OSStore extends OSState {
   // Window management
-  openWindow: (appId: string) => void;
+  openWindow: (appId: string, data?: OSWindowData) => void;
+  openFileInApp: (appId: string, data: OSWindowData) => void;
+  getWindowData: (windowId: string) => OSWindowData | undefined;
   closeWindow: (windowId: string) => void;
   minimizeWindow: (windowId: string) => void;
   maximizeWindow: (windowId: string) => void;
