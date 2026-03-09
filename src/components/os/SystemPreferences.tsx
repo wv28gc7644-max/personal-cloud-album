@@ -23,7 +23,7 @@ const wallpaperMap: Record<string, string> = {
   aurora: wallpaperAurora,
 };
 
-type PrefSection = 'general' | 'wallpaper' | 'dock' | 'account' | 'security' | 'notifications' | 'display';
+type PrefSection = 'general' | 'wallpaper' | 'dock' | 'account' | 'security' | 'notifications' | 'display' | 'install';
 
 const prefCategories = [
   { id: 'general' as PrefSection, name: 'Général', icon: Monitor },
@@ -33,6 +33,7 @@ const prefCategories = [
   { id: 'account' as PrefSection, name: 'Comptes', icon: User },
   { id: 'security' as PrefSection, name: 'Sécurité', icon: Shield },
   { id: 'notifications' as PrefSection, name: 'Notifications', icon: Bell },
+  { id: 'install' as PrefSection, name: 'Installation locale', icon: Package },
 ];
 
 const WallpaperSection = memo(() => {
