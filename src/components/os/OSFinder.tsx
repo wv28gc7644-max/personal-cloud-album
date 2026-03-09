@@ -369,7 +369,8 @@ export const OSFinder = memo(() => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
+  const [selectedItems, setSelectedItems] = useState<FileItem[]>([]);
+  const [lastSelectedItem, setLastSelectedItem] = useState<FileItem | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('columns');
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
