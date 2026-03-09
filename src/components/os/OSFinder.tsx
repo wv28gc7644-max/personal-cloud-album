@@ -129,6 +129,25 @@ const getFileTypeForDrag = (ext?: string): 'image' | 'video' | 'audio' | 'file' 
   return 'file';
 };
 
+// MIME type for internal move operations
+const FINDER_INTERNAL_MOVE_MIME = 'application/x-finder-internal-move';
+
+// Helper to check if an item can be dropped onto a target folder
+const canDropOnFolder = (draggedItems: FileItem[], targetFolder: FileItem): boolean => {
+  // Can't drop on non-folders
+  if (targetFolder.type !== 'folder' && !targetFolder.isDrive) return false;
+  
+  // Check each dragged item
+  for (const item of draggedItems) {
+    // Can't drop on self
+    if (item.id === targetFolder.id) return false;
+    // Can't drop a folder into itself or its children
+    if (item.type === 'folder' && targetFolder.path.startsWith(item.path + '/')) return false;
+    if (item.type === 'folder' && targetFolder.path.startsWith(item.path + '\\')) return false;
+  }
+  return true;
+};
+
 // Icon view item
 const IconViewItem = memo(({ 
   item, 
