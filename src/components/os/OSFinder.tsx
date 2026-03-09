@@ -512,7 +512,8 @@ export const OSFinder = memo(() => {
 
   const navigateTo = useCallback(async (path: string) => {
     await loadDirectory(path);
-    setSelectedItem(null);
+    setSelectedItems([]);
+    setLastSelectedItem(null);
     
     // Update column paths for column view
     if (path === '/') {
