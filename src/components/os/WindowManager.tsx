@@ -1,8 +1,9 @@
-import { memo, useEffect } from 'react';
+import { memo } from 'react';
 import { useOS } from '@/hooks/useOS';
 import { OSWindowFrame } from '@/components/os/OSWindowFrame';
 import { SystemPreferences } from '@/components/os/SystemPreferences';
 import { AppStore } from '@/components/os/AppStore';
+import { OSFinder } from '@/components/os/OSFinder';
 import Index from '@/pages/Index';
 
 // Wraps the main MediaVault app to make it look like an OS app
@@ -39,6 +40,9 @@ export const WindowManager = memo(() => {
       case 'AppStore':
       case 'appstore':
         return <AppStore />;
+      case 'Finder':
+      case 'finder':
+        return <OSFinder />;
       case 'MediaVault':
       case 'mediavault':
         return <MediaVaultWrapper />;
