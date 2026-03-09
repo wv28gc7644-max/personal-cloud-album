@@ -6,7 +6,7 @@ import {
   Monitor, Palette, Image, User, Lock, Bell, 
   Accessibility, Keyboard, Mouse, Volume2, 
   Wifi, Bluetooth, Shield, HardDrive, Clock,
-  Languages, Share2 
+  Languages, Share2, Download, Package, Server
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
