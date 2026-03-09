@@ -13,6 +13,16 @@ export const systemApps: OSApp[] = [
     version: '2.0.0',
   },
   {
+    id: 'media-viewer',
+    name: 'Visionneuse',
+    icon: 'Play',
+    component: 'MediaViewer',
+    isSystemApp: true,
+    isInstalled: true,
+    description: 'Visualiseur d\'images et vidéos',
+    version: '1.0.0',
+  },
+  {
     id: 'settings',
     name: 'Préférences Système',
     icon: 'Settings',
