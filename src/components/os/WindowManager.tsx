@@ -5,6 +5,7 @@ import { SystemPreferences } from '@/components/os/SystemPreferences';
 import { AppStore } from '@/components/os/AppStore';
 import { OSFinder } from '@/components/os/OSFinder';
 import { MediaViewer } from '@/components/os/MediaViewer';
+import { TrashApp } from '@/components/os/TrashApp';
 import { OSWindow } from '@/types/os';
 import Index from '@/pages/Index';
 
@@ -48,6 +49,8 @@ export const WindowManager = memo(() => {
         return <MediaVaultWrapper />;
       case 'media-viewer':
         return <MediaViewer data={data} />;
+      case 'trash':
+        return <TrashApp />;
       default:
         return <PlaceholderApp name={win.title || appId} />;
     }
