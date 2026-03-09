@@ -949,6 +949,14 @@ export const OSFinder = memo(() => {
             onClick={() => navigateToSpecial('videos')} 
           />
           
+          <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Applications</div>
+          <SidebarItem 
+            icon={ImageIcon} 
+            label="MediaVault" 
+            isActive={currentPath === '/__mediavault__'} 
+            onClick={() => loadMediaVaultItems()} 
+          />
+
           <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Système</div>
           <SidebarItem 
             icon={Home} 
