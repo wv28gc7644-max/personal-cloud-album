@@ -693,6 +693,7 @@ export const OSFinder = memo(() => {
                 columnPaths={columnPaths}
                 onNavigate={handleColumnNavigate}
                 onSelect={handleItemClick}
+                onDoubleClick={handleItemDoubleClick}
                 selectedItem={selectedItem}
               />
             ) : viewMode === 'list' ? (
