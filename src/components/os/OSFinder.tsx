@@ -1,15 +1,17 @@
 import { memo, useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Folder, File, Image, Film, Music, FileText, Archive,
-  ChevronRight, ChevronDown, Home, List, LayoutGrid, Columns,
-  ArrowUp, ArrowDown, Search, MoreHorizontal, Trash2, Copy,
-  FolderOpen, HardDrive, Clock, Star, Download
+  ChevronRight, Home, List, LayoutGrid, Columns,
+  ArrowUp, ArrowDown, Search, FolderOpen, HardDrive, Clock, Star, Download,
+  Loader2, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { getLocalServerUrl } from '@/utils/safeLocalStorage';
+import { toast } from 'sonner';
 
 type ViewMode = 'icons' | 'list' | 'columns';
 type SortBy = 'name' | 'date' | 'size' | 'type';
@@ -21,88 +23,29 @@ interface FileItem {
   type: 'folder' | 'file';
   extension?: string;
   size?: number;
-  modifiedAt: Date;
+  modifiedAt: string;
   path: string;
-  children?: FileItem[];
+  isDrive?: boolean;
+  url?: string;
+  thumbnailUrl?: string;
 }
 
-// Demo file system structure
-const createDemoFileSystem = (): FileItem[] => [
-  {
-    id: '1',
-    name: 'Documents',
-    type: 'folder',
-    path: '/Documents',
-    modifiedAt: new Date('2024-03-01'),
-    children: [
-      { id: '1-1', name: 'Projets', type: 'folder', path: '/Documents/Projets', modifiedAt: new Date('2024-02-15'), children: [
-        { id: '1-1-1', name: 'rapport.pdf', type: 'file', extension: 'pdf', size: 2500000, path: '/Documents/Projets/rapport.pdf', modifiedAt: new Date('2024-02-10') },
-        { id: '1-1-2', name: 'présentation.pptx', type: 'file', extension: 'pptx', size: 5200000, path: '/Documents/Projets/présentation.pptx', modifiedAt: new Date('2024-02-12') },
-      ]},
-      { id: '1-2', name: 'notes.txt', type: 'file', extension: 'txt', size: 15000, path: '/Documents/notes.txt', modifiedAt: new Date('2024-03-01') },
-    ]
-  },
-  {
-    id: '2',
-    name: 'Images',
-    type: 'folder',
-    path: '/Images',
-    modifiedAt: new Date('2024-03-10'),
-    children: [
-      { id: '2-1', name: 'Vacances', type: 'folder', path: '/Images/Vacances', modifiedAt: new Date('2024-01-20'), children: [
-        { id: '2-1-1', name: 'plage.jpg', type: 'file', extension: 'jpg', size: 3500000, path: '/Images/Vacances/plage.jpg', modifiedAt: new Date('2024-01-15') },
-        { id: '2-1-2', name: 'montagne.png', type: 'file', extension: 'png', size: 4200000, path: '/Images/Vacances/montagne.png', modifiedAt: new Date('2024-01-18') },
-      ]},
-      { id: '2-2', name: 'Screenshots', type: 'folder', path: '/Images/Screenshots', modifiedAt: new Date('2024-03-10'), children: [
-        { id: '2-2-1', name: 'capture1.png', type: 'file', extension: 'png', size: 1200000, path: '/Images/Screenshots/capture1.png', modifiedAt: new Date('2024-03-08') },
-      ]},
-      { id: '2-3', name: 'avatar.png', type: 'file', extension: 'png', size: 250000, path: '/Images/avatar.png', modifiedAt: new Date('2024-02-28') },
-    ]
-  },
-  {
-    id: '3',
-    name: 'Musique',
-    type: 'folder',
-    path: '/Musique',
-    modifiedAt: new Date('2024-02-20'),
-    children: [
-      { id: '3-1', name: 'playlist.mp3', type: 'file', extension: 'mp3', size: 8500000, path: '/Musique/playlist.mp3', modifiedAt: new Date('2024-02-18') },
-      { id: '3-2', name: 'podcast.mp3', type: 'file', extension: 'mp3', size: 45000000, path: '/Musique/podcast.mp3', modifiedAt: new Date('2024-02-20') },
-    ]
-  },
-  {
-    id: '4',
-    name: 'Vidéos',
-    type: 'folder',
-    path: '/Vidéos',
-    modifiedAt: new Date('2024-03-05'),
-    children: [
-      { id: '4-1', name: 'tutoriel.mp4', type: 'file', extension: 'mp4', size: 150000000, path: '/Vidéos/tutoriel.mp4', modifiedAt: new Date('2024-03-02') },
-      { id: '4-2', name: 'memories.mov', type: 'file', extension: 'mov', size: 250000000, path: '/Vidéos/memories.mov', modifiedAt: new Date('2024-03-05') },
-    ]
-  },
-  {
-    id: '5',
-    name: 'Téléchargements',
-    type: 'folder',
-    path: '/Téléchargements',
-    modifiedAt: new Date('2024-03-12'),
-    children: [
-      { id: '5-1', name: 'archive.zip', type: 'file', extension: 'zip', size: 50000000, path: '/Téléchargements/archive.zip', modifiedAt: new Date('2024-03-12') },
-      { id: '5-2', name: 'installer.dmg', type: 'file', extension: 'dmg', size: 120000000, path: '/Téléchargements/installer.dmg', modifiedAt: new Date('2024-03-11') },
-    ]
-  },
-];
+interface FSListResponse {
+  path: string;
+  parent: string | null;
+  items: FileItem[];
+  isRoot: boolean;
+}
 
 const getFileIcon = (item: FileItem) => {
-  if (item.type === 'folder') return Folder;
+  if (item.type === 'folder' || item.isDrive) return item.isDrive ? HardDrive : Folder;
   
   const ext = item.extension?.toLowerCase();
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext || '')) return Image;
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff'].includes(ext || '')) return Image;
   if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext || '')) return Film;
-  if (['mp3', 'wav', 'flac', 'aac', 'm4a'].includes(ext || '')) return Music;
+  if (['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'].includes(ext || '')) return Music;
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext || '')) return Archive;
-  if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(ext || '')) return FileText;
+  if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext || '')) return FileText;
   return File;
 };
 
@@ -114,8 +57,13 @@ const formatSize = (bytes?: number) => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} Go`;
 };
 
-const formatDate = (date: Date) => {
-  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+const formatDate = (dateStr: string) => {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '—';
+  }
 };
 
 // Sidebar item
@@ -159,7 +107,8 @@ const IconViewItem = memo(({
   onDoubleClick: () => void;
 }) => {
   const Icon = getFileIcon(item);
-  const isFolder = item.type === 'folder';
+  const isFolder = item.type === 'folder' || item.isDrive;
+  const isMedia = item.thumbnailUrl && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(item.extension?.toLowerCase() || '');
   
   return (
     <motion.button
@@ -173,10 +122,25 @@ const IconViewItem = memo(({
       whileTap={{ scale: 0.98 }}
     >
       <div className={cn(
-        'w-14 h-14 rounded-lg flex items-center justify-center',
+        'w-14 h-14 rounded-lg flex items-center justify-center overflow-hidden',
         isFolder ? 'bg-blue-500/20' : 'bg-muted'
       )}>
-        <Icon className={cn('w-8 h-8', isFolder ? 'text-blue-500' : 'text-muted-foreground')} />
+        {isMedia ? (
+          <img 
+            src={item.thumbnailUrl} 
+            alt={item.name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <Icon className={cn(
+          'w-8 h-8',
+          isMedia && 'hidden',
+          isFolder ? 'text-blue-500' : 'text-muted-foreground'
+        )} />
       </div>
       <span className={cn(
         'text-xs text-center line-clamp-2 w-full',
@@ -202,7 +166,7 @@ const ListViewRow = memo(({
   onDoubleClick: () => void;
 }) => {
   const Icon = getFileIcon(item);
-  const isFolder = item.type === 'folder';
+  const isFolder = item.type === 'folder' || item.isDrive;
   
   return (
     <motion.button
@@ -229,14 +193,16 @@ ListViewRow.displayName = 'ListViewRow';
 // Column view
 const ColumnView = memo(({ 
   columns, 
-  selectedPath,
+  columnPaths,
   onNavigate,
-  onSelect
+  onSelect,
+  selectedItem
 }: { 
   columns: FileItem[][];
-  selectedPath: string[];
+  columnPaths: string[];
   onNavigate: (path: string, depth: number) => void;
   onSelect: (item: FileItem) => void;
+  selectedItem: FileItem | null;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -250,15 +216,15 @@ const ColumnView = memo(({
     <div ref={scrollRef} className="flex h-full overflow-x-auto">
       {columns.map((items, colIndex) => (
         <div 
-          key={colIndex} 
+          key={`col-${colIndex}-${columnPaths[colIndex]}`} 
           className="w-56 shrink-0 border-r border-border flex flex-col"
         >
           <ScrollArea className="flex-1">
             <div className="p-1">
               {items.map(item => {
                 const Icon = getFileIcon(item);
-                const isFolder = item.type === 'folder';
-                const isSelected = selectedPath[colIndex] === item.path;
+                const isFolder = item.type === 'folder' || item.isDrive;
+                const isSelected = columnPaths[colIndex + 1] === item.path || selectedItem?.id === item.id;
                 
                 return (
                   <button
@@ -272,8 +238,8 @@ const ColumnView = memo(({
                       if (isFolder) onNavigate(item.path, colIndex);
                     }}
                     onDoubleClick={() => {
-                      if (!isFolder) {
-                        // Open file
+                      if (!isFolder && item.url) {
+                        window.open(item.url, '_blank');
                       }
                     }}
                   >
@@ -286,6 +252,11 @@ const ColumnView = memo(({
                   </button>
                 );
               })}
+              {items.length === 0 && (
+                <div className="p-4 text-center text-muted-foreground text-xs">
+                  Dossier vide
+                </div>
+              )}
             </div>
           </ScrollArea>
         </div>
@@ -299,46 +270,91 @@ const ColumnView = memo(({
 ColumnView.displayName = 'ColumnView';
 
 export const OSFinder = memo(() => {
-  const [fileSystem] = useState<FileItem[]>(createDemoFileSystem);
   const [currentPath, setCurrentPath] = useState<string>('/');
+  const [items, setItems] = useState<FileItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('columns');
   const [sortBy, setSortBy] = useState<SortBy>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [columnData, setColumnData] = useState<Map<string, FileItem[]>>(new Map());
   const [columnPaths, setColumnPaths] = useState<string[]>(['/']);
 
-  // Get items at current path
-  const getItemsAtPath = useCallback((path: string): FileItem[] => {
-    if (path === '/') return fileSystem;
-    
-    const parts = path.split('/').filter(Boolean);
-    let current: FileItem[] = fileSystem;
-    
-    for (const part of parts) {
-      const folder = current.find(item => item.name === part && item.type === 'folder');
-      if (folder?.children) {
-        current = folder.children;
-      } else {
-        return [];
-      }
-    }
-    return current;
-  }, [fileSystem]);
+  const serverUrl = getLocalServerUrl();
 
-  // Current items based on path
+  // Fetch directory contents from server
+  const fetchDirectory = useCallback(async (dirPath: string): Promise<FileItem[]> => {
+    try {
+      const response = await fetch(`${serverUrl}/api/fs/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: dirPath }),
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erreur serveur');
+      }
+
+      const data: FSListResponse = await response.json();
+      setIsConnected(true);
+      return data.items;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error('Délai d\'attente dépassé');
+      }
+      throw err;
+    }
+  }, [serverUrl]);
+
+  // Load initial directory
+  const loadDirectory = useCallback(async (dirPath: string) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const fetchedItems = await fetchDirectory(dirPath);
+      setItems(fetchedItems);
+      setCurrentPath(dirPath);
+      
+      // Update column data cache
+      setColumnData(prev => {
+        const next = new Map(prev);
+        next.set(dirPath, fetchedItems);
+        return next;
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      setError(message);
+      setIsConnected(false);
+      toast.error('Erreur de connexion', { description: message });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchDirectory]);
+
+  // Initialize on mount
+  useEffect(() => {
+    loadDirectory('/');
+  }, []);
+
+  // Get sorted and filtered items
   const currentItems = useMemo(() => {
-    let items = getItemsAtPath(currentPath);
+    let filtered = [...items];
     
     // Filter by search
     if (searchQuery) {
-      items = items.filter(item => 
+      filtered = filtered.filter(item => 
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
     // Sort
-    items = [...items].sort((a, b) => {
+    filtered.sort((a, b) => {
       // Folders first
       if (a.type !== b.type) {
         return a.type === 'folder' ? -1 : 1;
@@ -350,7 +366,7 @@ export const OSFinder = memo(() => {
           comparison = a.name.localeCompare(b.name);
           break;
         case 'date':
-          comparison = a.modifiedAt.getTime() - b.modifiedAt.getTime();
+          comparison = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime();
           break;
         case 'size':
           comparison = (a.size || 0) - (b.size || 0);
@@ -362,20 +378,36 @@ export const OSFinder = memo(() => {
       return sortOrder === 'asc' ? comparison : -comparison;
     });
     
-    return items;
-  }, [currentPath, searchQuery, sortBy, sortOrder, getItemsAtPath]);
+    return filtered;
+  }, [items, searchQuery, sortBy, sortOrder]);
 
-  // Columns for column view
+  // Build columns for column view
   const columns = useMemo(() => {
-    return columnPaths.map(path => getItemsAtPath(path));
-  }, [columnPaths, getItemsAtPath]);
+    return columnPaths.map(p => columnData.get(p) || []);
+  }, [columnPaths, columnData]);
 
   // Breadcrumbs
   const breadcrumbs = useMemo(() => {
-    if (currentPath === '/') return [{ name: 'Accueil', path: '/' }];
+    if (currentPath === '/' || currentPath === '') return [{ name: 'Ordinateur', path: '/' }];
+    
+    // Handle Windows paths (e.g., C:\Users\...)
+    const isWindowsPath = /^[A-Z]:\\/i.test(currentPath);
+    
+    if (isWindowsPath) {
+      const parts = currentPath.split('\\').filter(Boolean);
+      return [
+        { name: 'Ordinateur', path: '/' },
+        ...parts.map((part, i) => ({
+          name: part,
+          path: parts.slice(0, i + 1).join('\\') + (i === 0 ? '\\' : '')
+        }))
+      ];
+    }
+    
+    // Unix paths
     const parts = currentPath.split('/').filter(Boolean);
     return [
-      { name: 'Accueil', path: '/' },
+      { name: 'Ordinateur', path: '/' },
       ...parts.map((part, i) => ({
         name: part,
         path: '/' + parts.slice(0, i + 1).join('/')
@@ -383,34 +415,72 @@ export const OSFinder = memo(() => {
     ];
   }, [currentPath]);
 
-  const navigateTo = useCallback((path: string) => {
-    setCurrentPath(path);
+  const navigateTo = useCallback(async (path: string) => {
+    await loadDirectory(path);
     setSelectedItem(null);
     
-    // Update column paths
+    // Update column paths for column view
     if (path === '/') {
       setColumnPaths(['/']);
     } else {
-      const parts = path.split('/').filter(Boolean);
-      const paths = ['/', ...parts.map((_, i) => '/' + parts.slice(0, i + 1).join('/'))];
-      setColumnPaths(paths);
+      // Keep existing columns up to current path
+      const pathIndex = columnPaths.indexOf(path);
+      if (pathIndex >= 0) {
+        setColumnPaths(prev => prev.slice(0, pathIndex + 1));
+      } else {
+        setColumnPaths(prev => [...prev.slice(0, -1), path]);
+      }
     }
-  }, []);
+  }, [loadDirectory, columnPaths]);
 
-  const handleColumnNavigate = useCallback((path: string, depth: number) => {
-    setColumnPaths(prev => [...prev.slice(0, depth + 1), path]);
-    setCurrentPath(path);
-  }, []);
+  const handleColumnNavigate = useCallback(async (path: string, depth: number) => {
+    // Fetch new directory
+    try {
+      const newItems = await fetchDirectory(path);
+      setColumnData(prev => {
+        const next = new Map(prev);
+        next.set(path, newItems);
+        return next;
+      });
+      setColumnPaths(prev => [...prev.slice(0, depth + 1), path]);
+      setCurrentPath(path);
+    } catch (err) {
+      toast.error('Impossible d\'ouvrir ce dossier');
+    }
+  }, [fetchDirectory]);
 
   const handleItemClick = useCallback((item: FileItem) => {
     setSelectedItem(item);
   }, []);
 
-  const handleItemDoubleClick = useCallback((item: FileItem) => {
-    if (item.type === 'folder') {
-      navigateTo(item.path);
+  const handleItemDoubleClick = useCallback(async (item: FileItem) => {
+    if (item.type === 'folder' || item.isDrive) {
+      await navigateTo(item.path);
+    } else if (item.url) {
+      // Open media file in MediaVault or browser
+      window.open(item.url, '_blank');
     }
   }, [navigateTo]);
+
+  const goUp = useCallback(async () => {
+    if (currentPath === '/' || currentPath === '') return;
+    
+    // Handle Windows paths
+    const isWindowsPath = /^[A-Z]:\\/i.test(currentPath);
+    
+    if (isWindowsPath) {
+      const parts = currentPath.split('\\').filter(Boolean);
+      if (parts.length <= 1) {
+        await navigateTo('/');
+      } else {
+        const parentPath = parts.slice(0, -1).join('\\') + (parts.length === 2 ? '\\' : '');
+        await navigateTo(parentPath);
+      }
+    } else {
+      const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
+      await navigateTo(parent);
+    }
+  }, [currentPath, navigateTo]);
 
   const toggleSort = (field: SortBy) => {
     if (sortBy === field) {
@@ -421,22 +491,69 @@ export const OSFinder = memo(() => {
     }
   };
 
+  const navigateToSpecial = useCallback(async (special: string) => {
+    await loadDirectory(special);
+    setColumnPaths([special]);
+  }, [loadDirectory]);
+
   return (
     <div className="flex h-full bg-background">
       {/* Sidebar */}
       <div className="w-48 bg-muted/30 border-r border-border flex flex-col shrink-0">
         <div className="p-2 space-y-0.5">
           <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1">Favoris</div>
-          <SidebarItem icon={HardDrive} label="Accueil" isActive={currentPath === '/'} onClick={() => navigateTo('/')} />
-          <SidebarItem icon={Download} label="Téléchargements" onClick={() => navigateTo('/Téléchargements')} />
-          <SidebarItem icon={FileText} label="Documents" onClick={() => navigateTo('/Documents')} />
-          <SidebarItem icon={Image} label="Images" onClick={() => navigateTo('/Images')} />
-          <SidebarItem icon={Music} label="Musique" onClick={() => navigateTo('/Musique')} />
-          <SidebarItem icon={Film} label="Vidéos" onClick={() => navigateTo('/Vidéos')} />
+          <SidebarItem 
+            icon={HardDrive} 
+            label="Ordinateur" 
+            isActive={currentPath === '/'} 
+            onClick={() => navigateTo('/')} 
+          />
+          <SidebarItem 
+            icon={Download} 
+            label="Téléchargements" 
+            onClick={() => navigateToSpecial('downloads')} 
+          />
+          <SidebarItem 
+            icon={FileText} 
+            label="Documents" 
+            onClick={() => navigateToSpecial('documents')} 
+          />
+          <SidebarItem 
+            icon={Image} 
+            label="Images" 
+            onClick={() => navigateToSpecial('pictures')} 
+          />
+          <SidebarItem 
+            icon={Music} 
+            label="Musique" 
+            onClick={() => navigateToSpecial('music')} 
+          />
+          <SidebarItem 
+            icon={Film} 
+            label="Vidéos" 
+            onClick={() => navigateToSpecial('videos')} 
+          />
           
-          <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Récents</div>
-          <SidebarItem icon={Clock} label="Récents" onClick={() => {}} />
-          <SidebarItem icon={Star} label="Favoris" onClick={() => {}} />
+          <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Système</div>
+          <SidebarItem 
+            icon={Home} 
+            label="Dossier utilisateur" 
+            onClick={() => navigateToSpecial('home')} 
+          />
+          
+          {/* Connection status */}
+          <div className="pt-4 px-2">
+            <div className={cn(
+              'flex items-center gap-2 text-xs',
+              isConnected ? 'text-green-500' : 'text-muted-foreground'
+            )}>
+              <div className={cn(
+                'w-2 h-2 rounded-full',
+                isConnected ? 'bg-green-500' : 'bg-muted-foreground'
+              )} />
+              {isConnected ? 'Serveur connecté' : 'Non connecté'}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -450,26 +567,32 @@ export const OSFinder = memo(() => {
               size="icon" 
               variant="ghost" 
               className="h-7 w-7"
-              onClick={() => {
-                const parent = currentPath.split('/').slice(0, -1).join('/') || '/';
-                navigateTo(parent);
-              }}
-              disabled={currentPath === '/'}
+              onClick={goUp}
+              disabled={currentPath === '/' || isLoading}
             >
               <ArrowUp className="w-4 h-4" />
+            </Button>
+            <Button 
+              size="icon" 
+              variant="ghost" 
+              className="h-7 w-7"
+              onClick={() => loadDirectory(currentPath)}
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             </Button>
           </div>
 
           {/* Breadcrumbs */}
-          <div className="flex items-center gap-1 flex-1 min-w-0">
+          <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
             {breadcrumbs.map((crumb, i) => (
-              <div key={crumb.path} className="flex items-center">
+              <div key={crumb.path} className="flex items-center shrink-0">
                 {i > 0 && <ChevronRight className="w-3 h-3 text-muted-foreground mx-0.5" />}
                 <button
-                  className="text-sm hover:text-primary transition-colors truncate max-w-32"
+                  className="text-sm hover:text-primary transition-colors truncate max-w-40"
                   onClick={() => navigateTo(crumb.path)}
                 >
-                  {i === 0 ? <Home className="w-3.5 h-3.5" /> : crumb.name}
+                  {i === 0 ? <HardDrive className="w-3.5 h-3.5" /> : crumb.name}
                 </button>
               </div>
             ))}
@@ -515,76 +638,103 @@ export const OSFinder = memo(() => {
           </div>
         </div>
 
-        {/* Content area */}
-        <div className="flex-1 overflow-hidden">
-          {viewMode === 'columns' ? (
-            <ColumnView
-              columns={columns}
-              selectedPath={columnPaths}
-              onNavigate={handleColumnNavigate}
-              onSelect={handleItemClick}
-            />
-          ) : viewMode === 'list' ? (
-            <ScrollArea className="h-full">
-              {/* List header */}
-              <div className="flex items-center gap-3 px-3 py-1.5 border-b border-border text-xs text-muted-foreground sticky top-0 bg-background">
-                <button 
-                  className="flex-1 flex items-center gap-1 hover:text-foreground"
-                  onClick={() => toggleSort('name')}
-                >
-                  Nom {sortBy === 'name' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                </button>
-                <button 
-                  className="w-20 text-right flex items-center justify-end gap-1 hover:text-foreground"
-                  onClick={() => toggleSort('size')}
-                >
-                  Taille {sortBy === 'size' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                </button>
-                <button 
-                  className="w-28 text-right flex items-center justify-end gap-1 hover:text-foreground"
-                  onClick={() => toggleSort('date')}
-                >
-                  Modifié {sortBy === 'date' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                </button>
-              </div>
-              <div className="p-1">
-                {currentItems.map(item => (
-                  <ListViewRow
-                    key={item.id}
-                    item={item}
-                    isSelected={selectedItem?.id === item.id}
-                    onClick={() => handleItemClick(item)}
-                    onDoubleClick={() => handleItemDoubleClick(item)}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          ) : (
-            <ScrollArea className="h-full">
-              <div className="p-3 flex flex-wrap gap-1 content-start">
-                {currentItems.map(item => (
-                  <IconViewItem
-                    key={item.id}
-                    item={item}
-                    isSelected={selectedItem?.id === item.id}
-                    onClick={() => handleItemClick(item)}
-                    onDoubleClick={() => handleItemDoubleClick(item)}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-
-          {/* Empty state */}
-          {currentItems.length === 0 && (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Ce dossier est vide</p>
-              </div>
+        {/* Error state */}
+        {error && (
+          <div className="m-3 p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-center gap-3 text-sm">
+            <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium text-destructive">Erreur de connexion</p>
+              <p className="text-muted-foreground">{error}</p>
             </div>
-          )}
-        </div>
+            <Button size="sm" variant="outline" onClick={() => loadDirectory(currentPath)}>
+              Réessayer
+            </Button>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {isLoading && !error && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-8 h-8 animate-spin" />
+              <p className="text-sm">Chargement...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Content area */}
+        {!isLoading && !error && (
+          <div className="flex-1 overflow-hidden">
+            {viewMode === 'columns' ? (
+              <ColumnView
+                columns={columns}
+                columnPaths={columnPaths}
+                onNavigate={handleColumnNavigate}
+                onSelect={handleItemClick}
+                selectedItem={selectedItem}
+              />
+            ) : viewMode === 'list' ? (
+              <ScrollArea className="h-full">
+                {/* List header */}
+                <div className="flex items-center gap-3 px-3 py-1.5 border-b border-border text-xs text-muted-foreground sticky top-0 bg-background">
+                  <button 
+                    className="flex-1 flex items-center gap-1 hover:text-foreground"
+                    onClick={() => toggleSort('name')}
+                  >
+                    Nom {sortBy === 'name' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                  </button>
+                  <button 
+                    className="w-20 text-right flex items-center justify-end gap-1 hover:text-foreground"
+                    onClick={() => toggleSort('size')}
+                  >
+                    Taille {sortBy === 'size' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                  </button>
+                  <button 
+                    className="w-28 text-right flex items-center justify-end gap-1 hover:text-foreground"
+                    onClick={() => toggleSort('date')}
+                  >
+                    Modifié {sortBy === 'date' && (sortOrder === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                  </button>
+                </div>
+                <div className="p-1">
+                  {currentItems.map(item => (
+                    <ListViewRow
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedItem?.id === item.id}
+                      onClick={() => handleItemClick(item)}
+                      onDoubleClick={() => handleItemDoubleClick(item)}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <ScrollArea className="h-full">
+                <div className="p-3 flex flex-wrap gap-1 content-start">
+                  {currentItems.map(item => (
+                    <IconViewItem
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedItem?.id === item.id}
+                      onClick={() => handleItemClick(item)}
+                      onDoubleClick={() => handleItemDoubleClick(item)}
+                    />
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+
+            {/* Empty state */}
+            {currentItems.length === 0 && !isLoading && (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Ce dossier est vide</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Status bar */}
         <div className="h-6 border-t border-border flex items-center px-3 text-xs text-muted-foreground shrink-0">
@@ -592,7 +742,7 @@ export const OSFinder = memo(() => {
           {selectedItem && (
             <>
               <span className="mx-2">•</span>
-              <span>Sélectionné : {selectedItem.name}</span>
+              <span className="truncate max-w-[200px]">Sélectionné : {selectedItem.name}</span>
               {selectedItem.size && (
                 <>
                   <span className="mx-2">•</span>
@@ -601,6 +751,8 @@ export const OSFinder = memo(() => {
               )}
             </>
           )}
+          <span className="flex-1" />
+          <span className="truncate max-w-[300px] text-right">{currentPath}</span>
         </div>
       </div>
     </div>
