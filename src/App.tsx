@@ -16,16 +16,23 @@ import { GlobalEditorPanel } from "@/components/GlobalEditorPanel";
 
 const queryClient = new QueryClient();
 
+import { CloudOS } from "@/components/os/CloudOS";
+
 const AppContent = () => {
   useStartupUpdateCheck();
   
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Index />} />
+        {/* Main OS Route - intercepts everything else */}
+        <Route path="/" element={<CloudOS />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/demo-card-editor" element={<DemoCardEditor />} />
+        
+        {/* Direct access to MediaVault for legacy links */}
+        <Route path="/mediavault" element={<Index />} />
+        
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>
