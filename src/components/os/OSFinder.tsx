@@ -841,8 +841,10 @@ export const OSFinder = memo(() => {
                     <ListViewRow
                       key={item.id}
                       item={item}
-                      isSelected={selectedItem?.id === item.id}
-                      onClick={() => handleItemClick(item)}
+                      isSelected={selectedItems.some(s => s.id === item.id)}
+                      selectedCount={selectedItems.length}
+                      allSelectedItems={selectedItems}
+                      onClick={(e) => handleItemClick(e, item)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     />
                   ))}
@@ -855,8 +857,10 @@ export const OSFinder = memo(() => {
                     <IconViewItem
                       key={item.id}
                       item={item}
-                      isSelected={selectedItem?.id === item.id}
-                      onClick={() => handleItemClick(item)}
+                      isSelected={selectedItems.some(s => s.id === item.id)}
+                      selectedCount={selectedItems.length}
+                      allSelectedItems={selectedItems}
+                      onClick={(e) => handleItemClick(e, item)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     />
                   ))}
