@@ -289,14 +289,14 @@ const ColumnView = memo(({
   onNavigate,
   onSelect,
   onDoubleClick,
-  selectedItem
+  selectedItems
 }: { 
   columns: FileItem[][];
   columnPaths: string[];
   onNavigate: (path: string, depth: number) => void;
-  onSelect: (item: FileItem) => void;
+  onSelect: (e: React.MouseEvent, item: FileItem) => void;
   onDoubleClick: (item: FileItem) => void;
-  selectedItem: FileItem | null;
+  selectedItems: FileItem[];
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -318,7 +318,7 @@ const ColumnView = memo(({
               {items.map(item => {
                 const Icon = getFileIcon(item);
                 const isFolder = item.type === 'folder' || item.isDrive;
-                const isSelected = columnPaths[colIndex + 1] === item.path || selectedItem?.id === item.id;
+                const isSelected = columnPaths[colIndex + 1] === item.path || selectedItems.some(s => s.id === item.id);
                 
                 return (
                   <button
