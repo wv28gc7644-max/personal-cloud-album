@@ -666,6 +666,115 @@ export const OSFinder = memo(() => {
     setColumnPaths([special]);
   }, [loadDirectory]);
 
+  // Context menu actions
+  const handleCopy = useCallback(() => {
+    if (selectedItems.length === 0) return;
+    setClipboard({ items: selectedItems, operation: 'copy' });
+    toast.success(`${selectedItems.length} élément(s) copié(s)`);
+  }, [selectedItems]);
+
+  const handlePaste = useCallback(async () => {
+    if (!clipboard) return;
+    
+    try {
+      for (const item of clipboard.items) {
+        await fetch(`${serverUrl}/api/fs/copy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourcePath: item.path,
+            destinationPath: currentPath
+          })
+        });
+      }
+      toast.success('Collé avec succès');
+      await loadDirectory(currentPath);
+      if (clipboard.operation === 'cut') {
+        setClipboard(null);
+      }
+    } catch (err) {
+      toast.error('Erreur lors du collage');
+    }
+  }, [clipboard, currentPath, serverUrl, loadDirectory]);
+
+  const handleRenameStart = useCallback((item: FileItem) => {
+    setItemToRename(item);
+    setNewName(item.name);
+    setRenameDialogOpen(true);
+  }, []);
+
+  const handleRenameConfirm = useCallback(async () => {
+    if (!itemToRename || !newName.trim()) return;
+    
+    try {
+      await fetch(`${serverUrl}/api/fs/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPath: itemToRename.path,
+          newName: newName.trim()
+        })
+      });
+      toast.success('Renommé avec succès');
+      setRenameDialogOpen(false);
+      await loadDirectory(currentPath);
+    } catch (err) {
+      toast.error('Erreur lors du renommage');
+    }
+  }, [itemToRename, newName, serverUrl, currentPath, loadDirectory]);
+
+  const handleDeleteStart = useCallback(() => {
+    if (selectedItems.length === 0) return;
+    setDeleteDialogOpen(true);
+  }, [selectedItems]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    try {
+      for (const item of selectedItems) {
+        await fetch(`${serverUrl}/api/fs/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: item.path })
+        });
+      }
+      toast.success(`${selectedItems.length} élément(s) supprimé(s)`);
+      setDeleteDialogOpen(false);
+      setSelectedItems([]);
+      await loadDirectory(currentPath);
+    } catch (err) {
+      toast.error('Erreur lors de la suppression');
+    }
+  }, [selectedItems, serverUrl, currentPath, loadDirectory]);
+
+  // Render item with context menu wrapper
+  const renderWithContextMenu = useCallback((item: FileItem, children: React.ReactNode) => (
+    <ContextMenu key={item.id}>
+      <ContextMenuTrigger asChild>
+        {children}
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={handleCopy} className="gap-2">
+          <Copy className="w-4 h-4" />
+          Copier
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handlePaste} disabled={!clipboard} className="gap-2">
+          <ClipboardPaste className="w-4 h-4" />
+          Coller
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => handleRenameStart(item)} className="gap-2">
+          <Pencil className="w-4 h-4" />
+          Renommer
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={handleDeleteStart} className="gap-2 text-destructive focus:text-destructive">
+          <Trash2 className="w-4 h-4" />
+          Supprimer
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  ), [handleCopy, handlePaste, clipboard, handleRenameStart, handleDeleteStart]);
+
   return (
     <div className="flex h-full bg-background">
       {/* Sidebar */}
