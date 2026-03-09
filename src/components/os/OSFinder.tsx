@@ -1121,6 +1121,7 @@ export const OSFinder = memo(() => {
                         allSelectedItems={selectedItems}
                         onClick={(e) => handleItemClick(e, item)}
                         onDoubleClick={() => handleItemDoubleClick(item)}
+                        onMoveToFolder={handleMoveToFolder}
                       />
                     </div>
                   ))}
