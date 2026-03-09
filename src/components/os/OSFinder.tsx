@@ -545,9 +545,33 @@ export const OSFinder = memo(() => {
     }
   }, [fetchDirectory]);
 
-  const handleItemClick = useCallback((item: FileItem) => {
-    setSelectedItem(item);
-  }, []);
+  const handleItemClick = useCallback((e: React.MouseEvent, item: FileItem) => {
+    if (e.shiftKey && lastSelectedItem) {
+      // Shift+click: range selection
+      const startIdx = currentItems.findIndex(i => i.id === lastSelectedItem.id);
+      const endIdx = currentItems.findIndex(i => i.id === item.id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const rangeItems = currentItems.slice(from, to + 1);
+        setSelectedItems(rangeItems);
+      }
+    } else if (e.metaKey || e.ctrlKey) {
+      // Cmd/Ctrl+click: toggle selection
+      setSelectedItems(prev => {
+        const exists = prev.some(i => i.id === item.id);
+        if (exists) {
+          return prev.filter(i => i.id !== item.id);
+        } else {
+          return [...prev, item];
+        }
+      });
+      setLastSelectedItem(item);
+    } else {
+      // Normal click: single selection
+      setSelectedItems([item]);
+      setLastSelectedItem(item);
+    }
+  }, [lastSelectedItem, currentItems]);
 
   const { openFileInApp } = useOS();
 
