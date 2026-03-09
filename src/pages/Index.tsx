@@ -44,8 +44,12 @@ const Index = () => {
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   const { getFilteredMedia, getFavorites, media, removeMedia, updateMedia } = useMediaStore();
   const isMobile = useIsMobile();
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  // Use finder drop hook for cross-window communication
+  useFinderDrop();
 
-  // Listen for navigation events
+  // Handle drag events for files from Finder
   useEffect(() => {
     const handleOpenAdminUpdates = () => {
       setCurrentView('admin');
