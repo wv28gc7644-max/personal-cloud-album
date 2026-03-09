@@ -208,13 +208,17 @@ IconViewItem.displayName = 'IconViewItem';
 // List view row
 const ListViewRow = memo(({ 
   item, 
-  isSelected, 
+  isSelected,
+  selectedCount,
+  allSelectedItems,
   onClick, 
   onDoubleClick 
 }: { 
   item: FileItem; 
-  isSelected: boolean; 
-  onClick: () => void; 
+  isSelected: boolean;
+  selectedCount?: number;
+  allSelectedItems?: FileItem[];
+  onClick: (e: React.MouseEvent) => void; 
   onDoubleClick: () => void;
 }) => {
   const Icon = getFileIcon(item);
@@ -224,26 +228,42 @@ const ListViewRow = memo(({
   const handleDragStart = (e: React.DragEvent<HTMLButtonElement>) => {
     if (!isDraggable) return;
     
-    const dragData: FinderDropData = {
-      id: item.id,
-      name: item.name,
-      path: item.path,
-      url: item.url!,
-      thumbnailUrl: item.thumbnailUrl,
-      type: getFileTypeForDrag(item.extension),
-      size: item.size,
-      extension: item.extension
-    };
+    // If this item is part of a multi-selection, drag all selected items
+    const itemsToDrag = (allSelectedItems && allSelectedItems.length > 1 && isSelected) 
+      ? allSelectedItems.filter(i => i.type === 'file' && i.url)
+      : [item];
     
-    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify([dragData]));
+    const dragData: FinderDropData[] = itemsToDrag.map(i => ({
+      id: i.id,
+      name: i.name,
+      path: i.path,
+      url: i.url!,
+      thumbnailUrl: i.thumbnailUrl,
+      type: getFileTypeForDrag(i.extension),
+      size: i.size,
+      extension: i.extension
+    }));
+    
+    e.dataTransfer.setData('application/x-mediavault-finder', JSON.stringify(dragData));
     e.dataTransfer.effectAllowed = 'copy';
+    
+    // Show count badge for multi-drag
+    if (itemsToDrag.length > 1) {
+      const badge = document.createElement('div');
+      badge.className = 'fixed bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full font-medium shadow-lg';
+      badge.textContent = `${itemsToDrag.length} fichiers`;
+      badge.style.cssText = 'position: absolute; top: -9999px; left: -9999px;';
+      document.body.appendChild(badge);
+      e.dataTransfer.setDragImage(badge, 30, 15);
+      setTimeout(() => badge.remove(), 0);
+    }
   };
   
   return (
     <button
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left',
-        isSelected ? 'bg-primary/15' : 'hover:bg-muted',
+        isSelected ? 'bg-primary/15 ring-1 ring-primary/30' : 'hover:bg-muted',
         isDraggable && 'cursor-grab active:cursor-grabbing'
       )}
       onClick={onClick}
