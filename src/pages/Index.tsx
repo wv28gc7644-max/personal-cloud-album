@@ -162,7 +162,24 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div 
+      className="flex h-screen overflow-hidden bg-background relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drop overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 bg-primary/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="bg-background/95 border-2 border-dashed border-primary rounded-xl p-8 flex flex-col items-center gap-3 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+              <Upload className="w-8 h-8 text-primary" />
+            </div>
+            <p className="text-lg font-semibold text-foreground">Déposer pour importer</p>
+            <p className="text-sm text-muted-foreground">Les images et vidéos seront ajoutées à la bibliothèque</p>
+          </div>
+        </div>
+      )}
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarOpen(false)} />
