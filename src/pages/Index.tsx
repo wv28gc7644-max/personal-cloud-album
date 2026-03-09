@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { MediaHeader } from '@/components/MediaHeader';
 import { MediaGrid } from '@/components/MediaGrid';
@@ -25,6 +25,9 @@ import { ViewType } from '@/types/views';
 import { MediaItem } from '@/types/media';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useFinderDrop, FinderDropData, dispatchFinderDrop } from '@/hooks/useFinderDrop';
+import { toast } from 'sonner';
+import { Upload } from 'lucide-react';
 
 const Index = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -41,6 +44,43 @@ const Index = () => {
   const [viewerItem, setViewerItem] = useState<MediaItem | null>(null);
   const { getFilteredMedia, getFavorites, media, removeMedia, updateMedia } = useMediaStore();
   const isMobile = useIsMobile();
+  const [isDragOver, setIsDragOver] = useState(false);
+  
+  // Use finder drop hook for cross-window communication
+  useFinderDrop();
+
+  // Handle drag and drop from Finder
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    // Check if this is a Finder drop
+    if (e.dataTransfer.types.includes('application/x-mediavault-finder')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // Only set false when leaving the container, not when entering children
+    if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const finderData = e.dataTransfer.getData('application/x-mediavault-finder');
+    if (finderData) {
+      try {
+        const items: FinderDropData[] = JSON.parse(finderData);
+        dispatchFinderDrop(items);
+      } catch (err) {
+        console.error('Failed to parse Finder drop data:', err);
+        toast.error('Erreur lors de l\'import');
+      }
+    }
+  }, []);
 
   // Listen for navigation events
   useEffect(() => {
@@ -122,7 +162,24 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div 
+      className="flex h-screen overflow-hidden bg-background relative"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drop overlay */}
+      {isDragOver && (
+        <div className="absolute inset-0 z-50 bg-primary/10 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="bg-background/95 border-2 border-dashed border-primary rounded-xl p-8 flex flex-col items-center gap-3 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center">
+              <Upload className="w-8 h-8 text-primary" />
+            </div>
+            <p className="text-lg font-semibold text-foreground">Déposer pour importer</p>
+            <p className="text-sm text-muted-foreground">Les images et vidéos seront ajoutées à la bibliothèque</p>
+          </div>
+        </div>
+      )}
       {/* Mobile sidebar overlay */}
       {isMobile && sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSidebarOpen(false)} />
