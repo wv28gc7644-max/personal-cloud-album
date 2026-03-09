@@ -4,7 +4,7 @@ import {
   Folder, File, Image, Film, Music, FileText, Archive,
   ChevronRight, Home, List, LayoutGrid, Columns,
   ArrowUp, ArrowDown, Search, FolderOpen, HardDrive, Clock, Star, Download,
-  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2
+  Loader2, RefreshCw, AlertCircle, Copy, ClipboardPaste, Pencil, Trash2, ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { getLocalServerUrl } from '@/utils/safeLocalStorage';
 import { toast } from 'sonner';
 import { useOS } from '@/hooks/useOS';
+import { useMediaStore } from '@/hooks/useMediaStore';
 import { dispatchFinderDrop, FinderDropData } from '@/hooks/useFinderDrop';
 import {
   ContextMenu,
@@ -519,6 +520,40 @@ export const OSFinder = memo(() => {
   const [newName, setNewName] = useState('');
 
   const serverUrl = getLocalServerUrl();
+  const { media } = useMediaStore();
+
+  // Load MediaVault items as virtual file items
+  const loadMediaVaultItems = useCallback(() => {
+    const mediaItems: FileItem[] = media.map(m => ({
+      id: `mv-${m.id}`,
+      name: m.name + (m.type === 'video' ? '.mp4' : '.jpg'),
+      type: 'file' as const,
+      extension: m.type === 'video' ? 'mp4' : 'jpg',
+      size: m.size,
+      modifiedAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
+      path: `/__mediavault__/${m.id}`,
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl || m.url,
+    }));
+    
+    // Group by source folder
+    const folders = new Set<string>();
+    media.forEach(m => {
+      if (m.sourceFolder) folders.add(m.sourceFolder);
+    });
+    
+    const folderItems: FileItem[] = Array.from(folders).map(f => ({
+      id: `mv-folder-${f}`,
+      name: f.split(/[/\\]/).pop() || f,
+      type: 'folder' as const,
+      modifiedAt: new Date().toISOString(),
+      path: `/__mediavault__/${f}`,
+    }));
+    
+    setItems([...folderItems, ...mediaItems]);
+    setCurrentPath('/__mediavault__');
+    setError(null);
+  }, [media]);
 
   // Fetch directory contents from server
   const fetchDirectory = useCallback(async (dirPath: string): Promise<FileItem[]> => {
@@ -948,6 +983,14 @@ export const OSFinder = memo(() => {
             onClick={() => navigateToSpecial('videos')} 
           />
           
+          <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Applications</div>
+          <SidebarItem 
+            icon={ImageIcon} 
+            label="MediaVault" 
+            isActive={currentPath === '/__mediavault__'} 
+            onClick={() => loadMediaVaultItems()} 
+          />
+
           <div className="text-[10px] uppercase text-muted-foreground font-semibold px-2 py-1 pt-3">Système</div>
           <SidebarItem 
             icon={Home} 

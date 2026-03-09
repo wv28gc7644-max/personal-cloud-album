@@ -1,12 +1,14 @@
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useState, useCallback } from 'react';
 import { Desktop } from '@/components/os/Desktop';
 import { Dock } from '@/components/os/Dock';
 import { MenuBar } from '@/components/os/MenuBar';
 import { WindowManager } from '@/components/os/WindowManager';
+import { Launchpad } from '@/components/os/Launchpad';
 import { useOS } from '@/hooks/useOS';
 
 export const CloudOS = memo(() => {
-  const { settings, openWindow, installedApps } = useOS();
+  const { settings } = useOS();
+  const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
 
   // Apply OS theme settings
   useEffect(() => {
@@ -25,6 +27,14 @@ export const CloudOS = memo(() => {
     }
   }, [settings.appearance]);
 
+  const handleOpenLaunchpad = useCallback(() => {
+    setIsLaunchpadOpen(true);
+  }, []);
+
+  const handleCloseLaunchpad = useCallback(() => {
+    setIsLaunchpadOpen(false);
+  }, []);
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-black text-foreground font-sans select-none">
       {/* Background & Desktop Icons */}
@@ -37,7 +47,10 @@ export const CloudOS = memo(() => {
       <WindowManager />
       
       {/* Bottom Dock */}
-      <Dock />
+      <Dock onOpenLaunchpad={handleOpenLaunchpad} />
+
+      {/* Launchpad overlay */}
+      <Launchpad isOpen={isLaunchpadOpen} onClose={handleCloseLaunchpad} />
     </div>
   );
 });
