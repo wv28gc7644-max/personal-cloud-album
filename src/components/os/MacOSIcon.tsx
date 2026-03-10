@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
+import { useCustomIcons } from '@/hooks/useCustomIcons';
 
 // Import all macOS-style icon images
 import finderIcon from '@/assets/icons/finder.png';
@@ -54,8 +55,47 @@ export const MacOSIcon = memo(({
   size = 50, 
   className,
 }: MacOSIconProps) => {
-  const iconSrc = appIconMap[appId];
+  const custom = useCustomIcons(s => s.customIcons[appId]);
 
+  // Custom icon
+  if (custom) {
+    if (custom.useGlassmorphism) {
+      return (
+        <div
+          className={cn('flex items-center justify-center', className)}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: '22%',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 100%)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -1px 0 rgba(0,0,0,0.08)',
+            border: '1px solid rgba(255,255,255,0.22)',
+          }}
+        >
+          <img
+            src={custom.imageUrl}
+            alt={appId}
+            className="object-contain pointer-events-none"
+            style={{ width: size * 0.65, height: size * 0.65, filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.25))' }}
+            draggable={false}
+          />
+        </div>
+      );
+    }
+    return (
+      <img
+        src={custom.imageUrl}
+        alt={appId}
+        className={cn('object-contain pointer-events-none', className)}
+        style={{ width: size, height: size, borderRadius: '22%' }}
+        draggable={false}
+      />
+    );
+  }
+
+  // Default icon
+  const iconSrc = appIconMap[appId];
   if (iconSrc) {
     return (
       <img
@@ -68,18 +108,16 @@ export const MacOSIcon = memo(({
     );
   }
 
-  // Fallback: gradient square with first letter
+  // Fallback
   return (
     <div
-      className={cn(
-        'rounded-[22%] flex items-center justify-center',
-        'bg-gradient-to-br from-[#3B82F6] to-[#1D4ED8]',
-        className
-      )}
+      className={cn('rounded-[22%] flex items-center justify-center', className)}
       style={{ 
-        width: size, 
-        height: size,
-        boxShadow: '0 4px 12px rgba(37,99,235,0.4), inset 0 1px 0 rgba(255,255,255,0.2)',
+        width: size, height: size,
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.05) 100%)',
+        backdropFilter: 'blur(20px)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2)',
+        border: '1px solid rgba(255,255,255,0.15)',
       }}
     >
       <span className="text-white font-bold" style={{ fontSize: size * 0.4 }}>
@@ -90,7 +128,7 @@ export const MacOSIcon = memo(({
 });
 MacOSIcon.displayName = 'MacOSIcon';
 
-// Special Trash icon that shows full/empty state
+// Special Trash icon
 export const TrashIcon = memo(({ 
   isEmpty = true, 
   size = 50,
@@ -100,6 +138,33 @@ export const TrashIcon = memo(({
   size?: number;
   className?: string;
 }) => {
+  const custom = useCustomIcons(s => s.customIcons['trash']);
+
+  if (custom) {
+    if (custom.useGlassmorphism) {
+      return (
+        <div
+          className={cn('flex items-center justify-center', className)}
+          style={{
+            width: size, height: size, borderRadius: '22%',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.08) 100%)',
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.35)',
+            border: '1px solid rgba(255,255,255,0.22)',
+          }}
+        >
+          <img src={custom.imageUrl} alt="Corbeille" className="object-contain pointer-events-none"
+            style={{ width: size * 0.65, height: size * 0.65 }} draggable={false} />
+        </div>
+      );
+    }
+    return (
+      <img src={custom.imageUrl} alt="Corbeille"
+        className={cn('object-contain pointer-events-none', className)}
+        style={{ width: size, height: size, borderRadius: '22%' }} draggable={false} />
+    );
+  }
+
   return (
     <img
       src={isEmpty ? trashEmptyIcon : trashFullIcon}
@@ -112,7 +177,6 @@ export const TrashIcon = memo(({
 });
 TrashIcon.displayName = 'TrashIcon';
 
-// Re-export specific icons for direct use
 export const FinderIcon = memo(({ size = 50 }: { size?: number }) => (
   <MacOSIcon appId="finder" size={size} />
 ));
