@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wifi, Battery, Volume2, Search, Bluetooth, SlidersHorizontal } from 'lucide-react';
 import { useOS } from '@/hooks/useOS';
