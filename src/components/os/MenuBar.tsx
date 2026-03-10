@@ -17,9 +17,10 @@ export const MenuBar = memo(() => {
   const [showSpotlight, setShowSpotlight] = useState(false);
   const [showControlCenter, setShowControlCenter] = useState(false);
 
+  // Keep clock updated
   useState(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    // cleanup not supported in useState init, but this is a singleton component
   });
 
   const activeWindow = windows.find(w => w.id === activeWindowId);
