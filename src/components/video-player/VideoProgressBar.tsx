@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useCallback } from 'react';
+import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { MediaStats } from '@/types/media';
 import { cn } from '@/lib/utils';
 
