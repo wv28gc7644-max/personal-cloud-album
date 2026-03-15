@@ -182,7 +182,7 @@ export function VideoProgressBar({
       )}
       onMouseMove={handleMouseMove}
       onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
+      
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
