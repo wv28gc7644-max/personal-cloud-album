@@ -99,46 +99,63 @@ export function VideoProgressBar({
     return path;
   }, [heatmapData]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+  const seekFromEvent = useCallback((clientX: number) => {
     if (!progressRef.current || duration === 0) return;
-    
     const rect = progressRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     const percent = x / rect.width;
     const time = percent * duration;
-    
     setHoveredTime(time);
     setHoverX(x);
+    return time;
+  }, [duration]);
 
-    if (isDragging) {
-      onSeek(time);
-    }
-  }, [duration, isDragging, onSeek]);
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    seekFromEvent(e.clientX);
+  }, [seekFromEvent]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!progressRef.current || duration === 0) return;
-    
-    const rect = progressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    const time = Math.max(0, Math.min(percent * duration, duration));
-    
-    setIsDragging(true);
-    onSeek(time);
-  }, [duration, onSeek]);
+    e.preventDefault();
+    const time = seekFromEvent(e.clientX);
+    if (time !== undefined) {
+      setIsDragging(true);
+      onSeek(time);
+    }
+  }, [seekFromEvent, onSeek]);
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  // Global listeners for drag outside the bar
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleGlobalMove = (e: MouseEvent) => {
+      const time = seekFromEvent(e.clientX);
+      if (time !== undefined) {
+        onSeek(time);
+      }
+    };
+
+    const handleGlobalUp = () => {
+      setIsDragging(false);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMove);
+    window.addEventListener('mouseup', handleGlobalUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMove);
+      window.removeEventListener('mouseup', handleGlobalUp);
+    };
+  }, [isDragging, seekFromEvent, onSeek]);
 
   const handleMouseEnter = useCallback(() => {
     setIsHovering(true);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
-    setHoveredTime(null);
-    setIsDragging(false);
-    setIsHovering(false);
-  }, []);
+    if (!isDragging) {
+      setHoveredTime(null);
+      setIsHovering(false);
+    }
+  }, [isDragging]);
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedPercent = duration > 0 ? (buffered / duration) * 100 : 0;
